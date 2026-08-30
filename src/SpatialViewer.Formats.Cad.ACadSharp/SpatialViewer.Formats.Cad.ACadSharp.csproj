@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\SpatialViewer.Formats.Cad\SpatialViewer.Formats.Cad.csproj" />
+    <PackageReference Include="ACadSharp" Version="3.7.1" />
+  </ItemGroup>
+</Project>

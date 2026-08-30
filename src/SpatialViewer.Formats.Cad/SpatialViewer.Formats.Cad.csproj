@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\SpatialViewer.Core\SpatialViewer.Core.csproj" />
+  </ItemGroup>
+</Project>
