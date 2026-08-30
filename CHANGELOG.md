@@ -4,6 +4,8 @@ All notable CadCore changes are recorded here.
 
 ## Unreleased
 
+## 0.2.0 - 2026-08-31
+
 ### Added
 - Independent CadCore repository infrastructure.
 - Chinese, Japanese and English repository documentation.

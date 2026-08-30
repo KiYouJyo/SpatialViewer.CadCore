@@ -1,0 +1,126 @@
+name: Publish CadCore Release
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'Directory.Build.props'
+      - 'CHANGELOG.md'
+      - '.github/workflows/publish-release.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Read version
+        id: version
+        shell: pwsh
+        run: |
+          [xml]$props = Get-Content Directory.Build.props
+          $version = [string]$props.Project.PropertyGroup.Version
+          if ([string]::IsNullOrWhiteSpace($version)) { throw 'Version is missing from Directory.Build.props' }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=v$version" >> $env:GITHUB_OUTPUT
+
+      - name: Restore
+        run: dotnet restore SpatialViewer.CadCore.sln
+      - name: Build Debug
+        run: dotnet build SpatialViewer.CadCore.sln -c Debug --no-restore
+      - name: Build Release
+        run: dotnet build SpatialViewer.CadCore.sln -c Release --no-restore
+      - name: Test Release
+        run: dotnet test SpatialViewer.CadCore.sln -c Release --no-build --verbosity normal
+
+      - name: Package release binaries
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $root = Join-Path $PWD 'release-package'
+          $bin = Join-Path $root 'bin'
+          New-Item -ItemType Directory -Force -Path $bin | Out-Null
+          $projects = @(
+            'SpatialViewer.Core',
+            'SpatialViewer.Formats.Cad',
+            'SpatialViewer.Formats.Cad.ACadSharp',
+            'SpatialViewer.Rendering',
+            'SpatialViewer.Rendering.Windows'
+          )
+          foreach ($project in $projects) {
+            $source = Join-Path $PWD "src/$project/bin/Release"
+            if (-not (Test-Path $source)) { throw "Release output not found: $source" }
+            Copy-Item $source (Join-Path $bin $project) -Recurse -Force
+          }
+          $manifest = [ordered]@{
+            product = 'SpatialViewer.CadCore'
+            version = $version
+            tag = "v$version"
+            commit = $env:GITHUB_SHA
+            runtime = 'x64'
+            framework = 'net10.0'
+            sourceRepository = 'KiYouJyo/SpatialViewer.CadCore'
+            compatibility = 'SpatialViewer 0.2.x'
+          } | ConvertTo-Json
+          Set-Content -Path (Join-Path $root 'cadcore-release.json') -Value $manifest -Encoding utf8
+          Copy-Item CHANGELOG.md (Join-Path $root 'CHANGELOG.md')
+          Copy-Item LICENSE (Join-Path $root 'LICENSE')
+          $zip = Join-Path $PWD "CadCore-v$version-x64.zip"
+          Compress-Archive -Path "$root/*" -DestinationPath $zip -CompressionLevel Optimal
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $(Split-Path $zip -Leaf)" | Set-Content -Path (Join-Path $PWD 'SHA256SUMS.txt') -Encoding ascii
+
+      - name: Write release notes
+        shell: pwsh
+        run: |
+          @'
+          ## SpatialViewer.CadCore v0.2.0
+
+          ### 中文
+          - 完整支持 AutoCAD ACI 1–255 默认色表。
+          - 修复 TrueColor、ByLayer、嵌套 ByBlock 与块内 Layer 0 颜色继承。
+          - ACI 7 可依据深浅画布自动以黑/白显示。
+          - 圆弧从固定约 10° 分段改为 0.25 px 屏幕误差驱动的自适应细分。
+          - 新增真实 DXF 颜色与变换圆弧回归测试。
+
+          ### 日本語
+          - AutoCAD ACI 1–255 の標準カラーパレットを完全サポート。
+          - TrueColor / ByLayer / ネストした ByBlock / ブロック内 Layer 0 の色継承を修正。
+          - ACI 7 はビューワー背景に応じて黒/白を自動選択。
+          - 円弧描画を固定約 10° 分割から 0.25 px 画面誤差ベースの適応分割へ変更。
+          - 実 DXF の色忠実度と変換円弧の回帰テストを追加。
+
+          ### English
+          - Complete AutoCAD ACI 1–255 default palette support.
+          - Correct TrueColor, ByLayer, nested ByBlock, and Layer 0 block color inheritance.
+          - Background-adaptive ACI 7 rendering on light/dark canvases.
+          - Adaptive 0.25 px screen-error arc tessellation replaces fixed ~10° faceting.
+          - Added real DXF color-fidelity and transformed-arc regression coverage.
+
+          Fixes #2 and #3.
+          '@ | Set-Content release-notes.md -Encoding utf8
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = '${{ steps.version.outputs.tag }}'
+          if (gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null) {
+            Write-Host "$tag already exists; skipping release creation."
+            exit 0
+          }
+          gh release create $tag `
+            "CadCore-v${{ steps.version.outputs.version }}-x64.zip" `
+            'SHA256SUMS.txt' `
+            --repo $env:GITHUB_REPOSITORY `
+            --target $env:GITHUB_SHA `
+            --title "SpatialViewer.CadCore $tag" `
+            --notes-file release-notes.md `
+            --latest
