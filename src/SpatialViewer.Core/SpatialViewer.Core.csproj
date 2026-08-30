@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>SpatialViewer.Core</AssemblyName>
+    <RootNamespace>SpatialViewer.Core</RootNamespace>
+  </PropertyGroup>
+</Project>
