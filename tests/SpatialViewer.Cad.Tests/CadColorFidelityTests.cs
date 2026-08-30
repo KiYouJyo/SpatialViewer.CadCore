@@ -50,11 +50,11 @@ public sealed class CadColorFidelityTests
         Assert.Contains(items, item => item.Style.Stroke == "#CCCCCC");
         Assert.Contains(items, item => item.Style.Stroke == "#0C2238");
 
-        var nestedByBlock = Assert.Single(items.Where(item => item.Bounds.MinX >= 19 && Math.Abs(item.Bounds.Center.Y - 20) < .01));
+        var nestedByBlock = Assert.Single(items, item => item.Bounds.MinX >= 19 && Math.Abs(item.Bounds.Center.Y - 20) < .01);
         Assert.Equal("#FF7F00", nestedByBlock.Style.Stroke);
         Assert.Equal("30", nestedByBlock.Metadata["CadColorIndex"]);
 
-        var nestedByLayer = Assert.Single(items.Where(item => item.Bounds.MinX >= 19 && Math.Abs(item.Bounds.Center.Y - 40) < .01));
+        var nestedByLayer = Assert.Single(items, item => item.Bounds.MinX >= 19 && Math.Abs(item.Bounds.Center.Y - 40) < .01);
         Assert.Equal("#FF0000", nestedByLayer.Style.Stroke);
         Assert.Equal("1", nestedByLayer.Metadata["CadColorIndex"]);
     }
