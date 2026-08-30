@@ -101,7 +101,7 @@ public sealed class CadSceneTranslator
         ? $"#{color.Red:X2}{color.Green:X2}{color.Blue:X2}"
         : CadColorPalette.GetHex(color.Index);
 
-    private static void AddColorMetadata(IDictionary<string, string> metadata, CadColor color)
+    private static void AddColorMetadata(Dictionary<string, string> metadata, CadColor color)
     {
         metadata["CadColorKind"] = color.Kind.ToString();
         if (color.Kind == CadColorKind.Aci)
