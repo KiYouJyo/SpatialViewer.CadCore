@@ -20,7 +20,7 @@ public sealed class CadSceneTranslator
             AddColorMetadata(layerMetadata, effectiveLayerColor);
             var nodes = document.ModelSpace
                 .Where(entity => string.Equals(entity.LayerName, layer.Name, StringComparison.OrdinalIgnoreCase))
-                .Select(entity => ToNode(entity, layers, blocks, null, new HashSet<string>(StringComparer.OrdinalIgnoreCase)))
+                .Select(entity => ToNode(entity, layers, blocks, null, null, new HashSet<string>(StringComparer.OrdinalIgnoreCase)))
                 .Where(node => node is not null)
                 .Cast<SceneNode>()
                 .ToArray();
@@ -29,10 +29,13 @@ public sealed class CadSceneTranslator
         return new Scene2D(sceneLayers);
     }
 
-    private static SceneNode? ToNode(CadEntity entity, IReadOnlyDictionary<string, CadLayer> layers, IReadOnlyDictionary<string, CadBlockDefinition> blocks, CadColor? inheritedColor, HashSet<string> stack)
+    private static SceneNode? ToNode(CadEntity entity, IReadOnlyDictionary<string, CadLayer> layers, IReadOnlyDictionary<string, CadBlockDefinition> blocks, CadColor? inheritedColor, CadColor? inheritedLayerColor, HashSet<string> stack)
     {
         if (!entity.IsVisible || entity is CadUnsupportedEntity) return null;
-        var layerColor = layers.TryGetValue(entity.LayerName, out var layer) ? layer.Color : CadColor.FromAci(7);
+        var sourceLayerColor = layers.TryGetValue(entity.LayerName, out var layer) ? layer.Color : CadColor.FromAci(7);
+        var layerColor = string.Equals(entity.LayerName, "0", StringComparison.OrdinalIgnoreCase) && inheritedLayerColor is { } inheritedLayer
+            ? inheritedLayer
+            : ResolveCadColor(sourceLayerColor, CadColor.FromAci(7), inheritedColor);
         var effectiveColor = ResolveCadColor(entity.Color, layerColor, inheritedColor);
         var metadata = new Dictionary<string, string>(entity.Metadata, StringComparer.Ordinal)
         {
@@ -54,12 +57,12 @@ public sealed class CadSceneTranslator
             CadEllipseEntity ellipse => new SceneNode(entity.ObjectId, new EllipseGeometry(ellipse.Center, ellipse.RadiusX, ellipse.RadiusY), Transform2D.Translation(ellipse.Center.X, ellipse.Center.Y).Then(Transform2D.Rotation(ellipse.RotationRadians)).Then(Transform2D.Translation(-ellipse.Center.X, -ellipse.Center.Y)), style, metadata: metadata),
             CadPolylineEntity polyline => new SceneNode(entity.ObjectId, polyline.IsClosed ? new PolygonGeometry(polyline.Vertices) : new PolylineGeometry(polyline.Vertices), style: style, metadata: metadata),
             CadTextEntity text => new SceneNode(entity.ObjectId, new TextGeometry(text.InsertionPoint, text.Text, text.Height), Transform2D.Translation(text.InsertionPoint.X, text.InsertionPoint.Y).Then(Transform2D.Rotation(text.RotationRadians)).Then(Transform2D.Translation(-text.InsertionPoint.X, -text.InsertionPoint.Y)), style, metadata: metadata),
-            CadBlockReferenceEntity reference => BlockNode(reference, layers, blocks, effectiveColor, stack, metadata),
+            CadBlockReferenceEntity reference => BlockNode(reference, layers, blocks, effectiveColor, layerColor, stack, metadata),
             _ => null
         };
     }
 
-    private static SceneNode? BlockNode(CadBlockReferenceEntity reference, IReadOnlyDictionary<string, CadLayer> layers, IReadOnlyDictionary<string, CadBlockDefinition> blocks, CadColor effectiveColor, HashSet<string> stack, IReadOnlyDictionary<string, string> metadata)
+    private static SceneNode? BlockNode(CadBlockReferenceEntity reference, IReadOnlyDictionary<string, CadLayer> layers, IReadOnlyDictionary<string, CadBlockDefinition> blocks, CadColor effectiveColor, CadColor effectiveLayerColor, HashSet<string> stack, IReadOnlyDictionary<string, string> metadata)
     {
         if (!blocks.TryGetValue(reference.BlockName, out var definition) || !stack.Add(reference.BlockName)) return null;
         var transform = Transform2D.Translation(-definition.BasePoint.X, -definition.BasePoint.Y)
@@ -67,7 +70,7 @@ public sealed class CadSceneTranslator
             .Then(Transform2D.Rotation(reference.RotationRadians))
             .Then(Transform2D.Translation(reference.InsertionPoint.X, reference.InsertionPoint.Y));
         var children = definition.Entities
-            .Select(entity => ToNode(entity, layers, blocks, effectiveColor, stack))
+            .Select(entity => ToNode(entity, layers, blocks, effectiveColor, effectiveLayerColor, stack))
             .Where(node => node is not null)
             .Cast<SceneNode>()
             .ToArray();
