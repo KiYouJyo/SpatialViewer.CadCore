@@ -7,11 +7,10 @@ public static class RenderColorPolicy
 {
     public const string BackgroundAdaptiveStrokeKey = "BackgroundAdaptiveStroke";
 
-    public static string ResolveStroke(SceneStyle style, IReadOnlyDictionary<string, string> metadata, string canvasColor)
+    public static string ResolveStroke(SceneStyle style, IReadOnlyDictionary<string, string>? metadata, string canvasColor)
     {
         ArgumentNullException.ThrowIfNull(style);
-        ArgumentNullException.ThrowIfNull(metadata);
-        if (!metadata.TryGetValue(BackgroundAdaptiveStrokeKey, out var value) || !bool.TryParse(value, out var adaptive) || !adaptive) return style.Stroke;
+        if (metadata is null || !metadata.TryGetValue(BackgroundAdaptiveStrokeKey, out var value) || !bool.TryParse(value, out var adaptive) || !adaptive) return style.Stroke;
         return TryGetLuminance(canvasColor, out var luminance) ? luminance < 0.5 ? "#FFFFFF" : "#000000" : style.Stroke;
     }
 
