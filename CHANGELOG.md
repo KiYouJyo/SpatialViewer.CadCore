@@ -4,6 +4,26 @@ All notable CadCore changes are recorded here.
 
 ## Unreleased
 
+## 0.3.0 - 2026-08-31
+
+### Added
+- Per-vertex AutoCAD bulge preservation for `LWPOLYLINE` and `POLYLINE2D`, with bulged segments represented as analytic `ArcGeometry` instead of permanent polylines.
+- Active CAD linetype pattern import, including signed dash/gap segments plus entity and global linetype scales.
+- Transform-aware adaptive ellipse/circle tessellation using the full local-to-screen mapping.
+- Backend-neutral text placement logic that derives screen rotation and glyph scale from the complete world transform.
+- A focused `fidelity-v030.dxf` regression fixture covering bulges, dashed lines, rotated ellipses, rotated text, and scaled block text.
+
+### Fixed
+- Polyline arc segments encoded through bulge no longer render as straight chords.
+- Non-continuous CAD linetypes no longer collapse to solid strokes in the Win2D renderer.
+- Rotated and non-uniformly transformed ellipses/circles no longer reconstruct incorrect axis-aligned screen radii.
+- Rotated CAD text now rotates on screen, and text inside scaled blocks now follows the effective block scale.
+- Ellipse import now reads ACadSharp's `MajorAxisEndPoint` vector instead of accidentally treating the scalar `MajorAxis` length as a point.
+
+### Compatibility
+- Existing `CadPolylineEntity` primary-constructor shape is preserved; bulges are exposed through an additive `Bulges` init property.
+- This release intentionally does not add HATCH, SPLINE, DIMENSION, LEADER/MLEADER, ATTRIB/ATTDEF, or Paper Space support; those remain for later entity-coverage work.
+
 ## 0.2.1 - 2026-08-31
 
 ### Changed

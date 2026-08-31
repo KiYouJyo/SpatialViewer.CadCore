@@ -84,22 +84,25 @@ jobs:
           ## SpatialViewer.CadCore v$version
 
           ### 中文
-          - 保留 AutoCAD ACI 1–255、TrueColor / ByLayer / ByBlock 颜色语义修复与 0.25 px 自适应圆弧细分。
-          - 提供可由 SpatialViewer 0.2.x 校验并下载的 x64 独立内核包。
-          - 包含版本、提交、架构、来源仓库与兼容范围清单，并同时发布 SHA-256 校验文件。
-          - v0.2.1 建立独立内核重启更新所需的明确版本边界；渲染行为与 v0.2.0 一致。
+          - `LWPOLYLINE / POLYLINE2D` 的 Bulge 弧段现在保留为解析圆弧，不再错误显示为直线弦。
+          - CAD 虚线/中心线等线型现在读取实际 pattern，并结合实体 `CELTSCALE` 与全局 `LTSCALE` 在 Win2D 中连续绘制。
+          - 圆/椭圆改为基于完整世界变换的 0.25 px 屏幕误差自适应绘制，修复旋转与非均匀缩放后的椭圆变形。
+          - CAD 文字现在从完整变换提取屏幕旋转与缩放，旋转文字及缩放块内文字方向/大小正确跟随几何。
+          - 新增 `fidelity-v030.dxf` 与针对四项 Fidelity Fix 的回归测试。
 
           ### 日本語
-          - AutoCAD ACI 1–255、TrueColor / ByLayer / ByBlock の色処理修正と 0.25 px 適応円弧分割を維持。
-          - SpatialViewer 0.2.x が検証・ダウンロードできる x64 独立カーネルパッケージを提供。
-          - バージョン、コミット、アーキテクチャ、配布元、互換範囲のマニフェストと SHA-256 を同梱。
-          - v0.2.1 は再起動方式の独立カーネル更新用に明確なバージョン境界を設けます。描画動作は v0.2.0 と同一です。
+          - `LWPOLYLINE / POLYLINE2D` の Bulge 円弧を解析的な円弧として保持し、直線の弦として誤表示しないよう修正。
+          - CAD の破線・中心線パターンを読み取り、エンティティ `CELTSCALE` とグローバル `LTSCALE` を反映して Win2D で連続描画。
+          - 円・楕円を完全なワールド変換後の 0.25 px 画面誤差ベース適応描画へ変更し、回転・非等方スケール時の変形を修正。
+          - CAD テキストの画面回転とスケールを完全変換から算出し、回転文字とスケールされたブロック内文字を正しく描画。
+          - `fidelity-v030.dxf` と 4 項目の Fidelity Fix 回帰テストを追加。
 
           ### English
-          - Retains the AutoCAD ACI 1–255, TrueColor / ByLayer / ByBlock fixes and adaptive 0.25 px arc tessellation.
-          - Publishes an x64 independent kernel package that SpatialViewer 0.2.x can validate and download.
-          - Ships manifest metadata for version, commit, runtime, source repository, compatibility, plus SHA-256 verification.
-          - v0.2.1 establishes a clean version boundary for restart-safe independent kernel updates; rendering behavior is unchanged from v0.2.0.
+          - Preserve `LWPOLYLINE / POLYLINE2D` bulge segments as analytic arcs instead of incorrect straight chords.
+          - Render CAD dash/center patterns using resolved linetype segments with entity `CELTSCALE` and global `LTSCALE`.
+          - Render circles/ellipses with adaptive 0.25 px screen-error tessellation after the complete world transform, fixing rotated and non-uniformly scaled ellipses.
+          - Derive CAD text screen rotation and scale from the complete transform so rotated and block-scaled text follows geometry correctly.
+          - Add `fidelity-v030.dxf` and regression coverage for all four fidelity fixes.
           "@ | Set-Content release-notes.md -Encoding utf8
 
       - name: Publish GitHub release
