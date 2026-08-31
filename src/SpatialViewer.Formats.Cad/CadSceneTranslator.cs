@@ -55,11 +55,41 @@ public sealed class CadSceneTranslator
             CadCircleEntity circle => new SceneNode(entity.ObjectId, new CircleGeometry(circle.Center, circle.Radius), style: style, metadata: metadata),
             CadArcEntity arc => new SceneNode(entity.ObjectId, new ArcGeometry(arc.Center, arc.Radius, arc.StartRadians, arc.SweepRadians), style: style, metadata: metadata),
             CadEllipseEntity ellipse => new SceneNode(entity.ObjectId, new EllipseGeometry(ellipse.Center, ellipse.RadiusX, ellipse.RadiusY), Transform2D.Translation(ellipse.Center.X, ellipse.Center.Y).Then(Transform2D.Rotation(ellipse.RotationRadians)).Then(Transform2D.Translation(-ellipse.Center.X, -ellipse.Center.Y)), style, metadata: metadata),
-            CadPolylineEntity polyline => new SceneNode(entity.ObjectId, polyline.IsClosed ? new PolygonGeometry(polyline.Vertices) : new PolylineGeometry(polyline.Vertices), style: style, metadata: metadata),
+            CadPolylineEntity polyline => PolylineNode(polyline, style, metadata),
             CadTextEntity text => new SceneNode(entity.ObjectId, new TextGeometry(text.InsertionPoint, text.Text, text.Height), Transform2D.Translation(text.InsertionPoint.X, text.InsertionPoint.Y).Then(Transform2D.Rotation(text.RotationRadians)).Then(Transform2D.Translation(-text.InsertionPoint.X, -text.InsertionPoint.Y)), style, metadata: metadata),
             CadBlockReferenceEntity reference => BlockNode(reference, layers, blocks, effectiveColor, layerColor, stack, metadata),
             _ => null
         };
+    }
+
+    private static SceneNode PolylineNode(CadPolylineEntity polyline, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
+    {
+        var hasBulges = polyline.Bulges.Any(value => Math.Abs(value) > 1e-12);
+        if (!hasBulges) return new SceneNode(polyline.ObjectId, polyline.IsClosed ? new PolygonGeometry(polyline.Vertices) : new PolylineGeometry(polyline.Vertices), style: style, metadata: metadata);
+        var children = new List<SceneNode>();
+        var segmentCount = polyline.IsClosed ? polyline.Vertices.Count : Math.Max(0, polyline.Vertices.Count - 1);
+        for (var index = 0; index < segmentCount; index++)
+        {
+            var start = polyline.Vertices[index];
+            var end = polyline.Vertices[(index + 1) % polyline.Vertices.Count];
+            var bulge = index < polyline.Bulges.Count ? polyline.Bulges[index] : 0;
+            children.Add(new SceneNode(polyline.ObjectId, BulgeSegment(start, end, bulge), style: style, metadata: metadata));
+        }
+        return new SceneNode(polyline.ObjectId, children: children, style: style, metadata: metadata);
+    }
+
+    private static Geometry2D BulgeSegment(Point2D start, Point2D end, double bulge)
+    {
+        var chord = start.DistanceTo(end);
+        if (!double.IsFinite(bulge) || Math.Abs(bulge) <= 1e-12 || chord <= double.Epsilon) return new LineGeometry(start, end);
+        var dx = end.X - start.X;
+        var dy = end.Y - start.Y;
+        var midpoint = new Point2D((start.X + end.X) / 2, (start.Y + end.Y) / 2);
+        var offset = chord * (1 - (bulge * bulge)) / (4 * bulge);
+        var center = new Point2D(midpoint.X - ((dy / chord) * offset), midpoint.Y + ((dx / chord) * offset));
+        var radius = center.DistanceTo(start);
+        var startAngle = Math.Atan2(start.Y - center.Y, start.X - center.X);
+        return new ArcGeometry(center, radius, startAngle, 4 * Math.Atan(bulge));
     }
 
     private static SceneNode? BlockNode(CadBlockReferenceEntity reference, IReadOnlyDictionary<string, CadLayer> layers, IReadOnlyDictionary<string, CadBlockDefinition> blocks, CadColor effectiveColor, CadColor effectiveLayerColor, HashSet<string> stack, IReadOnlyDictionary<string, string> metadata)
