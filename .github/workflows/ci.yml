@@ -18,3 +18,28 @@ jobs:
       - run: dotnet build SpatialViewer.CadCore.sln -c Debug --no-restore
       - run: dotnet build SpatialViewer.CadCore.sln -c Release --no-restore
       - run: dotnet test SpatialViewer.CadCore.sln -c Release --no-build --verbosity normal
+      - name: Verify product version and stable ABI
+        shell: pwsh
+        run: |
+          [xml]$props = Get-Content Directory.Build.props
+          $version = [version][string]$props.Project.PropertyGroup.Version
+          $abiVersion = [version][string]$props.Project.PropertyGroup.AbiVersion
+          if (-not $abiVersion) { throw 'AbiVersion is missing.' }
+          $normalizedProduct = [version]::new($version.Major, $version.Minor, [Math]::Max(0, $version.Build))
+          $projects = @(
+            'SpatialViewer.Core',
+            'SpatialViewer.Formats.Cad',
+            'SpatialViewer.Formats.Cad.ACadSharp',
+            'SpatialViewer.Rendering',
+            'SpatialViewer.Rendering.Windows'
+          )
+          foreach ($project in $projects) {
+            $dll = Get-ChildItem "src/$project/bin/Release" -Recurse -Filter "$project.dll" | Select-Object -First 1
+            if (-not $dll) { throw "Release assembly not found: $project.dll" }
+            $assemblyVersion = [Reflection.AssemblyName]::GetAssemblyName($dll.FullName).Version
+            if ($assemblyVersion -ne $abiVersion) { throw "ABI mismatch for $project.dll: $assemblyVersion != $abiVersion" }
+            $fileVersion = [version][Diagnostics.FileVersionInfo]::GetVersionInfo($dll.FullName).FileVersion
+            $normalizedFile = [version]::new($fileVersion.Major, $fileVersion.Minor, [Math]::Max(0, $fileVersion.Build))
+            if ($normalizedFile -ne $normalizedProduct) { throw "FileVersion mismatch for $project.dll: $fileVersion != $version" }
+          }
+          Write-Host "Cad Core version contract PASS: product=$version ABI=$abiVersion"
