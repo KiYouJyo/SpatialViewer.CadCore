@@ -11,7 +11,9 @@ public sealed class FidelityV030Tests
     {
         var document = await ImportAsync();
         var polyline = Assert.Single(document.ModelSpace.OfType<CadPolylineEntity>());
-        Assert.Equal(1d, Assert.Single(polyline.Bulges), 12);
+        Assert.Equal(2, polyline.Bulges.Count);
+        Assert.Equal(1d, polyline.Bulges[0], 12);
+        Assert.Equal(0d, polyline.Bulges[1], 12);
         var item = Assert.Single(document.Scene.GetItems(), candidate => candidate.Id == polyline.ObjectId);
         var arc = Assert.IsType<ArcGeometry>(item.Geometry);
         Assert.Equal(10, arc.Center.X, 8);
