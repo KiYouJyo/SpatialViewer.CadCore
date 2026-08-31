@@ -16,24 +16,70 @@ public static class GoldenScenePngRenderer
     }
     private static void DrawItem(byte[] pixels, int width, int height, SceneItem item, Camera2D camera)
     {
-        var color = Color(item.Style.Stroke); Point2D Map(Point2D point) => camera.WorldToScreen(item.Transform.Apply(point), new(width, height));
-        void Segment(Point2D a, Point2D b) => Line(pixels, width, height, Map(a), Map(b), color);
+        var stroke = Color(item.Style.Stroke);
+        var fill = item.Style.Fill is { } fillHex ? Color(fillHex) : null;
+        Point2D Map(Point2D point) => camera.WorldToScreen(item.Transform.Apply(point), new(width, height));
+        void Segment(Point2D a, Point2D b) => Line(pixels, width, height, Map(a), Map(b), stroke);
         switch (item.Geometry)
         {
             case LineGeometry line: Segment(line.Start, line.End); break;
             case PolylineGeometry polyline: Segments(polyline.Points, polyline.IsClosed, Segment); break;
-            case PolygonGeometry polygon: Segments(polygon.Points, true, Segment); break;
+            case PolygonGeometry polygon:
+            {
+                var loop = polygon.Points.Select(Map).ToArray();
+                if (fill is not null) FillEvenOdd(pixels, width, height, new[] { loop }, fill);
+                Segments(polygon.Points, true, Segment);
+                break;
+            }
+            case CompoundPathGeometry compound:
+            {
+                var loops = compound.Loops.Select(loop => loop.Select(Map).ToArray()).Where(loop => loop.Length >= 3).ToArray();
+                if (fill is not null) FillEvenOdd(pixels, width, height, loops, fill);
+                foreach (var loop in compound.Loops) Segments(loop, true, Segment);
+                break;
+            }
             case PathGeometry path: Segments(path.Points, path.IsClosed, Segment); break;
-            case CircleGeometry circle: Ellipse(circle.Center, circle.Radius, circle.Radius, Map, pixels, width, height, color); break;
-            case EllipseGeometry ellipse: Ellipse(ellipse.Center, ellipse.RadiusX, ellipse.RadiusY, Map, pixels, width, height, color); break;
-            case ArcGeometry arc: Arc(arc, Map, pixels, width, height, color); break;
+            case CircleGeometry circle: Ellipse(circle.Center, circle.Radius, circle.Radius, Map, pixels, width, height, stroke); break;
+            case EllipseGeometry ellipse: Ellipse(ellipse.Center, ellipse.RadiusX, ellipse.RadiusY, Map, pixels, width, height, stroke); break;
+            case ArcGeometry arc: Arc(arc, Map, pixels, width, height, stroke); break;
             default: var b = item.Geometry.GetBounds(); Segment(new(b.MinX, b.MinY), new(b.MaxX, b.MaxY)); Segment(new(b.MaxX, b.MinY), new(b.MinX, b.MaxY)); break;
         }
+    }
+    private static void FillEvenOdd(byte[] pixels, int width, int height, Point2D[][] loops, byte[] color)
+    {
+        if (loops.Length == 0) return;
+        var points = loops.SelectMany(loop => loop).ToArray();
+        if (points.Length == 0) return;
+        var minX = Math.Max(0, (int)Math.Floor(points.Min(point => point.X)));
+        var maxX = Math.Min(width - 1, (int)Math.Ceiling(points.Max(point => point.X)));
+        var minY = Math.Max(0, (int)Math.Floor(points.Min(point => point.Y)));
+        var maxY = Math.Min(height - 1, (int)Math.Ceiling(points.Max(point => point.Y)));
+        for (var y = minY; y <= maxY; y++)
+        {
+            for (var x = minX; x <= maxX; x++)
+            {
+                var sample = new Point2D(x + .5, y + .5);
+                var inside = false;
+                foreach (var loop in loops) if (PointInPolygon(loop, sample)) inside = !inside;
+                if (inside) SetPixel(pixels, width, height, x, y, color);
+            }
+        }
+    }
+    private static bool PointInPolygon(Point2D[] points, Point2D point)
+    {
+        var inside = false;
+        for (var index = 0; index < points.Length; index++)
+        {
+            var previous = (index + points.Length - 1) % points.Length;
+            if (((points[index].Y > point.Y) != (points[previous].Y > point.Y)) && point.X < ((points[previous].X - points[index].X) * (point.Y - points[index].Y) / (points[previous].Y - points[index].Y)) + points[index].X) inside = !inside;
+        }
+        return inside;
     }
     private static void Segments(IReadOnlyList<Point2D> points, bool closed, Action<Point2D, Point2D> draw) { for (var i = 1; i < points.Count; i++) draw(points[i - 1], points[i]); if (closed && points.Count > 2) draw(points[^1], points[0]); }
     private static void Ellipse(Point2D center, double rx, double ry, Func<Point2D, Point2D> map, byte[] pixels, int width, int height, byte[] color) { const int steps = 96; var previous = map(new(center.X + rx, center.Y)); for (var i = 1; i <= steps; i++) { var angle = Math.PI * 2 * i / steps; var current = map(new(center.X + Math.Cos(angle) * rx, center.Y + Math.Sin(angle) * ry)); Line(pixels, width, height, previous, current, color); previous = current; } }
     private static void Arc(ArcGeometry arc, Func<Point2D, Point2D> map, byte[] pixels, int width, int height, byte[] color) { var steps = Math.Max(2, (int)(Math.Abs(arc.SweepRadians) * 32)); var previous = map(new(arc.Center.X + Math.Cos(arc.StartRadians) * arc.Radius, arc.Center.Y + Math.Sin(arc.StartRadians) * arc.Radius)); for (var i = 1; i <= steps; i++) { var angle = arc.StartRadians + (arc.SweepRadians * i / steps); var current = map(new(arc.Center.X + Math.Cos(angle) * arc.Radius, arc.Center.Y + Math.Sin(angle) * arc.Radius)); Line(pixels, width, height, previous, current, color); previous = current; } }
-    private static void Line(byte[] pixels, int width, int height, Point2D a, Point2D b, byte[] color) { var steps = Math.Max(1, (int)Math.Ceiling(Math.Max(Math.Abs(b.X - a.X), Math.Abs(b.Y - a.Y)))); for (var i = 0; i <= steps; i++) { var x = (int)Math.Round(a.X + ((b.X - a.X) * i / steps)); var y = (int)Math.Round(a.Y + ((b.Y - a.Y) * i / steps)); if (x < 0 || y < 0 || x >= width || y >= height) continue; var index = ((y * width) + x) * 3; pixels[index] = color[0]; pixels[index + 1] = color[1]; pixels[index + 2] = color[2]; } }
+    private static void Line(byte[] pixels, int width, int height, Point2D a, Point2D b, byte[] color) { var steps = Math.Max(1, (int)Math.Ceiling(Math.Max(Math.Abs(b.X - a.X), Math.Abs(b.Y - a.Y)))); for (var i = 0; i <= steps; i++) { var x = (int)Math.Round(a.X + ((b.X - a.X) * i / steps)); var y = (int)Math.Round(a.Y + ((b.Y - a.Y) * i / steps)); SetPixel(pixels, width, height, x, y, color); } }
+    private static void SetPixel(byte[] pixels, int width, int height, int x, int y, byte[] color) { if (x < 0 || y < 0 || x >= width || y >= height) return; var index = ((y * width) + x) * 3; pixels[index] = color[0]; pixels[index + 1] = color[1]; pixels[index + 2] = color[2]; }
     private static byte[] Color(string hex) => hex.Length == 7 && uint.TryParse(hex[1..], System.Globalization.NumberStyles.HexNumber, null, out var rgb) ? new[] { (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb } : new byte[] { 32, 32, 32 };
     private static void WritePng(string path, byte[] pixels, int width, int height)
     {

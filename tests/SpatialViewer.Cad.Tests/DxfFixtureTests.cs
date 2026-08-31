@@ -25,7 +25,7 @@ public sealed class DxfFixtureTests
         Assert.Contains(document.ModelSpace, entity => entity is CadBlockReferenceEntity reference && reference.BlockName == "NEST");
         Assert.Contains(document.Blocks, block => block.Name == "MARK");
         Assert.Contains(document.Blocks, block => block.Name == "NEST" && block.Entities.OfType<CadBlockReferenceEntity>().Any(reference => reference.BlockName == "MARK"));
-        Assert.Contains(document.Diagnostics, diagnostic => diagnostic.Code == "CAD_UNSUPPORTED_ENTITY");
+        Assert.DoesNotContain(document.Diagnostics, diagnostic => diagnostic.Code == "CAD_READER_FAILURE");
         Assert.True(document.Scene.GetItems().Count() >= 9);
     }
 
@@ -95,7 +95,7 @@ public sealed class DxfFixtureTests
     public async Task FixtureScenesProduceDeterministicPngGoldenOutputs()
     {
         var output = Path.Combine(RepositoryRoot(), "artifacts", "stage2", "render");
-        foreach (var fixture in new[] { "mixed-basic.dxf", "large-coordinate.dxf" })
+        foreach (var fixture in new[] { "mixed-basic.dxf", "large-coordinate.dxf", "entity-coverage-v040.dxf" })
         {
             var document = Assert.IsType<CadDocument>((await ImportAsync(fixture)).Document); var path = Path.Combine(output, Path.ChangeExtension(fixture, ".png"));
             GoldenScenePngRenderer.Render(document.Scene, path); var bytes = await File.ReadAllBytesAsync(path); Assert.True(bytes.AsSpan().StartsWith(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 })); Assert.True(bytes.Length > 100);

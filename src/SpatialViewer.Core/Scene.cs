@@ -37,6 +37,16 @@ public sealed record PointGeometry(Point2D Position) : Geometry2D { public overr
 public sealed record LineGeometry(Point2D Start, Point2D End) : Geometry2D { public override BoundingBox2D GetBounds() => BoundingBox2D.Empty.Include(Start).Include(End); }
 public sealed record PolylineGeometry(IReadOnlyList<Point2D> Points, bool IsClosed = false) : Geometry2D { public override BoundingBox2D GetBounds() => BoundingBox2D.FromPoints(Points); }
 public sealed record PolygonGeometry(IReadOnlyList<Point2D> Points) : Geometry2D { public override BoundingBox2D GetBounds() => BoundingBox2D.FromPoints(Points); }
+/// <summary>Multiple closed loops interpreted with an even-odd fill rule. This preserves holes without forcing CAD hatches into independent filled polygons.</summary>
+public sealed record CompoundPathGeometry(IReadOnlyList<IReadOnlyList<Point2D>> Loops) : Geometry2D
+{
+    public override BoundingBox2D GetBounds()
+    {
+        var bounds = BoundingBox2D.Empty;
+        foreach (var loop in Loops) bounds = bounds.Union(BoundingBox2D.FromPoints(loop));
+        return bounds;
+    }
+}
 public sealed record RectangleGeometry(BoundingBox2D Rectangle) : Geometry2D { public override BoundingBox2D GetBounds() => Rectangle; }
 public sealed record CircleGeometry(Point2D Center, double Radius) : Geometry2D { public override BoundingBox2D GetBounds() => new(Center.X - Radius, Center.Y - Radius, Center.X + Radius, Center.Y + Radius); }
 public sealed record ArcGeometry(Point2D Center, double Radius, double StartRadians, double SweepRadians) : Geometry2D

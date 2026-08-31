@@ -48,6 +48,7 @@ public static class HitTesting
             PolylineGeometry p => HitSegments(p.Points, p.IsClosed, local, localTolerance),
             PathGeometry p => HitSegments(p.Points, p.IsClosed, local, localTolerance),
             PolygonGeometry p => PointInPolygon(p.Points, local) || HitSegments(p.Points, true, local, localTolerance),
+            CompoundPathGeometry p => HitCompoundPath(p, local, localTolerance),
             RectangleGeometry r => r.Rectangle.Inflate(localTolerance).Contains(local),
             CircleGeometry c => Math.Abs(c.Center.DistanceTo(local) - c.Radius) <= localTolerance,
             ArcGeometry a => HitArc(a, local, localTolerance),
@@ -56,6 +57,17 @@ public static class HitTesting
             ImageGeometry i => i.GetBounds().Inflate(localTolerance).Contains(local),
             _ => false
         };
+    }
+
+    private static bool HitCompoundPath(CompoundPathGeometry path, Point2D point, double tolerance)
+    {
+        var parity = false;
+        foreach (var loop in path.Loops)
+        {
+            if (HitSegments(loop, true, point, tolerance)) return true;
+            if (loop.Count >= 3 && PointInPolygon(loop, point)) parity = !parity;
+        }
+        return parity;
     }
 
     private static double TransformTolerance(Transform2D inverse, double worldTolerance)
@@ -104,6 +116,7 @@ public static class HitTesting
 
     private static bool PointInPolygon(IReadOnlyList<Point2D> points, Point2D point)
     {
+        if (points.Count < 3) return false;
         var inside = false;
         for (var index = 0; index < points.Count; index++)
         {

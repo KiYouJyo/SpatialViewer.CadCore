@@ -4,6 +4,27 @@ All notable CadCore changes are recorded here.
 
 ## Unreleased
 
+## 0.4.0 - 2026-08-31
+
+### Added
+- Added reader-independent `CadSplineDefinition` / `CadSplineEntity` semantics that retain degree, control points, knot vector, weights, fit points, closed state and periodic state before scene approximation.
+- Added HATCH semantic records for line, arc, ellipse, polyline/bulge and spline boundary edges plus compound hatch loops.
+- Added `CompoundPathGeometry` with even-odd fill semantics so solid hatches preserve inner holes instead of filling every loop independently.
+- Added `CadAttributeEntity` plus additive `CadBlockReferenceEntity.Attributes` support for ATTDEF/ATTRIB block metadata and instance values.
+- Added deterministic NURBS and hatch-boundary tessellation at the CAD-to-Scene boundary, keeping reader import semantic-first.
+- Added Win2D and deterministic software-renderer support for compound even-odd hatch fills.
+- Added `entity-coverage-v040.dxf` and focused semantic, scene, hit-test and golden-render regression coverage.
+
+### Fixed
+- Variable ATTDEF text is suppressed when the corresponding INSERT carries an ATTRIB with the same tag, while constant ATTDEF content remains visible.
+- INSERT attributes keep their reader-resolved world placement and are not transformed a second time by the parent block transform.
+- Compound hatch hit testing now observes even-odd hole parity and still accepts boundary hits.
+
+### Compatibility
+- All new public model/geometry shapes are additive; the stable CLR ABI remains `1.0.0.0` and the product version advances independently to `0.4.0`.
+- Patterned and gradient HATCH rendering is intentionally not claimed in this release: non-solid hatches retain pattern metadata and boundary geometry without pretending to be solid fills.
+- DIMENSION, LEADER/MLEADER and Paper Space/Layout support remain scheduled for later entity-coverage milestones.
+
 ## 0.3.2 - 2026-08-31
 
 ### Fixed

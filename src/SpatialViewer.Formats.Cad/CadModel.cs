@@ -29,8 +29,27 @@ public sealed record CadPolylineEntity(string Handle, IReadOnlyList<Point2D> Ver
     /// <summary>Per-vertex AutoCAD bulge. Each value describes the segment starting at the matching vertex; the final value applies to the closing segment when <see cref="IsClosed"/> is true.</summary>
     public IReadOnlyList<double> Bulges { get; init; } = Array.Empty<double>();
 }
+
+/// <summary>Reader-independent NURBS/fit-point definition retained without permanently flattening the source spline.</summary>
+public sealed record CadSplineDefinition(int Degree, IReadOnlyList<Point2D> ControlPoints, IReadOnlyList<double> Knots, IReadOnlyList<double> Weights, IReadOnlyList<Point2D> FitPoints, bool IsClosed = false, bool IsPeriodic = false);
+public sealed record CadSplineEntity(string Handle, CadSplineDefinition Spline, string LayerName = "0", CadColor Color = default, bool IsVisible = true, string LineTypeName = "Continuous", int? LineWeight = null, IReadOnlyDictionary<string, string>? Metadata = null) : CadEntity(Handle, LayerName, Color == default ? CadColor.ByLayer : Color, IsVisible, LineTypeName, LineWeight, Metadata ?? EmptyMetadata.Value);
+
+public abstract record CadHatchEdge;
+public sealed record CadHatchLineEdge(Point2D Start, Point2D End) : CadHatchEdge;
+public sealed record CadHatchArcEdge(Point2D Center, double Radius, double StartRadians, double SweepRadians) : CadHatchEdge;
+public sealed record CadHatchEllipseEdge(Point2D Center, Point2D MajorAxisEndPoint, double RadiusRatio, double StartRadians, double SweepRadians) : CadHatchEdge;
+public sealed record CadHatchPolylineEdge(IReadOnlyList<Point2D> Vertices, IReadOnlyList<double> Bulges, bool IsClosed = true) : CadHatchEdge;
+public sealed record CadHatchSplineEdge(CadSplineDefinition Spline) : CadHatchEdge;
+public sealed record CadHatchLoop(IReadOnlyList<CadHatchEdge> Edges, string Flags = "");
+public sealed record CadHatchEntity(string Handle, IReadOnlyList<CadHatchLoop> Loops, bool IsSolid = true, string PatternName = "SOLID", double PatternAngleRadians = 0, double PatternScale = 1, string LayerName = "0", CadColor Color = default, bool IsVisible = true, string LineTypeName = "Continuous", int? LineWeight = null, IReadOnlyDictionary<string, string>? Metadata = null) : CadEntity(Handle, LayerName, Color == default ? CadColor.ByLayer : Color, IsVisible, LineTypeName, LineWeight, Metadata ?? EmptyMetadata.Value);
+
 public sealed record CadTextEntity(string Handle, Point2D InsertionPoint, string Text, double Height, double RotationRadians = 0, double Width = 0, bool IsMText = false, string LayerName = "0", CadColor Color = default, bool IsVisible = true, string LineTypeName = "Continuous", int? LineWeight = null, IReadOnlyDictionary<string, string>? Metadata = null) : CadEntity(Handle, LayerName, Color == default ? CadColor.ByLayer : Color, IsVisible, LineTypeName, LineWeight, Metadata ?? EmptyMetadata.Value);
-public sealed record CadBlockReferenceEntity(string Handle, string BlockName, Point2D InsertionPoint, double RotationRadians = 0, double ScaleX = 1, double ScaleY = 1, string LayerName = "0", CadColor Color = default, bool IsVisible = true, string LineTypeName = "Continuous", int? LineWeight = null, IReadOnlyDictionary<string, string>? Metadata = null) : CadEntity(Handle, LayerName, Color == default ? CadColor.ByLayer : Color, IsVisible, LineTypeName, LineWeight, Metadata ?? EmptyMetadata.Value);
+public sealed record CadAttributeEntity(string Handle, Point2D InsertionPoint, string Tag, string Value, double Height, double RotationRadians = 0, bool IsDefinition = false, string Prompt = "", bool IsConstant = false, string LayerName = "0", CadColor Color = default, bool IsVisible = true, string LineTypeName = "Continuous", int? LineWeight = null, IReadOnlyDictionary<string, string>? Metadata = null) : CadEntity(Handle, LayerName, Color == default ? CadColor.ByLayer : Color, IsVisible, LineTypeName, LineWeight, Metadata ?? EmptyMetadata.Value);
+public sealed record CadBlockReferenceEntity(string Handle, string BlockName, Point2D InsertionPoint, double RotationRadians = 0, double ScaleX = 1, double ScaleY = 1, string LayerName = "0", CadColor Color = default, bool IsVisible = true, string LineTypeName = "Continuous", int? LineWeight = null, IReadOnlyDictionary<string, string>? Metadata = null) : CadEntity(Handle, LayerName, Color == default ? CadColor.ByLayer : Color, IsVisible, LineTypeName, LineWeight, Metadata ?? EmptyMetadata.Value)
+{
+    /// <summary>Instance attributes are stored alongside the INSERT but retain their own handles and world-space text placement.</summary>
+    public IReadOnlyList<CadAttributeEntity> Attributes { get; init; } = Array.Empty<CadAttributeEntity>();
+}
 public sealed record CadUnsupportedEntity(string Handle, string EntityType, string LayerName = "0", IReadOnlyDictionary<string, string>? Metadata = null) : CadEntity(Handle, LayerName, CadColor.ByLayer, true, "Continuous", null, Metadata ?? EmptyMetadata.Value);
 public sealed record CadBlockDefinition(string Name, Point2D BasePoint, IReadOnlyList<CadEntity> Entities);
 

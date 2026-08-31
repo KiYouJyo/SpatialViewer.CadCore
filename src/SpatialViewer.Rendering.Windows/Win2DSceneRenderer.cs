@@ -57,6 +57,7 @@ public sealed class Win2DSceneRenderer : ISceneRenderer
             case LineGeometry line: DrawScreenPolyline(session, new[] { V(line.Start), V(line.End) }, false, stroke, width, pattern); break;
             case PolylineGeometry polyline: DrawScreenPolyline(session, polyline.Points.Select(V).ToArray(), polyline.IsClosed, stroke, width, pattern); break;
             case PolygonGeometry polygon: DrawPolygon(session, polygon.Points.Select(V).ToArray(), stroke, fill, width, pattern); break;
+            case CompoundPathGeometry compound: DrawCompoundPath(session, compound.Loops.Select(loop => loop.Select(V).ToArray()).ToArray(), stroke, fill, width, pattern); break;
             case RectangleGeometry rectangle: DrawPolygon(session, RectanglePoints(rectangle.Rectangle).Select(V).ToArray(), stroke, fill, width, pattern); break;
             case CircleGeometry circle: DrawEllipse(session, new EllipseGeometry(circle.Center, circle.Radius, circle.Radius), Map, stroke, fill, width, pattern); break;
             case EllipseGeometry ellipse: DrawEllipse(session, ellipse, Map, stroke, fill, width, pattern); break;
@@ -104,6 +105,25 @@ public sealed class Win2DSceneRenderer : ISceneRenderer
         if (points.Length < 3) return;
         if (fill is { } color) FillPolygon(session, points, color);
         DrawScreenPolyline(session, points, true, stroke, width, pattern);
+    }
+    private static void DrawCompoundPath(CanvasDrawingSession session, IReadOnlyList<Vector2[]> loops, Color stroke, Color? fill, float width, IReadOnlyList<double> pattern)
+    {
+        var valid = loops.Where(loop => loop.Length >= 3).ToArray();
+        if (valid.Length == 0) return;
+        if (fill is { } fillColor)
+        {
+            using var path = new CanvasPathBuilder(session);
+            path.SetFilledRegionDetermination(CanvasFilledRegionDetermination.Alternate);
+            foreach (var loop in valid)
+            {
+                path.BeginFigure(loop[0]);
+                for (var index = 1; index < loop.Length; index++) path.AddLine(loop[index]);
+                path.EndFigure(CanvasFigureLoop.Closed);
+            }
+            using var geometry = CanvasGeometry.CreatePath(path);
+            session.FillGeometry(geometry, fillColor);
+        }
+        foreach (var loop in valid) DrawScreenPolyline(session, loop, true, stroke, width, pattern);
     }
     private static void FillPolygon(CanvasDrawingSession session, Vector2[] points, Color fill)
     {

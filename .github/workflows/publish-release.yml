@@ -117,25 +117,28 @@ jobs:
           ## SpatialViewer.CadCore v$version
 
           ### 中文
-          - 修复圆弧拾取：只在真实起始角/扫掠角范围内命中，不再把整圆误判为可选圆弧。
-          - 修复缩放/压缩块内对象的拾取容差，世界坐标容差现在会通过逆仿射变换换算到实体局部空间。
-          - Scene2D 在构造时一次性展开不可变节点变换与边界，后续枚举、边界查询和拾取复用缓存结果；图层显隐仍保持实时生效。
-          - 增加 10 万图元无额外依赖性能基线，为后续 Spatial Index / 大图优化提供可比较基准。
-          - CLR ABI 继续稳定为 $abiVersion，与 v0.3.1 保持二进制兼容。
+          - 新增 SPLINE 语义支持：保留次数、控制点、节点矢量、权重、拟合点、闭合与周期状态，直到 CAD-to-Scene 阶段才进行曲线离散。
+          - 新增 HATCH：支持线、圆弧、椭圆、多段线/Bulge、样条边界；实心填充使用偶奇规则正确保留内孔。
+          - 新增 ATTDEF / ATTRIB 与 INSERT 实例属性支持：实例值覆盖同标签的变量定义，常量定义仍保留，且不会重复应用块变换。
+          - Win2D 与确定性 Golden PNG 渲染器均支持复合闭环填充，并增加 v0.4.0 DXF 端到端回归夹具。
+          - 非实心 HATCH 本版保留图案元数据和边界，但不伪装成已经实现的图案/渐变填充。
+          - CLR ABI 继续稳定为 $abiVersion，可与 v0.3.x 的独立更新激活链兼容。
 
           ### 日本語
-          - 円弧のヒットテストを修正し、実際の開始角・スイープ角の範囲だけを選択対象にしました。
-          - 縮小・非等方変換されたブロック内要素でも、ワールド座標の許容誤差を逆アフィン変換でローカル空間へ正しく変換します。
-          - Scene2D は不変ノードの変換と境界を構築時に一度だけ展開し、列挙・境界取得・ヒットテストで再利用します。レイヤー表示状態は引き続き動的です。
-          - 10 万要素の依存なし性能ベースラインを追加し、将来の Spatial Index / 大規模図面最適化と比較できるようにしました。
-          - CLR ABI は $abiVersion のまま維持し、v0.3.1 とバイナリ互換です。
+          - SPLINE の意味モデルを追加し、次数・制御点・ノット・重み・フィット点・閉曲線・周期状態を CAD-to-Scene 変換まで保持します。
+          - HATCH は線分、円弧、楕円、Polyline/Bulge、Spline 境界に対応し、ソリッド塗りは even-odd 規則で穴を正しく保持します。
+          - ATTDEF / ATTRIB と INSERT インスタンス属性に対応し、同一タグの可変定義はインスタンス値で置換し、定数定義は保持します。ブロック変換の二重適用も防止します。
+          - Win2D と決定論的 Golden PNG レンダラーに複合ループ塗りを追加し、v0.4.0 DXF のエンドツーエンド回帰フィクスチャを追加しました。
+          - 非ソリッド HATCH はパターン情報と境界を保持しますが、パターン・グラデーション描画は本リリースの対応範囲外です。
+          - CLR ABI は $abiVersion のまま維持し、v0.3.x の独立更新経路と互換です。
 
           ### English
-          - Arc hit testing now honors the actual start/sweep range instead of treating the entire parent circle as selectable.
-          - World-space hit tolerance is transformed into entity-local space for compressed and non-uniformly transformed block contents.
-          - Scene2D now flattens immutable transforms and bounds once at construction and reuses the cached items for enumeration, bounds, and hit testing while keeping layer visibility live.
-          - Adds a dependency-free 100k-item performance baseline for future Spatial Index and large-drawing work.
-          - The CLR ABI remains $abiVersion, preserving binary compatibility with v0.3.1.
+          - Adds semantic SPLINE support that retains degree, control points, knots, weights, fit points, closed state, and periodic state until CAD-to-Scene translation.
+          - Adds HATCH boundaries for lines, arcs, ellipses, polyline/bulge segments, and splines; solid fills use even-odd compound paths so inner holes remain open.
+          - Adds ATTDEF / ATTRIB and INSERT instance attributes. Instance values replace matching variable definitions, constant definitions remain, and block transforms are not applied twice.
+          - Win2D and the deterministic Golden PNG renderer now support compound-loop fills, backed by a v0.4.0 end-to-end DXF regression fixture.
+          - Non-solid hatches preserve pattern metadata and boundaries; patterned/gradient rendering is deliberately not claimed in this release.
+          - The CLR ABI remains $abiVersion and stays compatible with the v0.3.x independent-update activation path.
           "@ | Set-Content release-notes.md -Encoding utf8
 
       - name: Publish GitHub release
