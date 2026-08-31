@@ -104,7 +104,7 @@ public sealed partial class ACadSharpCadImporter
             ["LeaderAssociatedHandle"] = annotationHandle,
             ["LeaderAssociatedType"] = annotationType
         };
-        return new CadLeaderEntity(common.Handle, leader.Vertices.Select(Point).ToArray(), leader.ArrowHeadEnabled, leader.PathType.ToString().Contains("Spline", StringComparison.OrdinalIgnoreCase), annotationHandle, annotationType, annotationText, annotationPoint, leader.TextHeight, styleName, common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, metadata);
+        return new CadLeaderEntity(common.Handle, leader.Vertices.Select(vertex => Point(vertex)).ToArray(), leader.ArrowHeadEnabled, leader.PathType.ToString().Contains("Spline", StringComparison.OrdinalIgnoreCase), annotationHandle, annotationType, annotationText, annotationPoint, leader.TextHeight, styleName, common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, metadata);
     }
 
     private static CadMultiLeaderEntity MapMultiLeader(MultiLeader multiLeader, CommonEntity common, List<Diagnostic> diagnostics)
