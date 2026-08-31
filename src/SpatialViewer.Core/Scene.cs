@@ -47,8 +47,8 @@ public sealed record ArcGeometry(Point2D Center, double Radius, double StartRadi
         foreach (var angle in new[] { 0d, Math.PI / 2, Math.PI, Math.PI * 1.5 }) if (ContainsAngle(angle)) points.Add(At(angle));
         return BoundingBox2D.FromPoints(points);
     }
-    private Point2D At(double angle) => new(Center.X + (Math.Cos(angle) * Radius), Center.Y + (Math.Sin(angle) * Radius));
-    private bool ContainsAngle(double angle)
+    internal Point2D At(double angle) => new(Center.X + (Math.Cos(angle) * Radius), Center.Y + (Math.Sin(angle) * Radius));
+    internal bool ContainsAngle(double angle)
     {
         var sweep = SweepRadians; var start = StartRadians;
         if (sweep < 0) { start += sweep; sweep = -sweep; }
@@ -90,13 +90,46 @@ public readonly record struct SceneItem(ObjectId Id, Geometry2D Geometry, Transf
 
 public sealed class Scene2D
 {
-    public Scene2D(IReadOnlyList<SceneLayer> layers) { Layers = layers.OrderBy(layer => layer.Layer.Order).ToArray(); }
+    private readonly SceneItem[] _items;
+
+    public Scene2D(IReadOnlyList<SceneLayer> layers)
+    {
+        Layers = layers.OrderBy(layer => layer.Layer.Order).ToArray();
+        _items = Layers
+            .SelectMany(layer => layer.Nodes.SelectMany(node => Flatten(node, Transform2D.Identity, layer.Layer)))
+            .ToArray();
+    }
+
     public IReadOnlyList<SceneLayer> Layers { get; }
+
+    internal IReadOnlyList<SceneItem> Items => _items;
+
     public IEnumerable<SceneItem> GetItems(bool visibleOnly = true)
     {
-        foreach (var layer in Layers) { if (visibleOnly && !layer.Layer.IsVisible) continue; foreach (var node in layer.Nodes) foreach (var item in Flatten(node, Transform2D.Identity, layer.Layer)) yield return item; }
+        foreach (var item in _items)
+        {
+            if (!visibleOnly || item.Layer.IsVisible) yield return item;
+        }
     }
-    public BoundingBox2D GetBounds(bool visibleOnly = true) { var bounds = BoundingBox2D.Empty; foreach (var item in GetItems(visibleOnly)) bounds = bounds.Union(item.Bounds); return bounds; }
+
+    public BoundingBox2D GetBounds(bool visibleOnly = true)
+    {
+        var bounds = BoundingBox2D.Empty;
+        foreach (var item in _items)
+        {
+            if (visibleOnly && !item.Layer.IsVisible) continue;
+            bounds = bounds.Union(item.Bounds);
+        }
+        return bounds;
+    }
+
     private static IEnumerable<SceneItem> Flatten(SceneNode node, Transform2D parent, Layer layer)
-    { var transform = node.Transform.Then(parent); if (node.Geometry is { } geometry) yield return new(node.Id, geometry, transform, node.Style, layer, geometry.GetBounds().Transform(transform), node.Metadata); foreach (var child in node.Children) foreach (var item in Flatten(child, transform, layer)) yield return item; }
+    {
+        var transform = node.Transform.Then(parent);
+        if (node.Geometry is { } geometry) yield return new(node.Id, geometry, transform, node.Style, layer, geometry.GetBounds().Transform(transform), node.Metadata);
+        foreach (var child in node.Children)
+        {
+            foreach (var item in Flatten(child, transform, layer)) yield return item;
+        }
+    }
 }
