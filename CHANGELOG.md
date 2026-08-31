@@ -4,6 +4,16 @@ All notable CadCore changes are recorded here.
 
 ## Unreleased
 
+## 0.3.1 - 2026-08-31
+
+### Fixed
+- Decoupled CadCore product versioning from CLR assembly identity so independent kernel updates no longer fail with `0x80131040` manifest-definition mismatches.
+- All public CadCore assemblies now share a stable ABI `AssemblyVersion` of `1.0.0.0`; release identity remains in package metadata, `FileVersion`, and `InformationalVersion`.
+
+### Compatibility
+- `cadcore-release.json` now publishes `abiVersion` and the release pipeline verifies that every required assembly uses that ABI while retaining the v0.3.1 product version in file metadata.
+- SpatialViewer 0.2.x can preload a newer compatible CadCore before its first static reference, provided both bundled and downloaded kernels use the same ABI identity.
+
 ## 0.3.0 - 2026-08-31
 
 ### Added
