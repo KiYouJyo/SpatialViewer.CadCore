@@ -116,10 +116,10 @@ internal static class CadCurveTessellator
         return Arc(center, radius, startAngle, 4 * Math.Atan(bulge));
     }
 
-    private static Point2D Evaluate(IReadOnlyList<Point2D> control, IReadOnlyList<double> weights, IReadOnlyList<double> knots, int degree, double u)
+    private static Point2D Evaluate(Point2D[] control, double[] weights, double[] knots, int degree, double u)
     {
         double x = 0, y = 0, denominator = 0;
-        for (var index = 0; index < control.Count; index++)
+        for (var index = 0; index < control.Length; index++)
         {
             var basis = Basis(index, degree, u, knots);
             if (basis == 0) continue;
