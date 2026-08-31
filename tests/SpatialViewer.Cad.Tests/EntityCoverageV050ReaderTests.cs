@@ -70,7 +70,10 @@ public sealed class EntityCoverageV050ReaderTests
             Assert.True(result.IsSuccess);
             Assert.Single(document.ModelSpace.OfType<CadDimensionEntity>());
             Assert.Single(document.ModelSpace.OfType<CadLeaderEntity>());
-            Assert.Single(document.ModelSpace.OfType<CadMultiLeaderEntity>());
+            var multiLeaders = document.ModelSpace.OfType<CadMultiLeaderEntity>().ToArray();
+            var diagnostics = string.Join(" | ", result.Diagnostics.Select(diagnostic => diagnostic.ToString()));
+            var entities = string.Join(", ", document.ModelSpace.Select(entity => entity.GetType().Name));
+            Assert.True(multiLeaders.Length == 1, $"Expected one MLEADER after ACadSharp DXF->DWG self-roundtrip. Entities: {entities}. Diagnostics: {diagnostics}");
             Assert.Contains(document.Scene.GetItems(), item => item.Geometry is TextGeometry text && text.Text.Contains("MLeader", StringComparison.Ordinal));
         }
         finally
