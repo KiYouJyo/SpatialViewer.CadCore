@@ -46,7 +46,7 @@ public sealed class Win2DSceneRenderer : ISceneRenderer
     }
     private void DrawCommand(CanvasDrawingSession session, RenderCommand command, Camera2D camera, Size2D viewport, bool selected)
     {
-        IDisposable? clipLayer = null;
+        CanvasActiveLayer? clipLayer = null;
         if (command.ClipBounds is { } clip && !clip.IsEmpty)
         {
             var first = camera.WorldToScreen(new Point2D(clip.MinX, clip.MinY), viewport);
