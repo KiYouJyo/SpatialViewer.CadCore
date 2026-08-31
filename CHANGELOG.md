@@ -4,6 +4,21 @@ All notable CadCore changes are recorded here.
 
 ## Unreleased
 
+## 0.3.2 - 2026-08-31
+
+### Fixed
+- Arc hit testing now respects the analytic arc start/sweep range instead of accepting any point on the parent circle.
+- Hit-test tolerance is converted from world space into local entity space through the inverse affine transform, fixing misses on compressed/scaled block contents.
+- Degenerate ellipses now fall back to line/point hit testing instead of dividing by zero.
+
+### Performance
+- `Scene2D` now flattens immutable node transforms and bounds once at construction time and reuses the cached scene items for enumeration, bounds queries, and reverse-order hit testing while preserving live layer visibility.
+- Added a dependency-free 100,000-item core benchmark covering scene construction, visible enumeration, bounds queries, and hit testing as the baseline for later spatial-index work.
+
+### Compatibility
+- Public API shapes remain compatible with 0.3.1 and the stable CLR ABI remains `1.0.0.0`.
+- This is the final 0.3.x hardening pass before entity-coverage work begins in 0.4.0.
+
 ## 0.3.1 - 2026-08-31
 
 ### Fixed
