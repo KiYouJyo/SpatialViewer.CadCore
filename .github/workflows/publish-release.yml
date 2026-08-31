@@ -79,32 +79,28 @@ jobs:
       - name: Write release notes
         shell: pwsh
         run: |
-          @'
-          ## SpatialViewer.CadCore v0.2.0
+          $version = '${{ steps.version.outputs.version }}'
+          @"
+          ## SpatialViewer.CadCore v$version
 
           ### 中文
-          - 完整支持 AutoCAD ACI 1–255 默认色表。
-          - 修复 TrueColor、ByLayer、嵌套 ByBlock 与块内 Layer 0 颜色继承。
-          - ACI 7 可依据深浅画布自动以黑/白显示。
-          - 圆弧从固定约 10° 分段改为 0.25 px 屏幕误差驱动的自适应细分。
-          - 新增真实 DXF 颜色与变换圆弧回归测试。
+          - 保留 AutoCAD ACI 1–255、TrueColor / ByLayer / ByBlock 颜色语义修复与 0.25 px 自适应圆弧细分。
+          - 提供可由 SpatialViewer 0.2.x 校验并下载的 x64 独立内核包。
+          - 包含版本、提交、架构、来源仓库与兼容范围清单，并同时发布 SHA-256 校验文件。
+          - v0.2.1 建立独立内核重启更新所需的明确版本边界；渲染行为与 v0.2.0 一致。
 
           ### 日本語
-          - AutoCAD ACI 1–255 の標準カラーパレットを完全サポート。
-          - TrueColor / ByLayer / ネストした ByBlock / ブロック内 Layer 0 の色継承を修正。
-          - ACI 7 はビューワー背景に応じて黒/白を自動選択。
-          - 円弧描画を固定約 10° 分割から 0.25 px 画面誤差ベースの適応分割へ変更。
-          - 実 DXF の色忠実度と変換円弧の回帰テストを追加。
+          - AutoCAD ACI 1–255、TrueColor / ByLayer / ByBlock の色処理修正と 0.25 px 適応円弧分割を維持。
+          - SpatialViewer 0.2.x が検証・ダウンロードできる x64 独立カーネルパッケージを提供。
+          - バージョン、コミット、アーキテクチャ、配布元、互換範囲のマニフェストと SHA-256 を同梱。
+          - v0.2.1 は再起動方式の独立カーネル更新用に明確なバージョン境界を設けます。描画動作は v0.2.0 と同一です。
 
           ### English
-          - Complete AutoCAD ACI 1–255 default palette support.
-          - Correct TrueColor, ByLayer, nested ByBlock, and Layer 0 block color inheritance.
-          - Background-adaptive ACI 7 rendering on light/dark canvases.
-          - Adaptive 0.25 px screen-error arc tessellation replaces fixed ~10° faceting.
-          - Added real DXF color-fidelity and transformed-arc regression coverage.
-
-          Fixes #2 and #3.
-          '@ | Set-Content release-notes.md -Encoding utf8
+          - Retains the AutoCAD ACI 1–255, TrueColor / ByLayer / ByBlock fixes and adaptive 0.25 px arc tessellation.
+          - Publishes an x64 independent kernel package that SpatialViewer 0.2.x can validate and download.
+          - Ships manifest metadata for version, commit, runtime, source repository, compatibility, plus SHA-256 verification.
+          - v0.2.1 establishes a clean version boundary for restart-safe independent kernel updates; rendering behavior is unchanged from v0.2.0.
+          "@ | Set-Content release-notes.md -Encoding utf8
 
       - name: Publish GitHub release
         shell: pwsh

@@ -4,6 +4,16 @@ All notable CadCore changes are recorded here.
 
 ## Unreleased
 
+## 0.2.1 - 2026-08-31
+
+### Changed
+- Bumped CadCore assembly/package metadata to 0.2.1 so SpatialViewer can distinguish this release from the older bundled 0.2.0 kernel during independent runtime update checks.
+- Kept the release package contract explicit for `SpatialViewer 0.2.x`: x64 payload, `cadcore-release.json`, project-separated binaries, and SHA-256 checksum asset.
+- Release notes are now version-driven instead of hard-coding the previous tag.
+
+### Notes
+- Rendering behavior is unchanged from CadCore 0.2.0; this patch establishes a clean version boundary for restart-safe independent kernel updates.
+
 ## 0.2.0 - 2026-08-31
 
 ### Added
