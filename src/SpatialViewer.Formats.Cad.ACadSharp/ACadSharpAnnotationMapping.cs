@@ -11,7 +11,7 @@ public sealed partial class ACadSharpCadImporter
     {
         "FirstPoint", "SecondPoint", "AngleVertex", "DimensionArc", "Center",
         "FirstPointLine1", "SecondPointLine1", "FirstPointLine2", "SecondPointLine2",
-        "FeatureLocation", "LeaderEndPoint", "Origin", "ReferencePoint", "ChordPoint"
+        "FeatureLocation", "LeaderEndpoint", "LeaderEndPoint", "Origin", "ReferencePoint", "ChordPoint"
     };
 
     private static CadDimensionEntity MapDimension(Dimension dimension, CommonEntity common, List<Diagnostic> diagnostics)
