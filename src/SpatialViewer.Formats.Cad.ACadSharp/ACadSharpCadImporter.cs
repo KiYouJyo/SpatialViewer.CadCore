@@ -82,7 +82,12 @@ public sealed class ACadSharpCadImporter : IDocumentImporter
             Bulges = vertices.Select(vertex => DoubleProperty(vertex, "Bulge")).ToArray()
         };
     }
-    private static CadEllipseEntity MapEllipse(Ellipse ellipse, CommonEntity common) { var axis = Point(ellipse.MajorAxis); var rx = Math.Sqrt((axis.X * axis.X) + (axis.Y * axis.Y)); return new CadEllipseEntity(common.Handle, Point(ellipse.Center), rx, rx * ellipse.RadiusRatio, Math.Atan2(axis.Y, axis.X), common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, common.Metadata); }
+    private static CadEllipseEntity MapEllipse(Ellipse ellipse, CommonEntity common)
+    {
+        var axis = Point(ellipse.MajorAxisEndPoint);
+        var radiusX = Math.Sqrt((axis.X * axis.X) + (axis.Y * axis.Y));
+        return new CadEllipseEntity(common.Handle, Point(ellipse.Center), radiusX, radiusX * ellipse.RadiusRatio, Math.Atan2(axis.Y, axis.X), common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, common.Metadata);
+    }
     private static CadUnsupportedEntity Unsupported(Entity entity, CommonEntity common, List<Diagnostic> diagnostics) { var name = entity.ObjectName; diagnostics.Add(new Diagnostic(DiagnosticSeverity.Warning, "CAD_UNSUPPORTED_ENTITY", $"Unsupported CAD entity skipped: {name}", new Dictionary<string, string> { ["Handle"] = common.Handle, ["Layer"] = common.Layer })); return new CadUnsupportedEntity(common.Handle, name, common.Layer, common.Metadata); }
     private static CadBlockDefinition[] MapBlocks(global::ACadSharp.CadDocument source, List<Diagnostic> diagnostics, double globalLineTypeScale)
     {
