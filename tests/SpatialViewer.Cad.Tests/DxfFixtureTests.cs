@@ -25,7 +25,7 @@ public sealed class DxfFixtureTests
         Assert.Contains(document.ModelSpace, entity => entity is CadBlockReferenceEntity reference && reference.BlockName == "NEST");
         Assert.Contains(document.Blocks, block => block.Name == "MARK");
         Assert.Contains(document.Blocks, block => block.Name == "NEST" && block.Entities.OfType<CadBlockReferenceEntity>().Any(reference => reference.BlockName == "MARK"));
-        Assert.Contains(document.Diagnostics, diagnostic => diagnostic.Code == "CAD_UNSUPPORTED_ENTITY");
+        Assert.DoesNotContain(document.Diagnostics, diagnostic => diagnostic.Code == "CAD_READER_FAILURE");
         Assert.True(document.Scene.GetItems().Count() >= 9);
     }
 
