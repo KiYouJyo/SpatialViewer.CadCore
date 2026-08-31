@@ -249,7 +249,7 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
         var metadata = new Dictionary<string, string>
         {
             ["ActiveStatus"] = viewport.ActiveStatus.ToString(CultureInfo.InvariantCulture),
-            ["ViewDirection"] = viewport.ViewDirection.ToString(),
+            ["ViewDirection"] = viewport.ViewDirection.ToString(CultureInfo.InvariantCulture),
             ["ViewHeight"] = viewport.ViewHeight.ToString("R", CultureInfo.InvariantCulture)
         };
         return new CadViewportDefinition(
