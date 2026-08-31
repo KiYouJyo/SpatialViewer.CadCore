@@ -95,7 +95,7 @@ public sealed class DxfFixtureTests
     public async Task FixtureScenesProduceDeterministicPngGoldenOutputs()
     {
         var output = Path.Combine(RepositoryRoot(), "artifacts", "stage2", "render");
-        foreach (var fixture in new[] { "mixed-basic.dxf", "large-coordinate.dxf" })
+        foreach (var fixture in new[] { "mixed-basic.dxf", "large-coordinate.dxf", "entity-coverage-v040.dxf" })
         {
             var document = Assert.IsType<CadDocument>((await ImportAsync(fixture)).Document); var path = Path.Combine(output, Path.ChangeExtension(fixture, ".png"));
             GoldenScenePngRenderer.Render(document.Scene, path); var bytes = await File.ReadAllBytesAsync(path); Assert.True(bytes.AsSpan().StartsWith(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 })); Assert.True(bytes.Length > 100);
