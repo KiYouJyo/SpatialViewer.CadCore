@@ -20,7 +20,7 @@ public static class ACadSharpFixtureTranscoder
 
     public static void WriteAnnotationDxf(string dxfPath)
     {
-        var document = new CadDocument();
+        var document = new global::ACadSharp.CadDocument();
         document.CreateDefaults();
 
         var dimension = new DimensionLinear
