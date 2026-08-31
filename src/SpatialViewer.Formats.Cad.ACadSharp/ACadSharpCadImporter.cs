@@ -10,7 +10,7 @@ using SpatialViewer.Formats.Cad;
 namespace SpatialViewer.Formats.Cad.ACadSharp;
 
 /// <summary>ACadSharp-only reader adapter. All values are copied into Spatial Viewer CAD records before return.</summary>
-public sealed class ACadSharpCadImporter : IDocumentImporter
+public sealed partial class ACadSharpCadImporter : IDocumentImporter
 {
     private static readonly HashSet<string> Extensions = new(StringComparer.OrdinalIgnoreCase) { ".dxf", ".dwg" };
     public bool CanImport(string filePath) => Extensions.Contains(Path.GetExtension(filePath));
@@ -68,6 +68,9 @@ public sealed class ACadSharpCadImporter : IDocumentImporter
             Hatch hatch => MapHatch(hatch, common, diagnostics),
             AttributeDefinition attribute => MapAttribute(attribute, common, true),
             AttributeEntity attribute => MapAttribute(attribute, common, false),
+            Dimension dimension => MapDimension(dimension, common, diagnostics),
+            Leader leader => MapLeader(leader, common),
+            MultiLeader multiLeader => MapMultiLeader(multiLeader, common, diagnostics),
             MText text => new CadTextEntity(common.Handle, Point(text.InsertPoint), NormalizeText(text.PlainText), text.Height, Degrees(text.Rotation), text.HorizontalWidth, true, common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, common.Metadata),
             TextEntity text => new CadTextEntity(common.Handle, Point(text.InsertPoint), NormalizeText(text.Value), text.Height, Degrees(text.Rotation), 0, false, common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, common.Metadata),
             Insert insert => MapInsert(insert, common, diagnostics, globalLineTypeScale),
