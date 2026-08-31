@@ -193,7 +193,7 @@ public sealed class ACadSharpCadImporter : IDocumentImporter
         {
             var name = StringProperty(record, "Name"); if (string.IsNullOrWhiteSpace(name) || name.StartsWith('*')) continue;
             var block = Property(record, "Block") ?? record; var basePoint = Point(Property(block, "BasePoint")); var entities = EnumerableProperty(record, "Entities").OfType<Entity>().Select(entity => MapEntity(entity, diagnostics, globalLineTypeScale)).ToArray();
-            if (entities.Length > 0) definitions.Add(new CadBlockDefinition(name, basePoint, entities));
+            definitions.Add(new CadBlockDefinition(name, basePoint, entities));
         }
         return definitions.ToArray();
     }
