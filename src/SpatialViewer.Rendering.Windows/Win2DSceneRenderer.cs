@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Numerics;
 using Microsoft.Graphics.Canvas;
 using Microsoft.Graphics.Canvas.Geometry;
 using Microsoft.Graphics.Canvas.Text;
@@ -5,7 +7,6 @@ using Microsoft.Graphics.Canvas.UI.Xaml;
 using SpatialViewer.Core;
 using SpatialViewer.Rendering;
 using Windows.UI;
-using System.Diagnostics;
 
 namespace SpatialViewer.Rendering.Windows;
 
@@ -44,41 +45,123 @@ public sealed class Win2DSceneRenderer : ISceneRenderer
     }
     private void DrawCommand(CanvasDrawingSession session, RenderCommand command, Camera2D camera, Size2D viewport, bool selected)
     {
-        var stroke = Parse(RenderColorPolicy.ResolveStroke(command.Style, command.Metadata, CanvasColor), command.Style.Opacity); var fill = command.Style.Fill is null ? (Color?)null : Parse(command.Style.Fill, command.Style.Opacity); var width = (float)Math.Max(.5, command.Style.StrokeWidth);
+        var stroke = Parse(RenderColorPolicy.ResolveStroke(command.Style, command.Metadata, CanvasColor), command.Style.Opacity);
+        var fill = command.Style.Fill is null ? (Color?)null : Parse(command.Style.Fill, command.Style.Opacity);
+        var width = (float)Math.Max(.5, command.Style.StrokeWidth);
         Point2D Map(Point2D p) => camera.WorldToScreen(command.WorldTransform.Apply(p), viewport);
-        System.Numerics.Vector2 V(Point2D p) { var q = Map(p); return new((float)q.X, (float)q.Y); }
+        Vector2 V(Point2D p) { var q = Map(p); return new((float)q.X, (float)q.Y); }
+        var pattern = RenderStrokePattern.ResolvePixels(command.Metadata, ScreenScale(Map));
         switch (command.Geometry)
         {
             case PointGeometry point: session.FillCircle(V(point.Position), Math.Max(2, width), stroke); break;
-            case LineGeometry line: session.DrawLine(V(line.Start), V(line.End), stroke, width); break;
-            case PolylineGeometry polyline: DrawPolyline(session, polyline.Points, polyline.IsClosed, V, stroke, width); break;
-            case PolygonGeometry polygon: DrawPolygon(session, polygon.Points, V, stroke, fill, width); break;
-            case RectangleGeometry rectangle: DrawRectangle(session, rectangle.Rectangle, V, stroke, fill, width); break;
-            case CircleGeometry circle: DrawEllipse(session, circle.Center, circle.Radius, circle.Radius, Map, stroke, fill, width); break;
-            case EllipseGeometry ellipse: DrawEllipse(session, ellipse.Center, ellipse.RadiusX, ellipse.RadiusY, Map, stroke, fill, width); break;
-            case ArcGeometry arc: DrawArc(session, arc, Map, stroke, width); break;
-            case PathGeometry path: DrawPolyline(session, path.Points, path.IsClosed, V, stroke, width); break;
-            case TextGeometry text: { var p = V(text.Origin); session.DrawText(text.Text, p, stroke, new CanvasTextFormat { FontSize = (float)Math.Max(8, text.Height * camera.Zoom) }); break; }
-            case ImageGeometry image: DrawRectangle(session, image.GetBounds(), V, stroke, null, width); break;
+            case LineGeometry line: DrawScreenPolyline(session, new[] { V(line.Start), V(line.End) }, false, stroke, width, pattern); break;
+            case PolylineGeometry polyline: DrawScreenPolyline(session, polyline.Points.Select(V).ToArray(), polyline.IsClosed, stroke, width, pattern); break;
+            case PolygonGeometry polygon: DrawPolygon(session, polygon.Points.Select(V).ToArray(), stroke, fill, width, pattern); break;
+            case RectangleGeometry rectangle: DrawPolygon(session, RectanglePoints(rectangle.Rectangle).Select(V).ToArray(), stroke, fill, width, pattern); break;
+            case CircleGeometry circle: DrawEllipse(session, new EllipseGeometry(circle.Center, circle.Radius, circle.Radius), Map, stroke, fill, width, pattern); break;
+            case EllipseGeometry ellipse: DrawEllipse(session, ellipse, Map, stroke, fill, width, pattern); break;
+            case ArcGeometry arc: DrawArc(session, arc, Map, stroke, width, pattern); break;
+            case PathGeometry path: DrawScreenPolyline(session, path.Points.Select(V).ToArray(), path.IsClosed, stroke, width, pattern); break;
+            case TextGeometry text: DrawText(session, text, Map, stroke); break;
+            case ImageGeometry image: DrawPolygon(session, RectanglePoints(image.GetBounds()).Select(V).ToArray(), stroke, null, width, pattern); break;
         }
-        if (selected && !command.Bounds.IsEmpty) DrawRectangle(session, command.Bounds, p => { var q = camera.WorldToScreen(p, viewport); return new System.Numerics.Vector2((float)q.X, (float)q.Y); }, Parse(SelectionColor, 1), null, 2);
+        if (selected && !command.Bounds.IsEmpty) DrawSelectionRectangle(session, command.Bounds, camera, viewport);
     }
-    private static void DrawPolyline(CanvasDrawingSession s, IReadOnlyList<Point2D> points, bool closed, Func<Point2D, System.Numerics.Vector2> map, Color color, float width) { for (var i = 1; i < points.Count; i++) s.DrawLine(map(points[i - 1]), map(points[i]), color, width); if (closed && points.Count > 2) s.DrawLine(map(points[^1]), map(points[0]), color, width); }
-    private static void DrawPolygon(CanvasDrawingSession s, IReadOnlyList<Point2D> points, Func<Point2D, System.Numerics.Vector2> map, Color stroke, Color? fill, float width) { if (points.Count < 3) return; using var path = new CanvasPathBuilder(s); path.BeginFigure(map(points[0])); for (var i = 1; i < points.Count; i++) path.AddLine(map(points[i])); path.EndFigure(CanvasFigureLoop.Closed); using var geometry = CanvasGeometry.CreatePath(path); if (fill is { } f) s.FillGeometry(geometry, f); s.DrawGeometry(geometry, stroke, width); }
-    private static void DrawRectangle(CanvasDrawingSession s, BoundingBox2D bounds, Func<Point2D, System.Numerics.Vector2> map, Color stroke, Color? fill, float width) { var a = map(new(bounds.MinX, bounds.MinY)); var b = map(new(bounds.MaxX, bounds.MaxY)); var rect = new global::Windows.Foundation.Rect(Math.Min(a.X, b.X), Math.Min(a.Y, b.Y), Math.Abs(a.X - b.X), Math.Abs(a.Y - b.Y)); if (fill is { } f) s.FillRectangle(rect, f); s.DrawRectangle(rect, stroke, width); }
-    private static void DrawEllipse(CanvasDrawingSession s, Point2D center, double rx, double ry, Func<Point2D, Point2D> map, Color stroke, Color? fill, float width) { var c = map(center); var x = map(new(center.X + rx, center.Y)); var y = map(new(center.X, center.Y + ry)); var centerVector = new System.Numerics.Vector2((float)c.X, (float)c.Y); var radiusX = (float)Math.Abs(x.X - c.X); var radiusY = (float)Math.Abs(y.Y - c.Y); if (fill is { } f) s.FillEllipse(centerVector, radiusX, radiusY, f); s.DrawEllipse(centerVector, radiusX, radiusY, stroke, width); }
-    private static void DrawArc(CanvasDrawingSession s, ArcGeometry arc, Func<Point2D, Point2D> map, Color color, float width)
+    private void DrawSelectionRectangle(CanvasDrawingSession session, BoundingBox2D bounds, Camera2D camera, Size2D viewport)
     {
-        var points = AdaptiveArcTessellator.Tessellate(arc, map);
-        if (points.Count < 2) return;
-        static System.Numerics.Vector2 V(Point2D point) => new((float)point.X, (float)point.Y);
-        using var path = new CanvasPathBuilder(s);
-        path.BeginFigure(V(points[0]));
-        for (var i = 1; i < points.Count; i++) path.AddLine(V(points[i]));
-        path.EndFigure(CanvasFigureLoop.Open);
-        using var geometry = CanvasGeometry.CreatePath(path);
-        s.DrawGeometry(geometry, color, width);
+        Vector2 Map(Point2D p) { var q = camera.WorldToScreen(p, viewport); return new((float)q.X, (float)q.Y); }
+        DrawScreenPolyline(session, RectanglePoints(bounds).Select(Map).ToArray(), true, Parse(SelectionColor, 1), 2, Array.Empty<double>());
     }
+    private static void DrawText(CanvasDrawingSession session, TextGeometry text, Func<Point2D, Point2D> map, Color color)
+    {
+        var placement = TextScreenTransform.Resolve(text, map);
+        var origin = new Vector2((float)placement.Origin.X, (float)placement.Origin.Y);
+        var previous = session.Transform;
+        session.Transform = Matrix3x2.CreateRotation((float)placement.RotationRadians, origin) * previous;
+        try
+        {
+            session.DrawText(text.Text, origin, color, new CanvasTextFormat { FontSize = (float)placement.FontSizePixels });
+        }
+        finally
+        {
+            session.Transform = previous;
+        }
+    }
+    private static void DrawEllipse(CanvasDrawingSession session, EllipseGeometry ellipse, Func<Point2D, Point2D> map, Color stroke, Color? fill, float width, IReadOnlyList<double> pattern)
+    {
+        var points = AdaptiveEllipseTessellator.Tessellate(ellipse, map).Select(point => new Vector2((float)point.X, (float)point.Y)).ToArray();
+        if (points.Length < 3) return;
+        if (fill is { } color) FillPolygon(session, points, color);
+        DrawScreenPolyline(session, points, false, stroke, width, pattern);
+    }
+    private static void DrawArc(CanvasDrawingSession session, ArcGeometry arc, Func<Point2D, Point2D> map, Color color, float width, IReadOnlyList<double> pattern)
+    {
+        var points = AdaptiveArcTessellator.Tessellate(arc, map).Select(point => new Vector2((float)point.X, (float)point.Y)).ToArray();
+        DrawScreenPolyline(session, points, false, color, width, pattern);
+    }
+    private static void DrawPolygon(CanvasDrawingSession session, IReadOnlyList<Vector2> points, Color stroke, Color? fill, float width, IReadOnlyList<double> pattern)
+    {
+        if (points.Count < 3) return;
+        if (fill is { } color) FillPolygon(session, points, color);
+        DrawScreenPolyline(session, points, true, stroke, width, pattern);
+    }
+    private static void FillPolygon(CanvasDrawingSession session, IReadOnlyList<Vector2> points, Color fill)
+    {
+        using var path = new CanvasPathBuilder(session);
+        path.BeginFigure(points[0]);
+        for (var index = 1; index < points.Count; index++) path.AddLine(points[index]);
+        path.EndFigure(CanvasFigureLoop.Closed);
+        using var geometry = CanvasGeometry.CreatePath(path);
+        session.FillGeometry(geometry, fill);
+    }
+    private static void DrawScreenPolyline(CanvasDrawingSession session, IReadOnlyList<Vector2> points, bool closed, Color color, float width, IReadOnlyList<double> pattern)
+    {
+        if (points.Count < 2) return;
+        if (pattern.Count == 0)
+        {
+            for (var index = 1; index < points.Count; index++) session.DrawLine(points[index - 1], points[index], color, width);
+            if (closed && points.Count > 2) session.DrawLine(points[^1], points[0], color, width);
+            return;
+        }
+        var patternIndex = 0;
+        var (remaining, drawing) = PatternElement(pattern[0], width);
+        var segmentCount = closed ? points.Count : points.Count - 1;
+        for (var segmentIndex = 0; segmentIndex < segmentCount; segmentIndex++)
+        {
+            var a = points[segmentIndex];
+            var b = points[(segmentIndex + 1) % points.Count];
+            var vector = b - a;
+            var length = vector.Length();
+            if (length <= float.Epsilon) continue;
+            var consumed = 0d;
+            while (consumed < length - 1e-6)
+            {
+                var step = Math.Min(remaining, length - consumed);
+                if (drawing && step > 1e-6)
+                {
+                    var start = a + (vector * (float)(consumed / length));
+                    var end = a + (vector * (float)((consumed + step) / length));
+                    session.DrawLine(start, end, color, width);
+                }
+                consumed += step;
+                remaining -= step;
+                if (remaining <= 1e-6)
+                {
+                    patternIndex = (patternIndex + 1) % pattern.Count;
+                    (remaining, drawing) = PatternElement(pattern[patternIndex], width);
+                }
+            }
+        }
+    }
+    private static (double Length, bool Drawing) PatternElement(double value, float width) => Math.Abs(value) <= double.Epsilon ? (Math.Max(1, width), true) : (Math.Abs(value), value > 0);
+    private static double ScreenScale(Func<Point2D, Point2D> map)
+    {
+        var origin = map(Point2D.Origin);
+        var x = map(new Point2D(1, 0));
+        var y = map(new Point2D(0, 1));
+        return (origin.DistanceTo(x) + origin.DistanceTo(y)) / 2;
+    }
+    private static Point2D[] RectanglePoints(BoundingBox2D bounds) => new[] { new Point2D(bounds.MinX, bounds.MinY), new Point2D(bounds.MaxX, bounds.MinY), new Point2D(bounds.MaxX, bounds.MaxY), new Point2D(bounds.MinX, bounds.MaxY) };
     private static Color Parse(string value, double opacity)
     {
         var text = value.TrimStart('#'); if (text.Length == 3) text = string.Concat(text.Select(c => new string(c, 2))); if (text.Length != 6 || !uint.TryParse(text, System.Globalization.NumberStyles.HexNumber, null, out var rgb)) return Color.FromArgb((byte)(255 * opacity), 32, 32, 32);
