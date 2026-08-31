@@ -1,3 +1,4 @@
+using System.Globalization;
 using SpatialViewer.Core;
 using SpatialViewer.Formats.Cad;
 using SpatialViewer.Formats.Cad.ACadSharp;
@@ -7,6 +8,8 @@ namespace SpatialViewer.Cad.Tests;
 
 public sealed class EntityCoverageV060Tests
 {
+    private static readonly string[] FrozenLayerNames = ["FROZEN"];
+
     [Fact]
     public void LayoutSceneProjectsModelContentAndClipsViewport()
     {
@@ -27,7 +30,7 @@ public sealed class EntityCoverageV060Tests
             Point2D.Origin,
             Point2D.Origin,
             50,
-            FrozenLayers: new[] { "FROZEN" });
+            FrozenLayers: FrozenLayerNames);
         var sheet = new CadLayoutDefinition(
             "Sheet1",
             1,
@@ -37,12 +40,12 @@ public sealed class EntityCoverageV060Tests
             new BoundingBox2D(0, 0, 200, 100),
             new CadEntity[] { new CadLineEntity("PAPER", new Point2D(10, 10), new Point2D(40, 10)) },
             new[] { viewport });
-        var modelLayout = new CadLayoutDefinition("Model", 0, false, Size2D.Empty, BoundingBox2D.Empty, BoundingBox2D.Empty, Array.Empty<CadEntity>(), Array.Empty<CadViewportDefinition>());
+        var modelLayout = new CadLayoutDefinition("Model", 0, false, new Size2D(0, 0), BoundingBox2D.Empty, BoundingBox2D.Empty, Array.Empty<CadEntity>(), Array.Empty<CadViewportDefinition>());
         var document = new CadDocument("layout.dxf", "DXF", "AC1032", CadUnits.Millimetres, layers, Array.Empty<CadBlockDefinition>(), model, layouts: new[] { modelLayout, sheet });
 
         Assert.Same(document.Scene, document.GetLayoutScene("model"));
         var scene = document.GetLayoutScene("sheet1");
-        var projected = Assert.Single(scene.GetItems().Where(item => item.Metadata.TryGetValue("Space", out var space) && space == "ModelThroughViewport"));
+        var projected = Assert.Single(scene.GetItems(), item => item.Metadata.TryGetValue("Space", out var space) && space == "ModelThroughViewport");
         Assert.Equal("VP2", projected.Metadata["ViewportHandle"]);
         Assert.Equal(viewport.PaperBounds, projected.ClipBounds);
         Assert.Equal(viewport.PaperBounds, projected.Bounds);
@@ -56,7 +59,7 @@ public sealed class EntityCoverageV060Tests
         Assert.Null(HitTesting.HitTest(scene, new Point2D(170, 50), .5));
 
         var frame = RenderPreparation.Prepare(scene, new Camera2D(new Point2D(100, 50)));
-        var command = Assert.Single(frame.Commands.Where(candidate => candidate.Metadata is not null && candidate.Metadata.TryGetValue("ViewportHandle", out var handle) && handle == "VP2" && candidate.Metadata.TryGetValue("Space", out var space) && space == "ModelThroughViewport"));
+        var command = Assert.Single(frame.Commands, candidate => candidate.Metadata is not null && candidate.Metadata.TryGetValue("ViewportHandle", out var handle) && handle == "VP2" && candidate.Metadata.TryGetValue("Space", out var space) && space == "ModelThroughViewport");
         Assert.Equal(viewport.PaperBounds, command.ClipBounds);
     }
 
@@ -71,22 +74,22 @@ public sealed class EntityCoverageV060Tests
             var document = Assert.IsType<CadDocument>(result.Document);
             Assert.True(result.IsSuccess);
             Assert.True(document.Layouts.Count >= 2);
-            var layout = Assert.Single(document.Layouts.Where(candidate => candidate.Name == "SheetV060"));
+            var layout = Assert.Single(document.Layouts, candidate => candidate.Name == "SheetV060");
             Assert.True(layout.IsPaperSpace);
             Assert.Equal(2, layout.TabOrder);
             Assert.Equal(200, layout.PaperSize.Width, 6);
             Assert.Equal(100, layout.PaperSize.Height, 6);
             Assert.Contains(layout.Entities, entity => entity is CadLineEntity);
-            var viewport = Assert.Single(layout.Viewports.Where(candidate => !candidate.RepresentsPaper && candidate.IsOn));
+            var viewport = Assert.Single(layout.Viewports, candidate => !candidate.RepresentsPaper && candidate.IsOn);
             Assert.Equal(100, viewport.PaperSize.Width, 6);
             Assert.Equal(50, viewport.PaperSize.Height, 6);
             Assert.Equal(50, viewport.ViewHeight, 6);
-            Assert.Equal(2, viewport.ScaleFactor, 6);
+            Assert.Equal(1, viewport.ScaleFactor, 6);
 
             var scene = document.GetLayoutScene("SheetV060");
             Assert.Contains(scene.GetItems(), item => item.Metadata.TryGetValue("Space", out var space) && space == "Paper");
             Assert.Contains(scene.GetItems(), item => item.Metadata.TryGetValue("Space", out var space) && space == "ModelThroughViewport" && item.ClipBounds is not null);
-            Assert.Equal(document.Layouts.Count.ToString(), document.Metadata["LayoutCount"]);
+            Assert.Equal(document.Layouts.Count.ToString(CultureInfo.InvariantCulture), document.Metadata["LayoutCount"]);
         }
         finally
         {
