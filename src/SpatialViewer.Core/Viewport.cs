@@ -23,27 +23,93 @@ public static class HitTesting
 {
     public static SceneItem? HitTest(Scene2D scene, Point2D worldPoint, double tolerance)
     {
-        foreach (var item in scene.GetItems().Reverse()) if (item.Bounds.Inflate(tolerance).Contains(worldPoint) && Hit(item, worldPoint, tolerance)) return item;
+        ArgumentNullException.ThrowIfNull(scene);
+        if (!double.IsFinite(tolerance)) throw new ArgumentOutOfRangeException(nameof(tolerance));
+        var worldTolerance = Math.Abs(tolerance);
+        var items = scene.Items;
+        for (var index = items.Count - 1; index >= 0; index--)
+        {
+            var item = items[index];
+            if (!item.Layer.IsVisible) continue;
+            if (item.Bounds.Inflate(worldTolerance).Contains(worldPoint) && Hit(item, worldPoint, worldTolerance)) return item;
+        }
         return null;
     }
-    private static bool Hit(SceneItem item, Point2D point, double tolerance)
+
+    private static bool Hit(SceneItem item, Point2D point, double worldTolerance)
     {
-        if (!item.Transform.TryInvert(out var inverse)) return false; var local = inverse.Apply(point);
+        if (!item.Transform.TryInvert(out var inverse)) return false;
+        var local = inverse.Apply(point);
+        var localTolerance = TransformTolerance(inverse, worldTolerance);
         return item.Geometry switch
         {
-            PointGeometry p => p.Position.DistanceTo(local) <= tolerance,
-            LineGeometry l => DistanceToSegment(local, l.Start, l.End) <= tolerance,
-            PolylineGeometry p => HitSegments(p.Points, p.IsClosed, local, tolerance),
-            PathGeometry p => HitSegments(p.Points, p.IsClosed, local, tolerance),
-            PolygonGeometry p => PointInPolygon(p.Points, local) || HitSegments(p.Points, true, local, tolerance),
-            RectangleGeometry r => r.Rectangle.Inflate(tolerance).Contains(local),
-            CircleGeometry c => Math.Abs(c.Center.DistanceTo(local) - c.Radius) <= tolerance,
-            ArcGeometry a => Math.Abs(a.Center.DistanceTo(local) - a.Radius) <= tolerance + 0.001,
-            EllipseGeometry e => Math.Abs(((local.X - e.Center.X) * (local.X - e.Center.X) / (e.RadiusX * e.RadiusX)) + ((local.Y - e.Center.Y) * (local.Y - e.Center.Y) / (e.RadiusY * e.RadiusY)) - 1) <= tolerance / Math.Max(e.RadiusX, e.RadiusY),
-            TextGeometry t => t.GetBounds().Inflate(tolerance).Contains(local), ImageGeometry i => i.GetBounds().Contains(local), _ => false
+            PointGeometry p => p.Position.DistanceTo(local) <= localTolerance,
+            LineGeometry l => DistanceToSegment(local, l.Start, l.End) <= localTolerance,
+            PolylineGeometry p => HitSegments(p.Points, p.IsClosed, local, localTolerance),
+            PathGeometry p => HitSegments(p.Points, p.IsClosed, local, localTolerance),
+            PolygonGeometry p => PointInPolygon(p.Points, local) || HitSegments(p.Points, true, local, localTolerance),
+            RectangleGeometry r => r.Rectangle.Inflate(localTolerance).Contains(local),
+            CircleGeometry c => Math.Abs(c.Center.DistanceTo(local) - c.Radius) <= localTolerance,
+            ArcGeometry a => HitArc(a, local, localTolerance),
+            EllipseGeometry e => HitEllipse(e, local, localTolerance),
+            TextGeometry t => t.GetBounds().Inflate(localTolerance).Contains(local),
+            ImageGeometry i => i.GetBounds().Inflate(localTolerance).Contains(local),
+            _ => false
         };
     }
-    private static bool HitSegments(IReadOnlyList<Point2D> points, bool closed, Point2D target, double tolerance) { for (var i = 1; i < points.Count; i++) if (DistanceToSegment(target, points[i - 1], points[i]) <= tolerance) return true; return closed && points.Count > 2 && DistanceToSegment(target, points[^1], points[0]) <= tolerance; }
-    private static double DistanceToSegment(Point2D p, Point2D a, Point2D b) { var ab = b - a; var ap = p - a; var denominator = ab.LengthSquared; var t = denominator <= double.Epsilon ? 0 : Math.Clamp(((ap.X * ab.X) + (ap.Y * ab.Y)) / denominator, 0, 1); return p.DistanceTo(a + (ab * t)); }
-    private static bool PointInPolygon(IReadOnlyList<Point2D> points, Point2D point) { var inside = false; for (var i = 0; i < points.Count; i++) { var j = (i + points.Count - 1) % points.Count; if (((points[i].Y > point.Y) != (points[j].Y > point.Y)) && point.X < ((points[j].X - points[i].X) * (point.Y - points[i].Y) / (points[j].Y - points[i].Y)) + points[i].X) inside = !inside; } return inside; }
+
+    private static double TransformTolerance(Transform2D inverse, double worldTolerance)
+    {
+        if (worldTolerance <= double.Epsilon) return 0;
+        var sumSquares = (inverse.M11 * inverse.M11) + (inverse.M12 * inverse.M12) + (inverse.M21 * inverse.M21) + (inverse.M22 * inverse.M22);
+        var determinant = (inverse.M11 * inverse.M22) - (inverse.M12 * inverse.M21);
+        var discriminant = Math.Max(0, (sumSquares * sumSquares) - (4 * determinant * determinant));
+        var largestEigenvalue = (sumSquares + Math.Sqrt(discriminant)) / 2;
+        return worldTolerance * Math.Sqrt(Math.Max(0, largestEigenvalue));
+    }
+
+    private static bool HitArc(ArcGeometry arc, Point2D point, double tolerance)
+    {
+        if (Math.Abs(arc.Center.DistanceTo(point) - arc.Radius) > tolerance) return false;
+        var angle = Math.Atan2(point.Y - arc.Center.Y, point.X - arc.Center.X);
+        if (arc.ContainsAngle(angle)) return true;
+        return arc.At(arc.StartRadians).DistanceTo(point) <= tolerance || arc.At(arc.StartRadians + arc.SweepRadians).DistanceTo(point) <= tolerance;
+    }
+
+    private static bool HitEllipse(EllipseGeometry ellipse, Point2D point, double tolerance)
+    {
+        var radiusX = Math.Abs(ellipse.RadiusX);
+        var radiusY = Math.Abs(ellipse.RadiusY);
+        if (radiusX <= double.Epsilon && radiusY <= double.Epsilon) return ellipse.Center.DistanceTo(point) <= tolerance;
+        if (radiusX <= double.Epsilon) return DistanceToSegment(point, new(ellipse.Center.X, ellipse.Center.Y - radiusY), new(ellipse.Center.X, ellipse.Center.Y + radiusY)) <= tolerance;
+        if (radiusY <= double.Epsilon) return DistanceToSegment(point, new(ellipse.Center.X - radiusX, ellipse.Center.Y), new(ellipse.Center.X + radiusX, ellipse.Center.Y)) <= tolerance;
+        var normalized = ((point.X - ellipse.Center.X) * (point.X - ellipse.Center.X) / (radiusX * radiusX)) + ((point.Y - ellipse.Center.Y) * (point.Y - ellipse.Center.Y) / (radiusY * radiusY));
+        return Math.Abs(normalized - 1) <= tolerance / Math.Max(radiusX, radiusY);
+    }
+
+    private static bool HitSegments(IReadOnlyList<Point2D> points, bool closed, Point2D target, double tolerance)
+    {
+        for (var index = 1; index < points.Count; index++) if (DistanceToSegment(target, points[index - 1], points[index]) <= tolerance) return true;
+        return closed && points.Count > 2 && DistanceToSegment(target, points[^1], points[0]) <= tolerance;
+    }
+
+    private static double DistanceToSegment(Point2D point, Point2D start, Point2D end)
+    {
+        var segment = end - start;
+        var relative = point - start;
+        var denominator = segment.LengthSquared;
+        var t = denominator <= double.Epsilon ? 0 : Math.Clamp(((relative.X * segment.X) + (relative.Y * segment.Y)) / denominator, 0, 1);
+        return point.DistanceTo(start + (segment * t));
+    }
+
+    private static bool PointInPolygon(IReadOnlyList<Point2D> points, Point2D point)
+    {
+        var inside = false;
+        for (var index = 0; index < points.Count; index++)
+        {
+            var previous = (index + points.Count - 1) % points.Count;
+            if (((points[index].Y > point.Y) != (points[previous].Y > point.Y)) && point.X < ((points[previous].X - points[index].X) * (point.Y - points[index].Y) / (points[previous].Y - points[index].Y)) + points[index].X) inside = !inside;
+        }
+        return inside;
+    }
 }
