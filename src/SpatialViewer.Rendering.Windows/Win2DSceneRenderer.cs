@@ -99,37 +99,37 @@ public sealed class Win2DSceneRenderer : ISceneRenderer
         var points = AdaptiveArcTessellator.Tessellate(arc, map).Select(point => new Vector2((float)point.X, (float)point.Y)).ToArray();
         DrawScreenPolyline(session, points, false, color, width, pattern);
     }
-    private static void DrawPolygon(CanvasDrawingSession session, IReadOnlyList<Vector2> points, Color stroke, Color? fill, float width, IReadOnlyList<double> pattern)
+    private static void DrawPolygon(CanvasDrawingSession session, Vector2[] points, Color stroke, Color? fill, float width, IReadOnlyList<double> pattern)
     {
-        if (points.Count < 3) return;
+        if (points.Length < 3) return;
         if (fill is { } color) FillPolygon(session, points, color);
         DrawScreenPolyline(session, points, true, stroke, width, pattern);
     }
-    private static void FillPolygon(CanvasDrawingSession session, IReadOnlyList<Vector2> points, Color fill)
+    private static void FillPolygon(CanvasDrawingSession session, Vector2[] points, Color fill)
     {
         using var path = new CanvasPathBuilder(session);
         path.BeginFigure(points[0]);
-        for (var index = 1; index < points.Count; index++) path.AddLine(points[index]);
+        for (var index = 1; index < points.Length; index++) path.AddLine(points[index]);
         path.EndFigure(CanvasFigureLoop.Closed);
         using var geometry = CanvasGeometry.CreatePath(path);
         session.FillGeometry(geometry, fill);
     }
-    private static void DrawScreenPolyline(CanvasDrawingSession session, IReadOnlyList<Vector2> points, bool closed, Color color, float width, IReadOnlyList<double> pattern)
+    private static void DrawScreenPolyline(CanvasDrawingSession session, Vector2[] points, bool closed, Color color, float width, IReadOnlyList<double> pattern)
     {
-        if (points.Count < 2) return;
+        if (points.Length < 2) return;
         if (pattern.Count == 0)
         {
-            for (var index = 1; index < points.Count; index++) session.DrawLine(points[index - 1], points[index], color, width);
-            if (closed && points.Count > 2) session.DrawLine(points[^1], points[0], color, width);
+            for (var index = 1; index < points.Length; index++) session.DrawLine(points[index - 1], points[index], color, width);
+            if (closed && points.Length > 2) session.DrawLine(points[^1], points[0], color, width);
             return;
         }
         var patternIndex = 0;
         var (remaining, drawing) = PatternElement(pattern[0], width);
-        var segmentCount = closed ? points.Count : points.Count - 1;
+        var segmentCount = closed ? points.Length : points.Length - 1;
         for (var segmentIndex = 0; segmentIndex < segmentCount; segmentIndex++)
         {
             var a = points[segmentIndex];
-            var b = points[(segmentIndex + 1) % points.Count];
+            var b = points[(segmentIndex + 1) % points.Length];
             var vector = b - a;
             var length = vector.Length();
             if (length <= float.Epsilon) continue;
