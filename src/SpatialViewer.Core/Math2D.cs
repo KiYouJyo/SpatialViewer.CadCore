@@ -48,6 +48,10 @@ public readonly record struct BoundingBox2D(double MinX, double MinY, double Max
     public BoundingBox2D Union(BoundingBox2D other) => other.IsEmpty ? this : IsEmpty ? other : new(Math.Min(MinX, other.MinX), Math.Min(MinY, other.MinY), Math.Max(MaxX, other.MaxX), Math.Max(MaxY, other.MaxY));
     public BoundingBox2D Inflate(double amount) => IsEmpty ? this : new(MinX - amount, MinY - amount, MaxX + amount, MaxY + amount);
     public bool Contains(Point2D point) => !IsEmpty && point.X >= MinX && point.X <= MaxX && point.Y >= MinY && point.Y <= MaxY;
+    public bool Intersects(BoundingBox2D other) => !IsEmpty && !other.IsEmpty && MaxX >= other.MinX && other.MaxX >= MinX && MaxY >= other.MinY && other.MaxY >= MinY;
+    public BoundingBox2D Intersection(BoundingBox2D other) => !Intersects(other)
+        ? Empty
+        : new(Math.Max(MinX, other.MinX), Math.Max(MinY, other.MinY), Math.Min(MaxX, other.MaxX), Math.Min(MaxY, other.MaxY));
     public BoundingBox2D Transform(Transform2D transform) => IsEmpty ? this : FromPoints(new[] { transform.Apply(new Point2D(MinX, MinY)), transform.Apply(new Point2D(MaxX, MinY)), transform.Apply(new Point2D(MaxX, MaxY)), transform.Apply(new Point2D(MinX, MaxY)) });
 }
 
