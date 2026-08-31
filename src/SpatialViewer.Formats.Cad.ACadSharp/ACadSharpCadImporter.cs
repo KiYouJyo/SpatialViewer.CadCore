@@ -64,9 +64,13 @@ public sealed class ACadSharpCadImporter : IDocumentImporter
             Ellipse ellipse => MapEllipse(ellipse, common),
             LwPolyline polyline => MapLwPolyline(polyline, common),
             Polyline2D polyline => MapPolyline2D(polyline, common),
+            global::ACadSharp.Entities.Spline spline => new CadSplineEntity(common.Handle, MapSplineDefinition(spline), common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, common.Metadata),
+            Hatch hatch => MapHatch(hatch, common, diagnostics),
+            AttributeDefinition attribute => MapAttribute(attribute, common, true),
+            AttributeEntity attribute => MapAttribute(attribute, common, false),
             MText text => new CadTextEntity(common.Handle, Point(text.InsertPoint), NormalizeText(text.PlainText), text.Height, Degrees(text.Rotation), text.HorizontalWidth, true, common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, common.Metadata),
             TextEntity text => new CadTextEntity(common.Handle, Point(text.InsertPoint), NormalizeText(text.Value), text.Height, Degrees(text.Rotation), 0, false, common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, common.Metadata),
-            Insert insert => new CadBlockReferenceEntity(common.Handle, insert.Block?.Name ?? "<missing>", Point(insert.InsertPoint), Degrees(insert.Rotation), insert.XScale, insert.YScale, common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, common.Metadata),
+            Insert insert => MapInsert(insert, common, diagnostics, globalLineTypeScale),
             _ => Unsupported(entity, common, diagnostics)
         };
     }
@@ -87,6 +91,99 @@ public sealed class ACadSharpCadImporter : IDocumentImporter
         var axis = Point(ellipse.MajorAxisEndPoint);
         var radiusX = Math.Sqrt((axis.X * axis.X) + (axis.Y * axis.Y));
         return new CadEllipseEntity(common.Handle, Point(ellipse.Center), radiusX, radiusX * ellipse.RadiusRatio, Math.Atan2(axis.Y, axis.X), common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, common.Metadata);
+    }
+    private static CadSplineDefinition MapSplineDefinition(object spline)
+    {
+        var controlObjects = EnumerableProperty(spline, "ControlPoints").ToArray();
+        var controlPoints = controlObjects.Select(Point).ToArray();
+        var knots = EnumerableProperty(spline, "Knots").Select(DoubleValue).ToArray();
+        var weights = EnumerableProperty(spline, "Weights").Select(DoubleValue).ToArray();
+        if (weights.Length != controlPoints.Length)
+        {
+            var zWeights = controlObjects.Select(point => DoubleProperty(point, "Z")).ToArray();
+            weights = zWeights.Any(weight => Math.Abs(weight) > double.Epsilon) ? zWeights : Array.Empty<double>();
+        }
+        var fitPoints = EnumerableProperty(spline, "FitPoints").Select(Point).ToArray();
+        return new CadSplineDefinition(IntProperty(spline, "Degree", 3), controlPoints, knots, weights, fitPoints, BoolProperty(spline, "IsClosed"), BoolProperty(spline, "IsPeriodic"));
+    }
+    private static CadHatchEntity MapHatch(Hatch hatch, CommonEntity common, List<Diagnostic> diagnostics)
+    {
+        var loops = EnumerableProperty(hatch, "Paths").Select(path => MapHatchLoop(path, diagnostics, common.Handle)).Where(loop => loop.Edges.Count > 0).ToArray();
+        var metadata = new Dictionary<string, string>(common.Metadata, StringComparer.Ordinal)
+        {
+            ["HatchStyle"] = StringProperty(hatch, "Style"),
+            ["HatchPatternType"] = StringProperty(hatch, "PatternType")
+        };
+        return new CadHatchEntity(common.Handle, loops, BoolProperty(hatch, "IsSolid"), NameOf(Property(hatch, "Pattern")), Degrees(DoubleProperty(hatch, "PatternAngle")), DoubleProperty(hatch, "PatternScale", 1), common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, metadata);
+    }
+    private static CadHatchLoop MapHatchLoop(object path, List<Diagnostic> diagnostics, string hatchHandle)
+    {
+        var edges = new List<CadHatchEdge>();
+        foreach (var edge in EnumerableProperty(path, "Edges"))
+        {
+            var mapped = MapHatchEdge(edge);
+            if (mapped is null)
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticSeverity.Warning, "CAD_HATCH_EDGE_UNSUPPORTED", $"Unsupported hatch boundary edge skipped: {edge.GetType().Name}", new Dictionary<string, string> { ["Handle"] = hatchHandle }));
+                continue;
+            }
+            edges.Add(mapped);
+        }
+        return new CadHatchLoop(edges, StringProperty(path, "Flags"));
+    }
+    private static CadHatchEdge? MapHatchEdge(object edge)
+    {
+        switch (edge.GetType().Name)
+        {
+            case "Line":
+                return new CadHatchLineEdge(Point(Property(edge, "Start")), Point(Property(edge, "End")));
+            case "Arc":
+            {
+                var start = Degrees(DoubleProperty(edge, "StartAngle"));
+                var end = Degrees(DoubleProperty(edge, "EndAngle"));
+                var counterClockwise = BoolProperty(edge, "CounterClockWise", true);
+                var sweep = counterClockwise ? NormalizeSweep(end - start) : -NormalizeSweep(start - end);
+                return new CadHatchArcEdge(Point(Property(edge, "Center")), DoubleProperty(edge, "Radius"), start, sweep);
+            }
+            case "Ellipse":
+            {
+                var start = Degrees(DoubleProperty(edge, "StartAngle"));
+                var end = Degrees(DoubleProperty(edge, "EndAngle"));
+                var counterClockwise = BoolProperty(edge, "CounterClockWise", true);
+                var sweep = counterClockwise ? NormalizeSweep(end - start) : -NormalizeSweep(start - end);
+                return new CadHatchEllipseEdge(Point(Property(edge, "Center")), Point(Property(edge, "MajorAxisEndPoint")), DoubleProperty(edge, "RadiusRatio", 1), start, sweep);
+            }
+            case "Polyline":
+            {
+                var vertices = EnumerableProperty(edge, "Vertices").ToArray();
+                var points = vertices.Select(Point).ToArray();
+                var bulges = EnumerableProperty(edge, "Bulges").Select(DoubleValue).ToArray();
+                if (bulges.Length != points.Length) bulges = vertices.Select(vertex => DoubleProperty(vertex, "Z")).ToArray();
+                return new CadHatchPolylineEdge(points, bulges, BoolProperty(edge, "IsClosed", true));
+            }
+            case "Spline":
+                return new CadHatchSplineEdge(MapSplineDefinition(edge));
+            default:
+                return null;
+        }
+    }
+    private static CadAttributeEntity MapAttribute(AttributeBase attribute, CommonEntity common, bool isDefinition)
+    {
+        var flags = attribute.Flags.ToString();
+        var value = attribute.MText is { } mtext && !string.IsNullOrWhiteSpace(mtext.PlainText) ? mtext.PlainText : attribute.Value;
+        var prompt = isDefinition && attribute is AttributeDefinition definition ? definition.Prompt : string.Empty;
+        var metadata = new Dictionary<string, string>(common.Metadata, StringComparer.Ordinal) { ["AttributeFlags"] = flags };
+        return new CadAttributeEntity(common.Handle, Point(attribute.InsertPoint), attribute.Tag ?? string.Empty, NormalizeText(value), attribute.Height, Degrees(attribute.Rotation), isDefinition, NormalizeText(prompt), flags.Contains("Constant", StringComparison.OrdinalIgnoreCase), common.Layer, common.Color, common.Visible && !flags.Contains("Invisible", StringComparison.OrdinalIgnoreCase), common.LineType, common.LineWeight, metadata);
+    }
+    private static CadBlockReferenceEntity MapInsert(Insert insert, CommonEntity common, List<Diagnostic> diagnostics, double globalLineTypeScale)
+    {
+        var attributes = new List<CadAttributeEntity>();
+        foreach (var attribute in insert.Attributes)
+        {
+            try { attributes.Add(MapAttribute(attribute, Common(attribute, globalLineTypeScale), false)); }
+            catch (Exception exception) { diagnostics.Add(new Diagnostic(DiagnosticSeverity.Warning, "CAD_ATTRIBUTE_IMPORT_WARNING", $"Unable to copy block attribute: {exception.Message}", new Dictionary<string, string> { ["InsertHandle"] = common.Handle })); }
+        }
+        return new CadBlockReferenceEntity(common.Handle, insert.Block?.Name ?? "<missing>", Point(insert.InsertPoint), Degrees(insert.Rotation), insert.XScale, insert.YScale, common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, common.Metadata) { Attributes = attributes };
     }
     private static CadUnsupportedEntity Unsupported(Entity entity, CommonEntity common, List<Diagnostic> diagnostics) { var name = entity.ObjectName; diagnostics.Add(new Diagnostic(DiagnosticSeverity.Warning, "CAD_UNSUPPORTED_ENTITY", $"Unsupported CAD entity skipped: {name}", new Dictionary<string, string> { ["Handle"] = common.Handle, ["Layer"] = common.Layer })); return new CadUnsupportedEntity(common.Handle, name, common.Layer, common.Metadata); }
     private static CadBlockDefinition[] MapBlocks(global::ACadSharp.CadDocument source, List<Diagnostic> diagnostics, double globalLineTypeScale)
@@ -128,7 +225,10 @@ public sealed class ACadSharpCadImporter : IDocumentImporter
     private static IEnumerable<object> EnumerableProperty(object source, string name) => Property(source, name) is IEnumerable enumerable ? enumerable.Cast<object>() : Array.Empty<object>();
     private static string StringProperty(object? source, string name) => Property(source, name)?.ToString() ?? string.Empty;
     private static string NameOf(object? source) => StringProperty(source, "Name") is { Length: > 0 } name ? name : "Continuous";
-    private static double DoubleProperty(object? source, string name) => Convert.ToDouble(Property(source, name) ?? 0d, CultureInfo.InvariantCulture);
+    private static double DoubleProperty(object? source, string name, double fallback = 0) => Property(source, name) is { } value ? Convert.ToDouble(value, CultureInfo.InvariantCulture) : fallback;
+    private static double DoubleValue(object? value) => value is null ? 0 : Convert.ToDouble(value, CultureInfo.InvariantCulture);
+    private static int IntProperty(object? source, string name, int fallback = 0) => Property(source, name) is { } value ? Convert.ToInt32(value, CultureInfo.InvariantCulture) : fallback;
+    private static bool BoolProperty(object? source, string name, bool fallback = false) => Property(source, name) is { } value ? Convert.ToBoolean(value, CultureInfo.InvariantCulture) : fallback;
     private static int? ParseLineWeight(object? value) => int.TryParse(value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed > 0 ? parsed : null;
     private sealed record CommonEntity(string Handle, string Layer, CadColor Color, bool Visible, string LineType, int? LineWeight, IReadOnlyDictionary<string, string> Metadata);
 }
