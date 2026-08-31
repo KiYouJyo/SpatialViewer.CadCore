@@ -3,7 +3,7 @@ using SpatialViewer.Core;
 namespace SpatialViewer.Formats.Cad;
 
 /// <summary>Converts CAD-specific entities into the generic Stage 1 scene without exposing reader types.</summary>
-public sealed class CadSceneTranslator
+public sealed partial class CadSceneTranslator
 {
     private const string BackgroundAdaptiveStrokeKey = "BackgroundAdaptiveStroke";
 
@@ -58,6 +58,9 @@ public sealed class CadSceneTranslator
             CadPolylineEntity polyline => PolylineNode(polyline, style, metadata),
             CadSplineEntity spline => SplineNode(spline, style, metadata),
             CadHatchEntity hatch => HatchNode(hatch, effectiveColor, style, metadata),
+            CadDimensionEntity dimension => DimensionNode(dimension, style, metadata),
+            CadLeaderEntity leader => LeaderNode(leader, style, metadata),
+            CadMultiLeaderEntity multiLeader => MultiLeaderNode(multiLeader, style, metadata),
             CadTextEntity text => TextNode(entity.ObjectId, text.InsertionPoint, text.Text, text.Height, text.RotationRadians, style, metadata),
             CadAttributeEntity attribute => AttributeNode(attribute, style, metadata),
             CadBlockReferenceEntity reference => BlockNode(reference, layers, blocks, effectiveColor, layerColor, stack, metadata),
