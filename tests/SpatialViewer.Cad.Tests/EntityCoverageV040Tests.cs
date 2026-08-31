@@ -6,16 +6,15 @@ namespace SpatialViewer.Cad.Tests;
 public sealed class EntityCoverageV040Tests
 {
     private static readonly CadLayer Layer0 = new("0", CadColor.FromAci(7));
+    private static readonly Point2D[] SplineControlPoints = { new(0, 0), new(10, 20), new(20, -10), new(30, 0) };
+    private static readonly double[] SplineKnots = { 0, 0, 0, 0, 1, 1, 1, 1 };
+    private static readonly double[] SplineWeights = { 1, 1, 1, 1 };
+    private static readonly double[] ZeroBulges = { 0, 0, 0, 0 };
 
     [Fact]
     public void SplineRetainsSemanticDefinitionAndTranslatesToPath()
     {
-        var definition = new CadSplineDefinition(
-            3,
-            new[] { new Point2D(0, 0), new Point2D(10, 20), new Point2D(20, -10), new Point2D(30, 0) },
-            new[] { 0d, 0d, 0d, 0d, 1d, 1d, 1d, 1d },
-            new[] { 1d, 1d, 1d, 1d },
-            Array.Empty<Point2D>());
+        var definition = new CadSplineDefinition(3, SplineControlPoints, SplineKnots, SplineWeights, Array.Empty<Point2D>());
         var spline = new CadSplineEntity("S1", definition);
         var document = new CadDocument("spline", "DXF", "AC1027", CadUnits.Unitless, new[] { Layer0 }, Array.Empty<CadBlockDefinition>(), new CadEntity[] { spline });
 
@@ -33,7 +32,7 @@ public sealed class EntityCoverageV040Tests
     {
         static CadHatchPolylineEdge Loop(double min, double max) => new(
             new[] { new Point2D(min, min), new Point2D(max, min), new Point2D(max, max), new Point2D(min, max) },
-            new[] { 0d, 0d, 0d, 0d });
+            ZeroBulges);
 
         var hatch = new CadHatchEntity("H1", new[]
         {
