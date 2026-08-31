@@ -35,7 +35,7 @@ public sealed class EntityCoverageV050Tests
         Assert.True(document.Scene.GetItems().Count(item => item.Geometry is LineGeometry) >= 7);
         var hit = HitTesting.HitTest(document.Scene, new(50, 20), .05);
         Assert.NotNull(hit);
-        Assert.Equal(dimension.ObjectId, hit!.Value);
+        Assert.Equal(dimension.ObjectId, hit!.Id);
         Assert.Contains(document.Scene.GetItems(), item => item.Metadata.TryGetValue("DimensionSemantic", out var semantic) && semantic == "True");
     }
 
