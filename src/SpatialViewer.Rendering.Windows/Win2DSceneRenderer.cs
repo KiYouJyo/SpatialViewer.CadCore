@@ -6,6 +6,7 @@ using Microsoft.Graphics.Canvas.Text;
 using Microsoft.Graphics.Canvas.UI.Xaml;
 using SpatialViewer.Core;
 using SpatialViewer.Rendering;
+using Windows.Foundation;
 using Windows.UI;
 
 namespace SpatialViewer.Rendering.Windows;
@@ -45,28 +46,48 @@ public sealed class Win2DSceneRenderer : ISceneRenderer
     }
     private void DrawCommand(CanvasDrawingSession session, RenderCommand command, Camera2D camera, Size2D viewport, bool selected)
     {
-        var stroke = Parse(RenderColorPolicy.ResolveStroke(command.Style, command.Metadata, CanvasColor), command.Style.Opacity);
-        var fill = command.Style.Fill is null ? (Color?)null : Parse(command.Style.Fill, command.Style.Opacity);
-        var width = (float)Math.Max(.5, command.Style.StrokeWidth);
-        Point2D Map(Point2D p) => camera.WorldToScreen(command.WorldTransform.Apply(p), viewport);
-        Vector2 V(Point2D p) { var q = Map(p); return new((float)q.X, (float)q.Y); }
-        var pattern = RenderStrokePattern.ResolvePixels(command.Metadata, ScreenScale(Map));
-        switch (command.Geometry)
+        IDisposable? clipLayer = null;
+        if (command.ClipBounds is { } clip && !clip.IsEmpty)
         {
-            case PointGeometry point: session.FillCircle(V(point.Position), Math.Max(2, width), stroke); break;
-            case LineGeometry line: DrawScreenPolyline(session, new[] { V(line.Start), V(line.End) }, false, stroke, width, pattern); break;
-            case PolylineGeometry polyline: DrawScreenPolyline(session, polyline.Points.Select(V).ToArray(), polyline.IsClosed, stroke, width, pattern); break;
-            case PolygonGeometry polygon: DrawPolygon(session, polygon.Points.Select(V).ToArray(), stroke, fill, width, pattern); break;
-            case CompoundPathGeometry compound: DrawCompoundPath(session, compound.Loops.Select(loop => loop.Select(V).ToArray()).ToArray(), stroke, fill, width, pattern); break;
-            case RectangleGeometry rectangle: DrawPolygon(session, RectanglePoints(rectangle.Rectangle).Select(V).ToArray(), stroke, fill, width, pattern); break;
-            case CircleGeometry circle: DrawEllipse(session, new EllipseGeometry(circle.Center, circle.Radius, circle.Radius), Map, stroke, fill, width, pattern); break;
-            case EllipseGeometry ellipse: DrawEllipse(session, ellipse, Map, stroke, fill, width, pattern); break;
-            case ArcGeometry arc: DrawArc(session, arc, Map, stroke, width, pattern); break;
-            case PathGeometry path: DrawScreenPolyline(session, path.Points.Select(V).ToArray(), path.IsClosed, stroke, width, pattern); break;
-            case TextGeometry text: DrawText(session, text, Map, stroke); break;
-            case ImageGeometry image: DrawPolygon(session, RectanglePoints(image.GetBounds()).Select(V).ToArray(), stroke, null, width, pattern); break;
+            var first = camera.WorldToScreen(new Point2D(clip.MinX, clip.MinY), viewport);
+            var second = camera.WorldToScreen(new Point2D(clip.MaxX, clip.MaxY), viewport);
+            var left = Math.Min(first.X, second.X);
+            var top = Math.Min(first.Y, second.Y);
+            var widthPixels = Math.Abs(second.X - first.X);
+            var heightPixels = Math.Abs(second.Y - first.Y);
+            if (widthPixels <= double.Epsilon || heightPixels <= double.Epsilon) return;
+            clipLayer = session.CreateLayer(1f, new Rect(left, top, widthPixels, heightPixels));
         }
-        if (selected && !command.Bounds.IsEmpty) DrawSelectionRectangle(session, command.Bounds, camera, viewport);
+
+        try
+        {
+            var stroke = Parse(RenderColorPolicy.ResolveStroke(command.Style, command.Metadata, CanvasColor), command.Style.Opacity);
+            var fill = command.Style.Fill is null ? (Color?)null : Parse(command.Style.Fill, command.Style.Opacity);
+            var width = (float)Math.Max(.5, command.Style.StrokeWidth);
+            Point2D Map(Point2D p) => camera.WorldToScreen(command.WorldTransform.Apply(p), viewport);
+            Vector2 V(Point2D p) { var q = Map(p); return new((float)q.X, (float)q.Y); }
+            var pattern = RenderStrokePattern.ResolvePixels(command.Metadata, ScreenScale(Map));
+            switch (command.Geometry)
+            {
+                case PointGeometry point: session.FillCircle(V(point.Position), Math.Max(2, width), stroke); break;
+                case LineGeometry line: DrawScreenPolyline(session, new[] { V(line.Start), V(line.End) }, false, stroke, width, pattern); break;
+                case PolylineGeometry polyline: DrawScreenPolyline(session, polyline.Points.Select(V).ToArray(), polyline.IsClosed, stroke, width, pattern); break;
+                case PolygonGeometry polygon: DrawPolygon(session, polygon.Points.Select(V).ToArray(), stroke, fill, width, pattern); break;
+                case CompoundPathGeometry compound: DrawCompoundPath(session, compound.Loops.Select(loop => loop.Select(V).ToArray()).ToArray(), stroke, fill, width, pattern); break;
+                case RectangleGeometry rectangle: DrawPolygon(session, RectanglePoints(rectangle.Rectangle).Select(V).ToArray(), stroke, fill, width, pattern); break;
+                case CircleGeometry circle: DrawEllipse(session, new EllipseGeometry(circle.Center, circle.Radius, circle.Radius), Map, stroke, fill, width, pattern); break;
+                case EllipseGeometry ellipse: DrawEllipse(session, ellipse, Map, stroke, fill, width, pattern); break;
+                case ArcGeometry arc: DrawArc(session, arc, Map, stroke, width, pattern); break;
+                case PathGeometry path: DrawScreenPolyline(session, path.Points.Select(V).ToArray(), path.IsClosed, stroke, width, pattern); break;
+                case TextGeometry text: DrawText(session, text, Map, stroke); break;
+                case ImageGeometry image: DrawPolygon(session, RectanglePoints(image.GetBounds()).Select(V).ToArray(), stroke, null, width, pattern); break;
+            }
+            if (selected && !command.Bounds.IsEmpty) DrawSelectionRectangle(session, command.Bounds, camera, viewport);
+        }
+        finally
+        {
+            clipLayer?.Dispose();
+        }
     }
     private void DrawSelectionRectangle(CanvasDrawingSession session, BoundingBox2D bounds, Camera2D camera, Size2D viewport)
     {
