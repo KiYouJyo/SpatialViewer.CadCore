@@ -117,28 +117,31 @@ jobs:
           ## SpatialViewer.CadCore v$version
 
           ### 中文
-          - 新增 SPLINE 语义支持：保留次数、控制点、节点矢量、权重、拟合点、闭合与周期状态，直到 CAD-to-Scene 阶段才进行曲线离散。
-          - 新增 HATCH：支持线、圆弧、椭圆、多段线/Bulge、样条边界；实心填充使用偶奇规则正确保留内孔。
-          - 新增 ATTDEF / ATTRIB 与 INSERT 实例属性支持：实例值覆盖同标签的变量定义，常量定义仍保留，且不会重复应用块变换。
-          - Win2D 与确定性 Golden PNG 渲染器均支持复合闭环填充，并增加 v0.4.0 DXF 端到端回归夹具。
-          - 非实心 HATCH 本版保留图案元数据和边界，但不伪装成已经实现的图案/渐变填充。
-          - CLR ABI 继续稳定为 $abiVersion，可与 v0.3.x 的独立更新激活链兼容。
+          - 新增 DIMENSION 语义模型，覆盖线性、对齐、角度、半径、直径、坐标与弧长等标注族；保留测量值、标注文字、定义点、文字位置、样式和子类型参考点，不再把匿名标注块当作黑盒图形。
+          - 新增 LEADER 与 MLEADER：保留经典引线顶点、关联注释身份、多根 MLeader 路径、Dogleg、嵌入文字、内容类型和箭头尺寸。
+          - CAD-to-Scene 现在可生成可拾取的尺寸线、延伸线、径向/角度标注、基础箭头、引线路径、Dogleg 与 MLeader 文字；角度标注在可用时继续保留解析 `ArcGeometry`。
+          - 增加 ACadSharp Writer 驱动的真实 DXF 端到端回归，DIMENSION / LEADER / MLEADER 均经过 Reader → 语义层 → Scene → HitTest；另以 DXF→DWG round-trip 验证 DIMENSION / LEADER 的 DWG 路径。
+          - ACadSharp 3.7.1 的 DWG MLEADER writer/reader 存在已确认的位流不对称：writer 直接写 Block Label Count，而 reader 同一位置先读取 Arrowhead Count。本版显式记录该上游限制，不以 ACadSharp 自造 DWG 伪装成 MLEADER DWG round-trip 已通过。
+          - 本版不虚假宣称完整 AutoCAD DIMSTYLE：自定义箭头块、Tolerance/Alternate Units 复杂排版、所有关联式标注关系和 MLeader 边框细节仍属于后续精修。
+          - CLR ABI 继续稳定为 $abiVersion，与 v0.3.x / v0.4.0 的独立更新激活链保持兼容。
 
           ### 日本語
-          - SPLINE の意味モデルを追加し、次数・制御点・ノット・重み・フィット点・閉曲線・周期状態を CAD-to-Scene 変換まで保持します。
-          - HATCH は線分、円弧、楕円、Polyline/Bulge、Spline 境界に対応し、ソリッド塗りは even-odd 規則で穴を正しく保持します。
-          - ATTDEF / ATTRIB と INSERT インスタンス属性に対応し、同一タグの可変定義はインスタンス値で置換し、定数定義は保持します。ブロック変換の二重適用も防止します。
-          - Win2D と決定論的 Golden PNG レンダラーに複合ループ塗りを追加し、v0.4.0 DXF のエンドツーエンド回帰フィクスチャを追加しました。
-          - 非ソリッド HATCH はパターン情報と境界を保持しますが、パターン・グラデーション描画は本リリースの対応範囲外です。
-          - CLR ABI は $abiVersion のまま維持し、v0.3.x の独立更新経路と互換です。
+          - DIMENSION の意味モデルを追加し、Linear / Aligned / Angular / Radius / Diameter / Ordinate / Arc Length 系を対象に、計測値・表示文字・定義点・文字位置・スタイル・サブタイプ固有参照点を保持します。匿名寸法ブロックを単なる画像として扱いません。
+          - LEADER / MLEADER に対応し、従来 Leader の頂点、関連注釈 ID、複数の MLeader パス、Dogleg、埋め込み文字、コンテンツ種別、矢印サイズを保持します。
+          - CAD-to-Scene で選択可能な寸法線・補助線・半径/角度寸法・基本矢印・Leader パス・Dogleg・MLeader 文字を生成し、角度寸法は可能な場合 `ArcGeometry` を維持します。
+          - ACadSharp Writer を用いた実 DXF のエンドツーエンド回帰で DIMENSION / LEADER / MLEADER を Reader → 意味モデル → Scene → HitTest まで検証し、DXF→DWG round-trip では DIMENSION / LEADER の DWG 経路も検証します。
+          - ACadSharp 3.7.1 の DWG MLEADER writer/reader には確認済みのビットストリーム非対称があります。writer は Block Label Count を直接書きますが、reader は同位置で先に Arrowhead Count を読みます。本リリースではこの上流制約を明示し、自己生成 DWG を MLEADER round-trip 成功として扱いません。
+          - カスタム矢印ブロック、Tolerance / Alternate Units の完全なレイアウト、すべての連想寸法関係、MLeader フレームなど、完全な AutoCAD DIMSTYLE 再現は本版の対応範囲外です。
+          - CLR ABI は $abiVersion のまま維持し、v0.3.x / v0.4.0 の独立更新経路と互換です。
 
           ### English
-          - Adds semantic SPLINE support that retains degree, control points, knots, weights, fit points, closed state, and periodic state until CAD-to-Scene translation.
-          - Adds HATCH boundaries for lines, arcs, ellipses, polyline/bulge segments, and splines; solid fills use even-odd compound paths so inner holes remain open.
-          - Adds ATTDEF / ATTRIB and INSERT instance attributes. Instance values replace matching variable definitions, constant definitions remain, and block transforms are not applied twice.
-          - Win2D and the deterministic Golden PNG renderer now support compound-loop fills, backed by a v0.4.0 end-to-end DXF regression fixture.
-          - Non-solid hatches preserve pattern metadata and boundaries; patterned/gradient rendering is deliberately not claimed in this release.
-          - The CLR ABI remains $abiVersion and stays compatible with the v0.3.x independent-update activation path.
+          - Adds reader-independent DIMENSION semantics for linear, aligned, angular, radius, diameter, ordinate, and arc-length families, retaining measurement values, display text, definition/text points, style data, and subtype-specific reference points instead of treating anonymous dimension blocks as opaque pictures.
+          - Adds LEADER and MLEADER semantics for classic vertices, linked-annotation identity, multiple MLeader paths, doglegs, embedded text, content type, and arrow sizing.
+          - CAD-to-Scene now emits pickable dimension/extension lines, radial and angular annotations, basic arrowheads, leader paths, doglegs, and MLeader text; angular dimensions keep analytic `ArcGeometry` when available.
+          - Adds ACadSharp-writer-backed real DXF end-to-end coverage for DIMENSION / LEADER / MLEADER through Reader → semantic model → Scene → HitTest, plus DXF-to-DWG round-trip coverage for the DIMENSION / LEADER DWG path.
+          - ACadSharp 3.7.1 has a confirmed DWG MLEADER writer/reader bitstream asymmetry: the writer emits the block-label count where the reader first expects an arrowhead count. This upstream limitation is tracked explicitly rather than presenting an ACadSharp-generated DWG as a successful MLEADER round-trip.
+          - Full AutoCAD DIMSTYLE fidelity is deliberately not claimed yet: custom arrow blocks, tolerance/alternate-unit layout, every associative dimension relationship, and MLeader framing remain refinement work.
+          - The CLR ABI remains $abiVersion and stays compatible with the v0.3.x / v0.4.0 independent-update activation path.
           "@ | Set-Content release-notes.md -Encoding utf8
 
       - name: Publish GitHub release

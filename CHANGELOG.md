@@ -4,6 +4,26 @@ All notable CadCore changes are recorded here.
 
 ## Unreleased
 
+## 0.5.0 - 2026-08-31
+
+### Added
+- Added reader-independent `CadDimensionEntity` semantics for linear, aligned, angular, radius, diameter, ordinate and arc-length dimension families, retaining measurement text, definition/text points, style information and subtype-specific reference points instead of treating anonymous dimension blocks as opaque pictures.
+- Added semantic `CadLeaderEntity`, `CadLeaderPath` and `CadMultiLeaderEntity` models that preserve classic LEADER vertices, linked-annotation identity, MLEADER multi-path geometry, doglegs, embedded text, content type and arrow sizing before scene translation.
+- Added annotation scene translation for dimension/extension lines, radial and angular geometry, simple arrowheads, classic leader paths, multiple MLEADER paths, doglegs and embedded MLEADER text while retaining semantic metadata for later fidelity work.
+- Added pickable/hit-testable annotation geometry and focused semantic/scene regression tests for linear and angular dimensions, LEADER and multi-path MLEADER.
+- Added ACadSharp-writer-backed end-to-end DXF coverage for DIMENSION, LEADER and MLEADER, plus DXF-to-DWG round-trip coverage for DIMENSION and LEADER through the same CadCore import pipeline.
+
+### Fidelity
+- Angular dimensions keep analytic `ArcGeometry` where the semantic construction exposes an arc rather than permanently flattening the annotation to line segments.
+- Dimension values and linked/embedded leader text remain semantic data, allowing later text-engine and DIMSTYLE fidelity upgrades without reworking the reader boundary.
+- MLEADER leader roots, connection points and landing/dogleg geometry remain distinct paths instead of being collapsed into one arbitrary polyline.
+
+### Compatibility
+- All v0.5.0 model and translator changes are additive; the stable CLR ABI remains `1.0.0.0` while the product/file version advances to `0.5.0`.
+- ACadSharp 3.7.1 has a known DWG MLEADER self-round-trip asymmetry: its writer emits the block-label count where its reader first expects an arrowhead count, so ACadSharp-generated MLEADER DWG fixtures are deliberately tracked as an upstream failure instead of being used to claim false CadCore DWG round-trip coverage. Real-reader MLEADER semantics are validated through DXF and the format-neutral adapter/scene pipeline.
+- v0.5.0 intentionally does not claim full AutoCAD DIMSTYLE fidelity, custom arrow-block rendering, tolerance/alternate-unit layout, every associative annotation relationship, or exact MLEADER content framing. Those remain refinement work rather than being approximated as complete support.
+- Paper Space/Layout/Viewport support remains scheduled for v0.6.0; SHX/text fidelity remains scheduled for v0.7.0.
+
 ## 0.4.0 - 2026-08-31
 
 ### Added
