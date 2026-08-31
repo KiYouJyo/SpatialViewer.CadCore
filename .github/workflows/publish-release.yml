@@ -20,15 +20,18 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Read version
+      - name: Read version and ABI
         id: version
         shell: pwsh
         run: |
           [xml]$props = Get-Content Directory.Build.props
           $version = [string]$props.Project.PropertyGroup.Version
+          $abiVersion = [string]$props.Project.PropertyGroup.AbiVersion
           if ([string]::IsNullOrWhiteSpace($version)) { throw 'Version is missing from Directory.Build.props' }
+          if ([string]::IsNullOrWhiteSpace($abiVersion)) { throw 'AbiVersion is missing from Directory.Build.props' }
           "version=$version" >> $env:GITHUB_OUTPUT
           "tag=v$version" >> $env:GITHUB_OUTPUT
+          "abiVersion=$abiVersion" >> $env:GITHUB_OUTPUT
 
       - name: Restore
         run: dotnet restore SpatialViewer.CadCore.sln
@@ -39,10 +42,36 @@ jobs:
       - name: Test Release
         run: dotnet test SpatialViewer.CadCore.sln -c Release --no-build --verbosity normal
 
+      - name: Verify product version and stable ABI
+        shell: pwsh
+        run: |
+          $version = [version]'${{ steps.version.outputs.version }}'
+          $abiVersion = [version]'${{ steps.version.outputs.abiVersion }}'
+          $projects = @(
+            'SpatialViewer.Core',
+            'SpatialViewer.Formats.Cad',
+            'SpatialViewer.Formats.Cad.ACadSharp',
+            'SpatialViewer.Rendering',
+            'SpatialViewer.Rendering.Windows'
+          )
+          foreach ($project in $projects) {
+            $dll = Get-ChildItem "src/$project/bin/Release" -Recurse -Filter "$project.dll" | Select-Object -First 1
+            if (-not $dll) { throw "Release assembly not found: $project.dll" }
+            $assemblyVersion = [Reflection.AssemblyName]::GetAssemblyName($dll.FullName).Version
+            if ($assemblyVersion -ne $abiVersion) { throw "ABI mismatch for $project.dll: $assemblyVersion != $abiVersion" }
+            $fileVersionText = [Diagnostics.FileVersionInfo]::GetVersionInfo($dll.FullName).FileVersion
+            $fileVersion = [version]$fileVersionText
+            $normalizedFileVersion = [version]::new($fileVersion.Major, $fileVersion.Minor, [Math]::Max(0, $fileVersion.Build))
+            $normalizedProductVersion = [version]::new($version.Major, $version.Minor, [Math]::Max(0, $version.Build))
+            if ($normalizedFileVersion -ne $normalizedProductVersion) { throw "Product version mismatch for $project.dll: $fileVersionText != $version" }
+          }
+          Write-Host "CadCore release identity PASS: product=$version ABI=$abiVersion"
+
       - name: Package release binaries
         shell: pwsh
         run: |
           $version = '${{ steps.version.outputs.version }}'
+          $abiVersion = '${{ steps.version.outputs.abiVersion }}'
           $root = Join-Path $PWD 'release-package'
           $bin = Join-Path $root 'bin'
           New-Item -ItemType Directory -Force -Path $bin | Out-Null
@@ -61,6 +90,7 @@ jobs:
           $manifest = [ordered]@{
             product = 'SpatialViewer.CadCore'
             version = $version
+            abiVersion = $abiVersion
             tag = "v$version"
             commit = $env:GITHUB_SHA
             runtime = 'x64'
@@ -80,29 +110,24 @@ jobs:
         shell: pwsh
         run: |
           $version = '${{ steps.version.outputs.version }}'
+          $abiVersion = '${{ steps.version.outputs.abiVersion }}'
           @"
           ## SpatialViewer.CadCore v$version
 
           ### 中文
-          - `LWPOLYLINE / POLYLINE2D` 的 Bulge 弧段现在保留为解析圆弧，不再错误显示为直线弦。
-          - CAD 虚线/中心线等线型现在读取实际 pattern，并结合实体 `CELTSCALE` 与全局 `LTSCALE` 在 Win2D 中连续绘制。
-          - 圆/椭圆改为基于完整世界变换的 0.25 px 屏幕误差自适应绘制，修复旋转与非均匀缩放后的椭圆变形。
-          - CAD 文字现在从完整变换提取屏幕旋转与缩放，旋转文字及缩放块内文字方向/大小正确跟随几何。
-          - 新增 `fidelity-v030.dxf` 与针对四项 Fidelity Fix 的回归测试。
+          - 修复独立 Cad Core 重启更新后仍绑定旧版本的问题：CLR AssemblyVersion 不再跟随产品版本变化。
+          - 五个 Cad Core 程序集统一使用稳定 ABI `$abiVersion`；产品版本继续由 release manifest、FileVersion 与 InformationalVersion 标识。
+          - 保留 v0.3.0 的 Bulge 圆弧、CAD 线型、旋转/非均匀缩放椭圆和文字完整变换修复。
 
           ### 日本語
-          - `LWPOLYLINE / POLYLINE2D` の Bulge 円弧を解析的な円弧として保持し、直線の弦として誤表示しないよう修正。
-          - CAD の破線・中心線パターンを読み取り、エンティティ `CELTSCALE` とグローバル `LTSCALE` を反映して Win2D で連続描画。
-          - 円・楕円を完全なワールド変換後の 0.25 px 画面誤差ベース適応描画へ変更し、回転・非等方スケール時の変形を修正。
-          - CAD テキストの画面回転とスケールを完全変換から算出し、回転文字とスケールされたブロック内文字を正しく描画。
-          - `fidelity-v030.dxf` と 4 項目の Fidelity Fix 回帰テストを追加。
+          - 独立 Cad Core の再起動更新後も旧版へバインドされる問題を修正し、CLR AssemblyVersion を製品バージョンから分離。
+          - 5 つの Cad Core アセンブリは安定 ABI `$abiVersion` を共有し、製品バージョンは release manifest / FileVersion / InformationalVersion で管理。
+          - v0.3.0 の Bulge 円弧、CAD 線種、回転・非等方楕円、テキスト完全変換の修正を継承。
 
           ### English
-          - Preserve `LWPOLYLINE / POLYLINE2D` bulge segments as analytic arcs instead of incorrect straight chords.
-          - Render CAD dash/center patterns using resolved linetype segments with entity `CELTSCALE` and global `LTSCALE`.
-          - Render circles/ellipses with adaptive 0.25 px screen-error tessellation after the complete world transform, fixing rotated and non-uniformly scaled ellipses.
-          - Derive CAD text screen rotation and scale from the complete transform so rotated and block-scaled text follows geometry correctly.
-          - Add `fidelity-v030.dxf` and regression coverage for all four fidelity fixes.
+          - Fix independent Cad Core restart updates binding back to the bundled kernel by decoupling CLR AssemblyVersion from product version.
+          - All five Cad Core assemblies now share stable ABI `$abiVersion`; release identity remains in the manifest, FileVersion, and InformationalVersion.
+          - Retains the v0.3.0 bulge-arc, CAD linetype, transformed ellipse, and text-transform fidelity fixes.
           "@ | Set-Content release-notes.md -Encoding utf8
 
       - name: Publish GitHub release
