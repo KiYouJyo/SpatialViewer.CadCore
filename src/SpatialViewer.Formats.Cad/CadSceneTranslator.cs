@@ -56,11 +56,58 @@ public sealed class CadSceneTranslator
             CadArcEntity arc => new SceneNode(entity.ObjectId, new ArcGeometry(arc.Center, arc.Radius, arc.StartRadians, arc.SweepRadians), style: style, metadata: metadata),
             CadEllipseEntity ellipse => new SceneNode(entity.ObjectId, new EllipseGeometry(ellipse.Center, ellipse.RadiusX, ellipse.RadiusY), Transform2D.Translation(ellipse.Center.X, ellipse.Center.Y).Then(Transform2D.Rotation(ellipse.RotationRadians)).Then(Transform2D.Translation(-ellipse.Center.X, -ellipse.Center.Y)), style, metadata: metadata),
             CadPolylineEntity polyline => PolylineNode(polyline, style, metadata),
-            CadTextEntity text => new SceneNode(entity.ObjectId, new TextGeometry(text.InsertionPoint, text.Text, text.Height), Transform2D.Translation(text.InsertionPoint.X, text.InsertionPoint.Y).Then(Transform2D.Rotation(text.RotationRadians)).Then(Transform2D.Translation(-text.InsertionPoint.X, -text.InsertionPoint.Y)), style, metadata: metadata),
+            CadSplineEntity spline => SplineNode(spline, style, metadata),
+            CadHatchEntity hatch => HatchNode(hatch, effectiveColor, style, metadata),
+            CadTextEntity text => TextNode(entity.ObjectId, text.InsertionPoint, text.Text, text.Height, text.RotationRadians, style, metadata),
+            CadAttributeEntity attribute => AttributeNode(attribute, style, metadata),
             CadBlockReferenceEntity reference => BlockNode(reference, layers, blocks, effectiveColor, layerColor, stack, metadata),
             _ => null
         };
     }
+
+    private static SceneNode SplineNode(CadSplineEntity spline, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
+    {
+        var points = CadCurveTessellator.Spline(spline.Spline);
+        var enriched = new Dictionary<string, string>(metadata, StringComparer.Ordinal)
+        {
+            ["SplineDegree"] = spline.Spline.Degree.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["SplineClosed"] = spline.Spline.IsClosed.ToString(),
+            ["SplinePeriodic"] = spline.Spline.IsPeriodic.ToString(),
+            ["SplineControlPointCount"] = spline.Spline.ControlPoints.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        };
+        return new SceneNode(spline.ObjectId, new PathGeometry(points, spline.Spline.IsClosed || spline.Spline.IsPeriodic), style: style, metadata: enriched);
+    }
+
+    private static SceneNode? HatchNode(CadHatchEntity hatch, CadColor effectiveColor, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
+    {
+        var loops = hatch.Loops.Select(CadCurveTessellator.HatchLoop).Where(loop => loop.Count >= 3).ToArray();
+        if (loops.Length == 0) return null;
+        var enriched = new Dictionary<string, string>(metadata, StringComparer.Ordinal)
+        {
+            ["HatchSolid"] = hatch.IsSolid.ToString(),
+            ["HatchPattern"] = hatch.PatternName,
+            ["HatchPatternAngle"] = hatch.PatternAngleRadians.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
+            ["HatchPatternScale"] = hatch.PatternScale.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
+            ["HatchLoopCount"] = loops.Length.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        };
+        var hatchStyle = hatch.IsSolid ? style with { Fill = ToHex(effectiveColor) } : style;
+        return new SceneNode(hatch.ObjectId, new CompoundPathGeometry(loops), style: hatchStyle, metadata: enriched);
+    }
+
+    private static SceneNode AttributeNode(CadAttributeEntity attribute, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
+    {
+        var enriched = new Dictionary<string, string>(metadata, StringComparer.Ordinal)
+        {
+            ["AttributeTag"] = attribute.Tag,
+            ["AttributeDefinition"] = attribute.IsDefinition.ToString(),
+            ["AttributeConstant"] = attribute.IsConstant.ToString()
+        };
+        if (!string.IsNullOrEmpty(attribute.Prompt)) enriched["AttributePrompt"] = attribute.Prompt;
+        return TextNode(attribute.ObjectId, attribute.InsertionPoint, attribute.Value, attribute.Height, attribute.RotationRadians, style, enriched);
+    }
+
+    private static SceneNode TextNode(ObjectId id, Point2D insertionPoint, string text, double height, double rotationRadians, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
+        => new(id, new TextGeometry(insertionPoint, text, height), Transform2D.Translation(insertionPoint.X, insertionPoint.Y).Then(Transform2D.Rotation(rotationRadians)).Then(Transform2D.Translation(-insertionPoint.X, -insertionPoint.Y)), style, metadata: metadata);
 
     private static SceneNode PolylineNode(CadPolylineEntity polyline, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
     {
@@ -99,13 +146,23 @@ public sealed class CadSceneTranslator
             .Then(Transform2D.Scale(reference.ScaleX, reference.ScaleY))
             .Then(Transform2D.Rotation(reference.RotationRadians))
             .Then(Transform2D.Translation(reference.InsertionPoint.X, reference.InsertionPoint.Y));
-        var children = definition.Entities
+        var instanceTags = new HashSet<string>(reference.Attributes.Select(attribute => attribute.Tag), StringComparer.OrdinalIgnoreCase);
+        var blockChildren = definition.Entities
+            .Where(entity => entity is not CadAttributeEntity { IsDefinition: true, IsConstant: false } definitionAttribute || !instanceTags.Contains(definitionAttribute.Tag))
             .Select(entity => ToNode(entity, layers, blocks, effectiveColor, effectiveLayerColor, stack))
             .Where(node => node is not null)
             .Cast<SceneNode>()
             .ToArray();
         stack.Remove(reference.BlockName);
-        return new SceneNode(reference.ObjectId, null, transform, new SceneStyle(ToHex(effectiveColor)), children, metadata);
+
+        var children = new List<SceneNode>();
+        if (blockChildren.Length > 0) children.Add(new SceneNode(reference.ObjectId, transform: transform, style: new SceneStyle(ToHex(effectiveColor)), children: blockChildren, metadata: metadata));
+        foreach (var attribute in reference.Attributes)
+        {
+            var attributeNode = ToNode(attribute, layers, blocks, effectiveColor, effectiveLayerColor, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+            if (attributeNode is not null) children.Add(attributeNode);
+        }
+        return new SceneNode(reference.ObjectId, style: new SceneStyle(ToHex(effectiveColor)), children: children, metadata: metadata);
     }
 
     public static string ResolveColor(CadColor color, CadColor layerColor, CadColor? blockColor) => ToHex(ResolveCadColor(color, layerColor, blockColor));
