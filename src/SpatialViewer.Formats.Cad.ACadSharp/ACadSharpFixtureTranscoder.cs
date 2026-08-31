@@ -1,3 +1,4 @@
+using ACadSharp;
 using ACadSharp.Entities;
 using ACadSharp.IO;
 using ACadSharp.Objects;
@@ -19,7 +20,7 @@ public static class ACadSharpFixtureTranscoder
 
     public static void WriteAnnotationDxf(string dxfPath)
     {
-        var document = new global::ACadSharp.CadDocument();
+        var document = new CadDocument();
         document.CreateDefaults();
 
         var dimension = new DimensionLinear
