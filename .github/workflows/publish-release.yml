@@ -121,21 +121,21 @@ jobs:
           - 修复缩放/压缩块内对象的拾取容差，世界坐标容差现在会通过逆仿射变换换算到实体局部空间。
           - Scene2D 在构造时一次性展开不可变节点变换与边界，后续枚举、边界查询和拾取复用缓存结果；图层显隐仍保持实时生效。
           - 增加 10 万图元无额外依赖性能基线，为后续 Spatial Index / 大图优化提供可比较基准。
-          - CLR ABI 继续稳定为 `$abiVersion`，与 v0.3.1 保持二进制兼容。
+          - CLR ABI 继续稳定为 $abiVersion，与 v0.3.1 保持二进制兼容。
 
           ### 日本語
           - 円弧のヒットテストを修正し、実際の開始角・スイープ角の範囲だけを選択対象にしました。
           - 縮小・非等方変換されたブロック内要素でも、ワールド座標の許容誤差を逆アフィン変換でローカル空間へ正しく変換します。
           - Scene2D は不変ノードの変換と境界を構築時に一度だけ展開し、列挙・境界取得・ヒットテストで再利用します。レイヤー表示状態は引き続き動的です。
           - 10 万要素の依存なし性能ベースラインを追加し、将来の Spatial Index / 大規模図面最適化と比較できるようにしました。
-          - CLR ABI は `$abiVersion` のまま維持し、v0.3.1 とバイナリ互換です。
+          - CLR ABI は $abiVersion のまま維持し、v0.3.1 とバイナリ互換です。
 
           ### English
           - Arc hit testing now honors the actual start/sweep range instead of treating the entire parent circle as selectable.
           - World-space hit tolerance is transformed into entity-local space for compressed and non-uniformly transformed block contents.
           - Scene2D now flattens immutable transforms and bounds once at construction and reuses the cached items for enumeration, bounds, and hit testing while keeping layer visibility live.
           - Adds a dependency-free 100k-item performance baseline for future Spatial Index and large-drawing work.
-          - The CLR ABI remains `$abiVersion`, preserving binary compatibility with v0.3.1.
+          - The CLR ABI remains $abiVersion, preserving binary compatibility with v0.3.1.
           "@ | Set-Content release-notes.md -Encoding utf8
 
       - name: Publish GitHub release
@@ -145,7 +145,11 @@ jobs:
         run: |
           $tag = '${{ steps.version.outputs.tag }}'
           if (gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null) {
-            Write-Host "$tag already exists; skipping release creation."
+            gh release edit $tag `
+              --repo $env:GITHUB_REPOSITORY `
+              --title "SpatialViewer.CadCore $tag" `
+              --notes-file release-notes.md
+            Write-Host "$tag already exists; refreshed release notes."
             exit 0
           }
           gh release create $tag `
