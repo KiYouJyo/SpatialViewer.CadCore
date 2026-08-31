@@ -39,6 +39,8 @@ jobs:
         run: dotnet build SpatialViewer.CadCore.sln -c Debug --no-restore
       - name: Build Release
         run: dotnet build SpatialViewer.CadCore.sln -c Release --no-restore
+      - name: Build performance baseline
+        run: dotnet build benchmarks/SpatialViewer.Core.Benchmarks/SpatialViewer.Core.Benchmarks.csproj -c Release
       - name: Test Release
         run: dotnet test SpatialViewer.CadCore.sln -c Release --no-build --verbosity normal
 
@@ -115,19 +117,25 @@ jobs:
           ## SpatialViewer.CadCore v$version
 
           ### 中文
-          - 修复独立 Cad Core 重启更新后仍绑定旧版本的问题：CLR AssemblyVersion 不再跟随产品版本变化。
-          - 五个 Cad Core 程序集统一使用稳定 ABI `$abiVersion`；产品版本继续由 release manifest、FileVersion 与 InformationalVersion 标识。
-          - 保留 v0.3.0 的 Bulge 圆弧、CAD 线型、旋转/非均匀缩放椭圆和文字完整变换修复。
+          - 修复圆弧拾取：只在真实起始角/扫掠角范围内命中，不再把整圆误判为可选圆弧。
+          - 修复缩放/压缩块内对象的拾取容差，世界坐标容差现在会通过逆仿射变换换算到实体局部空间。
+          - Scene2D 在构造时一次性展开不可变节点变换与边界，后续枚举、边界查询和拾取复用缓存结果；图层显隐仍保持实时生效。
+          - 增加 10 万图元无额外依赖性能基线，为后续 Spatial Index / 大图优化提供可比较基准。
+          - CLR ABI 继续稳定为 `$abiVersion`，与 v0.3.1 保持二进制兼容。
 
           ### 日本語
-          - 独立 Cad Core の再起動更新後も旧版へバインドされる問題を修正し、CLR AssemblyVersion を製品バージョンから分離。
-          - 5 つの Cad Core アセンブリは安定 ABI `$abiVersion` を共有し、製品バージョンは release manifest / FileVersion / InformationalVersion で管理。
-          - v0.3.0 の Bulge 円弧、CAD 線種、回転・非等方楕円、テキスト完全変換の修正を継承。
+          - 円弧のヒットテストを修正し、実際の開始角・スイープ角の範囲だけを選択対象にしました。
+          - 縮小・非等方変換されたブロック内要素でも、ワールド座標の許容誤差を逆アフィン変換でローカル空間へ正しく変換します。
+          - Scene2D は不変ノードの変換と境界を構築時に一度だけ展開し、列挙・境界取得・ヒットテストで再利用します。レイヤー表示状態は引き続き動的です。
+          - 10 万要素の依存なし性能ベースラインを追加し、将来の Spatial Index / 大規模図面最適化と比較できるようにしました。
+          - CLR ABI は `$abiVersion` のまま維持し、v0.3.1 とバイナリ互換です。
 
           ### English
-          - Fix independent Cad Core restart updates binding back to the bundled kernel by decoupling CLR AssemblyVersion from product version.
-          - All five Cad Core assemblies now share stable ABI `$abiVersion`; release identity remains in the manifest, FileVersion, and InformationalVersion.
-          - Retains the v0.3.0 bulge-arc, CAD linetype, transformed ellipse, and text-transform fidelity fixes.
+          - Arc hit testing now honors the actual start/sweep range instead of treating the entire parent circle as selectable.
+          - World-space hit tolerance is transformed into entity-local space for compressed and non-uniformly transformed block contents.
+          - Scene2D now flattens immutable transforms and bounds once at construction and reuses the cached items for enumeration, bounds, and hit testing while keeping layer visibility live.
+          - Adds a dependency-free 100k-item performance baseline for future Spatial Index and large-drawing work.
+          - The CLR ABI remains `$abiVersion`, preserving binary compatibility with v0.3.1.
           "@ | Set-Content release-notes.md -Encoding utf8
 
       - name: Publish GitHub release
