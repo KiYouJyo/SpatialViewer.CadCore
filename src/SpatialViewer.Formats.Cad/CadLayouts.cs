@@ -150,7 +150,7 @@ public static class CadLayoutSceneTranslator
                 return new SceneNode(CadIds.ToObjectId($"viewport:{layout.Name}:{viewport.Handle}"), new RectangleGeometry(viewport.PaperBounds), style: new SceneStyle("#808080", 1), metadata: metadata);
             })
             .ToArray();
-        sceneLayers.Add(new SceneLayer(new Layer(ViewportLayerName, "Viewports", order, true, false, new Dictionary<string, string> { ["Layout"] = layout.Name }), viewportNodes));
+        sceneLayers.Add(new SceneLayer(new Layer(ViewportLayerName, "Viewports", -1, true, false, new Dictionary<string, string> { ["Layout"] = layout.Name }), viewportNodes));
         return new Scene2D(sceneLayers);
     }
 
