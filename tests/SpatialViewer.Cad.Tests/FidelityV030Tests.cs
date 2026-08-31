@@ -12,7 +12,7 @@ public sealed class FidelityV030Tests
         var document = await ImportAsync();
         var polyline = Assert.Single(document.ModelSpace.OfType<CadPolylineEntity>());
         Assert.Equal(1d, Assert.Single(polyline.Bulges), 12);
-        var item = Assert.Single(document.Scene.GetItems().Where(candidate => candidate.Id == polyline.ObjectId));
+        var item = Assert.Single(document.Scene.GetItems(), candidate => candidate.Id == polyline.ObjectId);
         var arc = Assert.IsType<ArcGeometry>(item.Geometry);
         Assert.Equal(10, arc.Center.X, 8);
         Assert.Equal(0, arc.Center.Y, 8);
@@ -29,7 +29,7 @@ public sealed class FidelityV030Tests
         Assert.Equal("6;-4", line.Metadata["LineTypePattern"]);
         Assert.Equal("1.5", line.Metadata["LineTypeScale"]);
         Assert.Equal("2", line.Metadata["GlobalLineTypeScale"]);
-        var item = Assert.Single(document.Scene.GetItems().Where(candidate => candidate.Id == line.ObjectId));
+        var item = Assert.Single(document.Scene.GetItems(), candidate => candidate.Id == line.ObjectId);
         Assert.Equal("6;-4", item.Metadata["LineTypePattern"]);
     }
 
@@ -39,7 +39,7 @@ public sealed class FidelityV030Tests
         var document = await ImportAsync();
         var ellipse = Assert.Single(document.ModelSpace.OfType<CadEllipseEntity>());
         Assert.InRange(ellipse.RotationRadians, (Math.PI / 4) - 1e-8, (Math.PI / 4) + 1e-8);
-        var item = Assert.Single(document.Scene.GetItems().Where(candidate => candidate.Id == ellipse.ObjectId));
+        var item = Assert.Single(document.Scene.GetItems(), candidate => candidate.Id == ellipse.ObjectId);
         Assert.IsType<EllipseGeometry>(item.Geometry);
         Assert.NotEqual(Transform2D.Identity, item.Transform);
     }
@@ -51,7 +51,7 @@ public sealed class FidelityV030Tests
         var textItems = document.Scene.GetItems().Where(item => item.Geometry is TextGeometry).ToArray();
         Assert.Equal(2, textItems.Length);
         Assert.All(textItems, item => Assert.NotEqual(Transform2D.Identity, item.Transform));
-        var blockText = Assert.Single(textItems.Where(item => ((TextGeometry)item.Geometry).Text == "Scaled text"));
+        var blockText = Assert.Single(textItems, item => ((TextGeometry)item.Geometry).Text == "Scaled text");
         var text = (TextGeometry)blockText.Geometry;
         var origin = blockText.Transform.Apply(text.Origin);
         var x = blockText.Transform.Apply(new Point2D(text.Origin.X + 1, text.Origin.Y));
