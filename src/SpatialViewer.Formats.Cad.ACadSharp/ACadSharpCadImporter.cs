@@ -35,17 +35,19 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
             var layers = source.Layers.Select(layer => new CadLayer(layer.Name, MapColor(layer.Color), layer.IsOn, false, NameOf(layer.LineType), ParseLineWeight(layer.LineWeight))).ToArray();
             var entities = source.Entities.Select(entity => MapEntity(entity, diagnostics, globalLineTypeScale)).ToArray();
             var blocks = MapBlocks(source, diagnostics, globalLineTypeScale);
-            ValidateBlockReferences(entities.Concat(blocks.SelectMany(block => block.Entities)), blocks, diagnostics);
+            var layouts = MapLayouts(source, diagnostics, globalLineTypeScale);
+            ValidateBlockReferences(entities.Concat(blocks.SelectMany(block => block.Entities)).Concat(layouts.SelectMany(layout => layout.Entities)), blocks, diagnostics);
             var metadata = new Dictionary<string, string>
             {
                 ["Reader"] = "ACadSharp",
                 ["ReaderVersion"] = typeof(CadDocument).Assembly.GetName().Version?.ToString() ?? "unknown",
                 ["EntityCount"] = entities.Length.ToString(CultureInfo.InvariantCulture),
                 ["BlockCount"] = blocks.Length.ToString(CultureInfo.InvariantCulture),
+                ["LayoutCount"] = layouts.Length.ToString(CultureInfo.InvariantCulture),
                 ["LineTypeScale"] = globalLineTypeScale.ToString(CultureInfo.InvariantCulture)
             };
             if (entities.OfType<CadUnsupportedEntity>().Any()) diagnostics.Add(new Diagnostic(DiagnosticSeverity.Warning, "CAD_PARTIAL_IMPORT", $"Skipped {entities.OfType<CadUnsupportedEntity>().Count()} unsupported entity or entities."));
-            var document = new SpatialViewer.Formats.Cad.CadDocument(Path.GetFileName(request.FilePath), extension.TrimStart('.').ToUpperInvariant(), source.Header.Version.ToString(), MapUnits(source.Header.InsUnits.ToString()), layers, blocks, entities, diagnostics, metadata);
+            var document = new SpatialViewer.Formats.Cad.CadDocument(Path.GetFileName(request.FilePath), extension.TrimStart('.').ToUpperInvariant(), source.Header.Version.ToString(), MapUnits(source.Header.InsUnits.ToString()), layers, blocks, entities, diagnostics, metadata, layouts);
             progress?.Report(new ImportProgress("Scene", 1, "CAD scene ready"));
             return new ImportResult(document, diagnostics);
         }
@@ -200,6 +202,72 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
         }
         return definitions.ToArray();
     }
+    private static CadLayoutDefinition[] MapLayouts(global::ACadSharp.CadDocument source, List<Diagnostic> diagnostics, double globalLineTypeScale)
+    {
+        var layouts = new List<CadLayoutDefinition>();
+        foreach (var layout in EnumerableProperty(source, "Layouts"))
+        {
+            var name = StringProperty(layout, "Name");
+            if (string.IsNullOrWhiteSpace(name)) continue;
+            var paperSize = new Size2D(DoubleProperty(layout, "PaperWidth"), DoubleProperty(layout, "PaperHeight"));
+            var minLimits = Point(Property(layout, "MinLimits"));
+            var maxLimits = Point(Property(layout, "MaxLimits"));
+            var minExtents = Point(Property(layout, "MinExtents"));
+            var maxExtents = Point(Property(layout, "MaxExtents"));
+            var block = Property(layout, "AssociatedBlock");
+            var paperEntities = block is null
+                ? Array.Empty<CadEntity>()
+                : EnumerableProperty(block, "Entities").OfType<Entity>().Where(entity => entity is not Viewport).Select(entity => MapEntity(entity, diagnostics, globalLineTypeScale)).ToArray();
+            var viewports = EnumerableProperty(layout, "Viewports").OfType<Viewport>().Select(MapViewport).ToArray();
+            var metadata = new Dictionary<string, string>
+            {
+                ["LayoutFlags"] = StringProperty(layout, "LayoutFlags"),
+                ["AssociatedBlock"] = StringProperty(block, "Name")
+            };
+            layouts.Add(new CadLayoutDefinition(
+                name,
+                IntProperty(layout, "TabOrder"),
+                BoolProperty(layout, "IsPaperSpace"),
+                paperSize,
+                Bounds(minLimits, maxLimits),
+                Bounds(minExtents, maxExtents),
+                paperEntities,
+                viewports,
+                metadata));
+        }
+        return layouts.OrderBy(layout => layout.TabOrder).ToArray();
+    }
+    private static CadViewportDefinition MapViewport(Viewport viewport)
+    {
+        var boundary = viewport.Boundary;
+        var boundaryPoints = boundary switch
+        {
+            LwPolyline polyline => polyline.Vertices.Select(vertex => Point(vertex.Location)).ToArray(),
+            Polyline2D polyline => EnumerableProperty(polyline, "Vertices").Select(vertex => Point(Property(vertex, "Location") ?? Property(vertex, "Position"))).ToArray(),
+            _ => Array.Empty<Point2D>()
+        };
+        var metadata = new Dictionary<string, string>
+        {
+            ["ActiveStatus"] = viewport.ActiveStatus.ToString(CultureInfo.InvariantCulture),
+            ["ViewDirection"] = viewport.ViewDirection.ToString(),
+            ["ViewHeight"] = viewport.ViewHeight.ToString("R", CultureInfo.InvariantCulture)
+        };
+        return new CadViewportDefinition(
+            viewport.Handle.ToString(CultureInfo.InvariantCulture),
+            Point(viewport.Center),
+            new Size2D(viewport.Width, viewport.Height),
+            Point(viewport.ViewCenter),
+            Point(viewport.ViewTarget),
+            viewport.ViewHeight,
+            Degrees(viewport.TwistAngle),
+            viewport.ActiveStatus != 0,
+            viewport.RepresentsPaper,
+            viewport.FrozenLayers.Select(layer => layer.Name).ToArray(),
+            boundary?.Handle.ToString(CultureInfo.InvariantCulture),
+            boundaryPoints,
+            metadata);
+    }
+    private static BoundingBox2D Bounds(Point2D first, Point2D second) => new(Math.Min(first.X, second.X), Math.Min(first.Y, second.Y), Math.Max(first.X, second.X), Math.Max(first.Y, second.Y));
     private static void ValidateBlockReferences(IEnumerable<CadEntity> entities, IReadOnlyList<CadBlockDefinition> blocks, List<Diagnostic> diagnostics)
     {
         var names = new HashSet<string>(blocks.Select(block => block.Name), StringComparer.OrdinalIgnoreCase);
