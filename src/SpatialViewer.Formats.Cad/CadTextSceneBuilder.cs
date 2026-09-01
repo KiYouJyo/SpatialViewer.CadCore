@@ -87,7 +87,7 @@ internal static class CadTextSceneBuilder
             VerticalAlignment = vertical,
             IsBackward = presentation.IsBackward,
             IsUpsideDown = presentation.IsUpsideDown,
-            IsMultiline = isMText || text.Contains('\n', StringComparison.Ordinal)
+            IsMultiline = isMText || text.Contains('\n')
         };
         var transform = Transform2D.Translation(origin.X, origin.Y).Then(Transform2D.Rotation(rotation)).Then(Transform2D.Translation(-origin.X, -origin.Y));
         return new SceneNode(id, geometry, transform, style, metadata: enriched);
