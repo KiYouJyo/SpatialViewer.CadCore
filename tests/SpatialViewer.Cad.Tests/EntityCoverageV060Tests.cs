@@ -48,7 +48,7 @@ public sealed class EntityCoverageV060Tests
         var projected = Assert.Single(scene.GetItems(), item => item.Metadata.TryGetValue("Space", out var space) && space == "ModelThroughViewport");
         Assert.Equal("VP2", projected.Metadata["ViewportHandle"]);
         Assert.Equal(viewport.PaperBounds, projected.ClipBounds);
-        Assert.Equal(viewport.PaperBounds, projected.Bounds);
+        Assert.Equal(new BoundingBox2D(50, 50, 150, 50), projected.Bounds);
         Assert.DoesNotContain(scene.GetItems(), item => item.Layer.Name == "FROZEN" && item.Metadata.TryGetValue("Space", out var space) && space == "ModelThroughViewport");
         Assert.Contains(scene.GetItems(), item => item.Metadata.TryGetValue("Space", out var space) && space == "Paper");
         Assert.Contains(scene.GetItems(), item => item.Metadata.TryGetValue("Space", out var space) && space == "ViewportBoundary");
@@ -56,11 +56,13 @@ public sealed class EntityCoverageV060Tests
         var inside = HitTesting.HitTest(scene, new Point2D(100, 50), .5);
         Assert.NotNull(inside);
         Assert.Equal(projected.Id, inside.Value.Id);
+        Assert.Equal("ModelThroughViewport", inside.Value.Metadata["Space"]);
         Assert.Null(HitTesting.HitTest(scene, new Point2D(170, 50), .5));
 
         var frame = RenderPreparation.Prepare(scene, new Camera2D(new Point2D(100, 50)));
         var command = Assert.Single(frame.Commands, candidate => candidate.Metadata is not null && candidate.Metadata.TryGetValue("ViewportHandle", out var handle) && handle == "VP2" && candidate.Metadata.TryGetValue("Space", out var space) && space == "ModelThroughViewport");
         Assert.Equal(viewport.PaperBounds, command.ClipBounds);
+        Assert.Equal(projected.Bounds, command.Bounds);
     }
 
     [Fact]
