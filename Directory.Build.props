@@ -10,11 +10,11 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
     <PlatformTarget>x64</PlatformTarget>
-    <Version>0.7.0</Version>
+    <Version>0.8.0</Version>
     <AbiVersion>1.0.0.0</AbiVersion>
     <AssemblyVersion>$(AbiVersion)</AssemblyVersion>
-    <FileVersion>0.7.0.0</FileVersion>
-    <InformationalVersion>0.7.0</InformationalVersion>
+    <FileVersion>0.8.0.0</FileVersion>
+    <InformationalVersion>0.8.0</InformationalVersion>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
     <Deterministic>true</Deterministic>
   </PropertyGroup>
