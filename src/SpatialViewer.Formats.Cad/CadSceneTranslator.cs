@@ -61,7 +61,7 @@ public sealed partial class CadSceneTranslator
             CadDimensionEntity dimension => DimensionNode(dimension, style, metadata),
             CadLeaderEntity leader => LeaderNode(leader, style, metadata),
             CadMultiLeaderEntity multiLeader => MultiLeaderNode(multiLeader, style, metadata),
-            CadTextEntity text => TextNode(entity.ObjectId, text.InsertionPoint, text.Text, text.Height, text.RotationRadians, style, metadata),
+            CadTextEntity text => CadTextSceneBuilder.Create(text, style, metadata),
             CadAttributeEntity attribute => AttributeNode(attribute, style, metadata),
             CadBlockReferenceEntity reference => BlockNode(reference, layers, blocks, effectiveColor, layerColor, stack, metadata),
             _ => null
@@ -106,7 +106,7 @@ public sealed partial class CadSceneTranslator
             ["AttributeConstant"] = attribute.IsConstant.ToString()
         };
         if (!string.IsNullOrEmpty(attribute.Prompt)) enriched["AttributePrompt"] = attribute.Prompt;
-        return TextNode(attribute.ObjectId, attribute.InsertionPoint, attribute.Value, attribute.Height, attribute.RotationRadians, style, enriched);
+        return CadTextSceneBuilder.Create(attribute, style, enriched);
     }
 
     private static SceneNode TextNode(ObjectId id, Point2D insertionPoint, string text, double height, double rotationRadians, SceneStyle style, IReadOnlyDictionary<string, string> metadata)

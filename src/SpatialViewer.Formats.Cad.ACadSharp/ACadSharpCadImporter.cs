@@ -13,12 +13,15 @@ namespace SpatialViewer.Formats.Cad.ACadSharp;
 public sealed partial class ACadSharpCadImporter : IDocumentImporter
 {
     private static readonly HashSet<string> Extensions = new(StringComparer.OrdinalIgnoreCase) { ".dxf", ".dwg" };
+
     public bool CanImport(string filePath) => Extensions.Contains(Path.GetExtension(filePath));
+
     public Task<ImportResult> ImportAsync(ImportRequest request, IProgress<ImportProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         return Task.Run(() => ImportCore(request, progress, cancellationToken), cancellationToken);
     }
+
     private static ImportResult ImportCore(ImportRequest request, IProgress<ImportProgress>? progress, CancellationToken cancellationToken)
     {
         var diagnostics = new List<Diagnostic>();
@@ -27,10 +30,13 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
         if (!Extensions.Contains(extension)) return new ImportResult(null, new[] { new Diagnostic(DiagnosticSeverity.Error, "CAD_UNSUPPORTED_EXTENSION", $"Unsupported CAD extension: {extension}") });
         try
         {
-            cancellationToken.ThrowIfCancellationRequested(); progress?.Report(new ImportProgress("Reader", .1, "Reading CAD file"));
+            cancellationToken.ThrowIfCancellationRequested();
+            progress?.Report(new ImportProgress("Reader", .1, "Reading CAD file"));
             using var reader = CadReaderFactory.CreateReader(request.FilePath);
             reader.OnNotification += (_, args) => diagnostics.Add(new Diagnostic(DiagnosticSeverity.Warning, "CAD_READER_WARNING", args.Message));
-            var source = reader.Read(); cancellationToken.ThrowIfCancellationRequested(); progress?.Report(new ImportProgress("Adapter", .55, "Copying reader data into CAD model"));
+            var source = reader.Read();
+            cancellationToken.ThrowIfCancellationRequested();
+            progress?.Report(new ImportProgress("Adapter", .55, "Copying reader data into CAD model"));
             var globalLineTypeScale = source.Header.LineTypeScale;
             var layers = source.Layers.Select(layer => new CadLayer(layer.Name, MapColor(layer.Color), layer.IsOn, false, NameOf(layer.LineType), ParseLineWeight(layer.LineWeight))).ToArray();
             var entities = source.Entities.Select(entity => MapEntity(entity, diagnostics, globalLineTypeScale)).ToArray();
@@ -52,8 +58,13 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
             return new ImportResult(document, diagnostics);
         }
         catch (OperationCanceledException) { throw; }
-        catch (Exception exception) { diagnostics.Add(new Diagnostic(DiagnosticSeverity.Error, "CAD_READER_FAILURE", $"Unable to import CAD file: {exception.Message}", Exception: exception)); return new ImportResult(null, diagnostics); }
+        catch (Exception exception)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticSeverity.Error, "CAD_READER_FAILURE", $"Unable to import CAD file: {exception.Message}", Exception: exception));
+            return new ImportResult(null, diagnostics);
+        }
     }
+
     private static CadEntity MapEntity(Entity entity, List<Diagnostic> diagnostics, double globalLineTypeScale)
     {
         var common = Common(entity, globalLineTypeScale);
@@ -73,16 +84,72 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
             Dimension dimension => MapDimension(dimension, common, diagnostics),
             Leader leader => MapLeader(leader, common),
             MultiLeader multiLeader => MapMultiLeader(multiLeader, common, diagnostics),
-            MText text => new CadTextEntity(common.Handle, Point(text.InsertPoint), NormalizeText(text.PlainText), text.Height, Degrees(text.Rotation), text.HorizontalWidth, true, common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, common.Metadata),
-            TextEntity text => new CadTextEntity(common.Handle, Point(text.InsertPoint), NormalizeText(text.Value), text.Height, Degrees(text.Rotation), 0, false, common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, common.Metadata),
+            MText text => MapMText(text, common),
+            TextEntity text => MapText(text, common),
             Insert insert => MapInsert(insert, common, diagnostics, globalLineTypeScale),
             _ => Unsupported(entity, common, diagnostics)
         };
     }
+
+    private static CadTextEntity MapText(TextEntity text, CommonEntity common)
+    {
+        var raw = text.Value ?? string.Empty;
+        return new CadTextEntity(common.Handle, Point(text.InsertPoint), NormalizeText(raw), text.Height, Degrees(text.Rotation), 0, false, common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, common.Metadata)
+        {
+            Presentation = MapTextPresentation(text, raw, false)
+        };
+    }
+
+    private static CadTextEntity MapMText(MText text, CommonEntity common)
+    {
+        var raw = text.Value ?? string.Empty;
+        return new CadTextEntity(common.Handle, Point(text.InsertPoint), NormalizeText(text.PlainText), text.Height, Degrees(text.Rotation), text.HorizontalWidth, true, common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, common.Metadata)
+        {
+            Presentation = MapTextPresentation(text, raw, true)
+        };
+    }
+
+    private static CadTextPresentation MapTextPresentation(object text, string rawText, bool isMText)
+    {
+        var style = Property(text, "Style");
+        var styleName = StringProperty(style, "Name");
+        if (string.IsNullOrWhiteSpace(styleName)) styleName = "Standard";
+        var styleWidth = Positive(DoubleProperty(style, "Width", 1));
+        var entityWidth = isMText ? 1 : Positive(DoubleProperty(text, "WidthFactor", 1));
+        var oblique = isMText ? DoubleProperty(style, "ObliqueAngle") : DoubleProperty(text, "ObliqueAngle");
+        if (Math.Abs(oblique) <= double.Epsilon) oblique = DoubleProperty(style, "ObliqueAngle");
+        var mirror = $"{StringProperty(text, "Mirror")} {StringProperty(style, "MirrorFlag")}";
+        Point2D? alignmentPoint = null;
+        if (!isMText && Property(text, "AlignmentPoint") is { } point) alignmentPoint = Point(point);
+        var horizontal = isMText ? "Left" : StringProperty(text, "HorizontalAlignment");
+        var vertical = isMText ? "Top" : StringProperty(text, "VerticalAlignment");
+        if (string.IsNullOrWhiteSpace(horizontal)) horizontal = "Left";
+        if (string.IsNullOrWhiteSpace(vertical)) vertical = "Baseline";
+        var attachment = isMText ? StringProperty(text, "AttachmentPoint") : "TopLeft";
+        if (string.IsNullOrWhiteSpace(attachment)) attachment = "TopLeft";
+        return new CadTextPresentation(
+            styleName,
+            StringProperty(style, "Filename"),
+            StringProperty(style, "BigFontFilename"),
+            styleWidth * entityWidth,
+            oblique,
+            horizontal,
+            vertical,
+            attachment,
+            alignmentPoint,
+            isMText ? DoubleProperty(text, "RectangleWidth") : 0,
+            isMText ? Positive(DoubleProperty(text, "LineSpacing", 1)) : 1,
+            mirror.Contains("Backward", StringComparison.OrdinalIgnoreCase),
+            mirror.Contains("UpsideDown", StringComparison.OrdinalIgnoreCase),
+            BoolProperty(style, "IsShapeFile"),
+            rawText);
+    }
+
     private static CadPolylineEntity MapLwPolyline(LwPolyline polyline, CommonEntity common) => new(common.Handle, polyline.Vertices.Select(vertex => Point(vertex.Location)).ToArray(), polyline.IsClosed, common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, common.Metadata)
     {
         Bulges = polyline.Vertices.Select(vertex => vertex.Bulge).ToArray()
     };
+
     private static CadPolylineEntity MapPolyline2D(Polyline2D polyline, CommonEntity common)
     {
         var vertices = EnumerableProperty(polyline, "Vertices").ToArray();
@@ -91,12 +158,14 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
             Bulges = vertices.Select(vertex => DoubleProperty(vertex, "Bulge")).ToArray()
         };
     }
+
     private static CadEllipseEntity MapEllipse(Ellipse ellipse, CommonEntity common)
     {
         var axis = Point(ellipse.MajorAxisEndPoint);
         var radiusX = Math.Sqrt((axis.X * axis.X) + (axis.Y * axis.Y));
         return new CadEllipseEntity(common.Handle, Point(ellipse.Center), radiusX, radiusX * ellipse.RadiusRatio, Math.Atan2(axis.Y, axis.X), common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, common.Metadata);
     }
+
     private static CadSplineDefinition MapSplineDefinition(object spline)
     {
         var controlObjects = EnumerableProperty(spline, "ControlPoints").ToArray();
@@ -111,6 +180,7 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
         var fitPoints = EnumerableProperty(spline, "FitPoints").Select(Point).ToArray();
         return new CadSplineDefinition(IntProperty(spline, "Degree", 3), controlPoints, knots, weights, fitPoints, BoolProperty(spline, "IsClosed"), BoolProperty(spline, "IsPeriodic"));
     }
+
     private static CadHatchEntity MapHatch(Hatch hatch, CommonEntity common, List<Diagnostic> diagnostics)
     {
         var loops = EnumerableProperty(hatch, "Paths").Select(path => MapHatchLoop(path, diagnostics, common.Handle)).Where(loop => loop.Edges.Count > 0).ToArray();
@@ -121,6 +191,7 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
         };
         return new CadHatchEntity(common.Handle, loops, BoolProperty(hatch, "IsSolid"), NameOf(Property(hatch, "Pattern")), Degrees(DoubleProperty(hatch, "PatternAngle")), DoubleProperty(hatch, "PatternScale", 1), common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, metadata);
     }
+
     private static CadHatchLoop MapHatchLoop(object path, List<Diagnostic> diagnostics, string hatchHandle)
     {
         var edges = new List<CadHatchEdge>();
@@ -136,6 +207,7 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
         }
         return new CadHatchLoop(edges, StringProperty(path, "Flags"));
     }
+
     private static CadHatchEdge? MapHatchEdge(object edge)
     {
         switch (edge.GetType().Name)
@@ -172,14 +244,21 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
                 return null;
         }
     }
+
     private static CadAttributeEntity MapAttribute(AttributeBase attribute, CommonEntity common, bool isDefinition)
     {
         var flags = attribute.Flags.ToString();
-        var value = attribute.MText is { } mtext && !string.IsNullOrWhiteSpace(mtext.PlainText) ? mtext.PlainText : attribute.Value;
+        var hasMText = attribute.MText is { } mtext && !string.IsNullOrWhiteSpace(mtext.PlainText);
+        var raw = hasMText ? attribute.MText.Value : attribute.Value;
+        var value = hasMText ? attribute.MText.PlainText : attribute.Value;
         var prompt = isDefinition && attribute is AttributeDefinition definition ? definition.Prompt : string.Empty;
         var metadata = new Dictionary<string, string>(common.Metadata, StringComparer.Ordinal) { ["AttributeFlags"] = flags };
-        return new CadAttributeEntity(common.Handle, Point(attribute.InsertPoint), attribute.Tag ?? string.Empty, NormalizeText(value), attribute.Height, Degrees(attribute.Rotation), isDefinition, NormalizeText(prompt), flags.Contains("Constant", StringComparison.OrdinalIgnoreCase), common.Layer, common.Color, common.Visible && !flags.Contains("Invisible", StringComparison.OrdinalIgnoreCase), common.LineType, common.LineWeight, metadata);
+        return new CadAttributeEntity(common.Handle, Point(attribute.InsertPoint), attribute.Tag ?? string.Empty, NormalizeText(value), attribute.Height, Degrees(attribute.Rotation), isDefinition, NormalizeText(prompt), flags.Contains("Constant", StringComparison.OrdinalIgnoreCase), common.Layer, common.Color, common.Visible && !flags.Contains("Invisible", StringComparison.OrdinalIgnoreCase), common.LineType, common.LineWeight, metadata)
+        {
+            Presentation = MapTextPresentation(attribute, raw ?? string.Empty, false)
+        };
     }
+
     private static CadBlockReferenceEntity MapInsert(Insert insert, CommonEntity common, List<Diagnostic> diagnostics, double globalLineTypeScale)
     {
         var attributes = new List<CadAttributeEntity>();
@@ -190,18 +269,29 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
         }
         return new CadBlockReferenceEntity(common.Handle, insert.Block?.Name ?? "<missing>", Point(insert.InsertPoint), Degrees(insert.Rotation), insert.XScale, insert.YScale, common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, common.Metadata) { Attributes = attributes };
     }
-    private static CadUnsupportedEntity Unsupported(Entity entity, CommonEntity common, List<Diagnostic> diagnostics) { var name = entity.ObjectName; diagnostics.Add(new Diagnostic(DiagnosticSeverity.Warning, "CAD_UNSUPPORTED_ENTITY", $"Unsupported CAD entity skipped: {name}", new Dictionary<string, string> { ["Handle"] = common.Handle, ["Layer"] = common.Layer })); return new CadUnsupportedEntity(common.Handle, name, common.Layer, common.Metadata); }
+
+    private static CadUnsupportedEntity Unsupported(Entity entity, CommonEntity common, List<Diagnostic> diagnostics)
+    {
+        var name = entity.ObjectName;
+        diagnostics.Add(new Diagnostic(DiagnosticSeverity.Warning, "CAD_UNSUPPORTED_ENTITY", $"Unsupported CAD entity skipped: {name}", new Dictionary<string, string> { ["Handle"] = common.Handle, ["Layer"] = common.Layer }));
+        return new CadUnsupportedEntity(common.Handle, name, common.Layer, common.Metadata);
+    }
+
     private static CadBlockDefinition[] MapBlocks(global::ACadSharp.CadDocument source, List<Diagnostic> diagnostics, double globalLineTypeScale)
     {
         var definitions = new List<CadBlockDefinition>();
         foreach (var record in EnumerableProperty(source, "BlockRecords"))
         {
-            var name = StringProperty(record, "Name"); if (string.IsNullOrWhiteSpace(name) || name.StartsWith('*')) continue;
-            var block = Property(record, "Block") ?? record; var basePoint = Point(Property(block, "BasePoint")); var entities = EnumerableProperty(record, "Entities").OfType<Entity>().Select(entity => MapEntity(entity, diagnostics, globalLineTypeScale)).ToArray();
+            var name = StringProperty(record, "Name");
+            if (string.IsNullOrWhiteSpace(name) || name.StartsWith('*')) continue;
+            var block = Property(record, "Block") ?? record;
+            var basePoint = Point(Property(block, "BasePoint"));
+            var entities = EnumerableProperty(record, "Entities").OfType<Entity>().Select(entity => MapEntity(entity, diagnostics, globalLineTypeScale)).ToArray();
             definitions.Add(new CadBlockDefinition(name, basePoint, entities));
         }
         return definitions.ToArray();
     }
+
     private static CadLayoutDefinition[] MapLayouts(global::ACadSharp.CadDocument source, List<Diagnostic> diagnostics, double globalLineTypeScale)
     {
         var layouts = new List<CadLayoutDefinition>();
@@ -224,19 +314,11 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
                 ["LayoutFlags"] = StringProperty(layout, "LayoutFlags"),
                 ["AssociatedBlock"] = StringProperty(block, "Name")
             };
-            layouts.Add(new CadLayoutDefinition(
-                name,
-                IntProperty(layout, "TabOrder"),
-                BoolProperty(layout, "IsPaperSpace"),
-                paperSize,
-                Bounds(minLimits, maxLimits),
-                Bounds(minExtents, maxExtents),
-                paperEntities,
-                viewports,
-                metadata));
+            layouts.Add(new CadLayoutDefinition(name, IntProperty(layout, "TabOrder"), BoolProperty(layout, "IsPaperSpace"), paperSize, Bounds(minLimits, maxLimits), Bounds(minExtents, maxExtents), paperEntities, viewports, metadata));
         }
         return layouts.OrderBy(layout => layout.TabOrder).ToArray();
     }
+
     private static CadViewportDefinition MapViewport(Viewport viewport)
     {
         var boundary = viewport.Boundary;
@@ -267,12 +349,15 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
             boundaryPoints,
             metadata);
     }
+
     private static BoundingBox2D Bounds(Point2D first, Point2D second) => new(Math.Min(first.X, second.X), Math.Min(first.Y, second.Y), Math.Max(first.X, second.X), Math.Max(first.Y, second.Y));
+
     private static void ValidateBlockReferences(IEnumerable<CadEntity> entities, IReadOnlyList<CadBlockDefinition> blocks, List<Diagnostic> diagnostics)
     {
         var names = new HashSet<string>(blocks.Select(block => block.Name), StringComparer.OrdinalIgnoreCase);
         foreach (var reference in entities.OfType<CadBlockReferenceEntity>().Where(reference => !names.Contains(reference.BlockName))) diagnostics.Add(new Diagnostic(DiagnosticSeverity.Warning, "CAD_INVALID_BLOCK_REFERENCE", $"Block reference skipped because definition was not found: {reference.BlockName}", new Dictionary<string, string> { ["Handle"] = reference.Handle }));
     }
+
     private static CommonEntity Common(Entity entity, double globalLineTypeScale)
     {
         var activeLineType = entity.GetActiveLineType();
@@ -286,9 +371,27 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
         if (pattern.Length > 0) metadata["LineTypePattern"] = string.Join(';', pattern.Select(value => value.ToString("R", CultureInfo.InvariantCulture)));
         return new CommonEntity(entity.Handle.ToString(CultureInfo.InvariantCulture), entity.Layer?.Name ?? "0", MapColor(entity.Color), !entity.IsInvisible, NameOf(activeLineType), ParseLineWeight(entity.LineWeight), metadata);
     }
-    private static CadColor MapColor(global::ACadSharp.Color color) { if (color.IsByBlock) return CadColor.ByBlock; if (color.IsByLayer) return CadColor.ByLayer; if (color.IsTrueColor) return CadColor.FromRgb(color.R, color.G, color.B); return CadColor.FromAci(color.Index); }
-    private static CadUnits MapUnits(string value) => value.ToLowerInvariant() switch { var x when x.Contains("millimeter") => CadUnits.Millimetres, var x when x.Contains("centimeter") => CadUnits.Centimetres, var x when x.Contains("meter") => CadUnits.Metres, var x when x.Contains("inch") => CadUnits.Inches, var x when x.Contains("foot") || x.Contains("feet") => CadUnits.Feet, _ => CadUnits.Unitless };
-    private static string NormalizeText(string? value) => string.IsNullOrEmpty(value) ? string.Empty : value.Replace("\\P", "\n", StringComparison.OrdinalIgnoreCase).Replace("\\~", " ", StringComparison.Ordinal);
+
+    private static CadColor MapColor(global::ACadSharp.Color color)
+    {
+        if (color.IsByBlock) return CadColor.ByBlock;
+        if (color.IsByLayer) return CadColor.ByLayer;
+        if (color.IsTrueColor) return CadColor.FromRgb(color.R, color.G, color.B);
+        return CadColor.FromAci(color.Index);
+    }
+
+    private static CadUnits MapUnits(string value) => value.ToLowerInvariant() switch
+    {
+        var x when x.Contains("millimeter") => CadUnits.Millimetres,
+        var x when x.Contains("centimeter") => CadUnits.Centimetres,
+        var x when x.Contains("meter") => CadUnits.Metres,
+        var x when x.Contains("inch") => CadUnits.Inches,
+        var x when x.Contains("foot") || x.Contains("feet") => CadUnits.Feet,
+        _ => CadUnits.Unitless
+    };
+
+    private static string NormalizeText(string? value) => CadTextNormalizer.Normalize(value);
+    private static double Positive(double value) => double.IsFinite(value) && value > double.Epsilon ? value : 1;
     private static double Degrees(double value) => value * Math.PI / 180d;
     private static double NormalizeSweep(double sweep) => sweep <= 0 ? sweep + (Math.PI * 2) : sweep;
     private static Point2D Point(object? point) => point is null ? Point2D.Origin : new(DoubleProperty(point, "X"), DoubleProperty(point, "Y"));
@@ -301,5 +404,6 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
     private static int IntProperty(object? source, string name, int fallback = 0) => Property(source, name) is { } value ? Convert.ToInt32(value, CultureInfo.InvariantCulture) : fallback;
     private static bool BoolProperty(object? source, string name, bool fallback = false) => Property(source, name) is { } value ? Convert.ToBoolean(value, CultureInfo.InvariantCulture) : fallback;
     private static int? ParseLineWeight(object? value) => int.TryParse(value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed > 0 ? parsed : null;
+
     private sealed record CommonEntity(string Handle, string Layer, CadColor Color, bool Visible, string LineType, int? LineWeight, IReadOnlyDictionary<string, string> Metadata);
 }

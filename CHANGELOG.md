@@ -4,6 +4,28 @@ All notable CadCore changes are recorded here.
 
 ## Unreleased
 
+## 0.7.0 - 2026-09-01
+
+### Added
+- Added reader-independent CAD text-presentation semantics for TEXT, MTEXT and ATTRIB/ATTDEF, preserving text style name, font and big-font filenames, alignment point, horizontal/vertical justification, width factor, oblique angle, mirror flags, MTEXT attachment point, layout width and line spacing.
+- Extended `TextGeometry` with reusable text-layout metadata for font family, width factor, oblique angle, layout width, multiline state, horizontal/vertical alignment and X/Y mirroring while preserving the existing constructor surface.
+- Added a CAD font resolver that recognizes TrueType font filenames and SHX/shape-font references, retains the original CAD font identity in scene metadata and selects a deterministic Windows fallback when an SHX glyph engine is unavailable.
+- Added CAD text normalization for common AutoCAD control sequences used by the current viewing path, including paragraph breaks, non-breaking spaces and legacy %% symbol escapes.
+- Added Win2D text rendering support for alignment anchors, width scaling, oblique shear, mirrored text and the resolved font family while continuing to derive text scale/rotation from the complete scene transform.
+- Added ACadSharp-writer-backed TEXT/MTEXT DXF round-trip regression coverage through Writer → Reader → reader-independent CAD semantics → Scene, including SHX style identity, justification, mirror, oblique, width factor, MTEXT attachment/layout width/line spacing and CJK TrueType fallback mapping.
+
+### Fixed
+- Center/right and vertical TEXT justification now uses the CAD alignment point instead of always rendering from the insertion point.
+- MTEXT bottom/middle/right attachment modes now anchor the scene geometry consistently instead of behaving as top-left text.
+- TEXT width factor, style width, oblique angle and mirror flags are no longer discarded at the ACadSharp adapter boundary.
+- ATTRIB/ATTDEF text now shares the same presentation pipeline as ordinary TEXT, retaining style/alignment semantics without reintroducing block double-transform behavior.
+
+### Compatibility
+- v0.7.0 remains additive and retains stable CLR ABI `1.0.0.0`; product/file version advances independently to `0.7.0` for SpatialViewer 0.2.x kernel updates.
+- SHX filenames and shape-font identity are preserved and surfaced as explicit fallback metadata, but v0.7.0 does not claim a complete AutoCAD SHX vector-glyph interpreter. When a native TrueType equivalent is not available, Win2D renders with a deterministic fallback font rather than pretending that glyph outlines are exact.
+- MTEXT inline formatting is normalized for the viewing path rather than claimed as full AutoCAD rich-text fidelity; columns, stacked fractions, per-span font/color overrides and every control code remain later refinement work.
+- Large-drawing spatial indexing remains scheduled for v0.8.0.
+
 ## 0.6.0 - 2026-09-01
 
 ### Added

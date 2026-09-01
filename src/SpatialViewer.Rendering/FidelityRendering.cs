@@ -75,20 +75,28 @@ public static class RenderStrokePattern
     private static double PositiveScale(IReadOnlyDictionary<string, string> metadata, string key) => metadata.TryGetValue(key, out var text) && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) && double.IsFinite(value) && value > 0 ? value : 1;
 }
 
-public readonly record struct TextScreenPlacement(Point2D Origin, double RotationRadians, double FontSizePixels);
+public readonly record struct TextScreenPlacement(Point2D Origin, double RotationRadians, double FontSizePixels, double HorizontalScale = 1, double VerticalScale = 1, double ObliqueShear = 0);
 
-/// <summary>Extracts text rotation and scale from the complete local-to-screen mapping.</summary>
+/// <summary>Extracts text rotation, scale, anchoring, width factor, mirror and oblique presentation from the complete local-to-screen mapping.</summary>
 public static class TextScreenTransform
 {
     public static TextScreenPlacement Resolve(TextGeometry text, Func<Point2D, Point2D> localToScreen)
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(localToScreen);
-        var origin = localToScreen(text.Origin);
+        var anchor = localToScreen(text.Origin);
         var x = localToScreen(new Point2D(text.Origin.X + 1, text.Origin.Y));
         var y = localToScreen(new Point2D(text.Origin.X, text.Origin.Y + 1));
-        var rotation = Math.Atan2(x.Y - origin.Y, x.X - origin.X);
-        var yScale = origin.DistanceTo(y);
-        return new TextScreenPlacement(origin, rotation, Math.Max(1, text.Height * yScale));
+        var rotation = Math.Atan2(x.Y - anchor.Y, x.X - anchor.X);
+        var xScale = anchor.DistanceTo(x);
+        var yScale = anchor.DistanceTo(y);
+        var bounds = text.GetBounds();
+        var origin = localToScreen(new Point2D(bounds.MinX, bounds.MaxY));
+        var widthFactor = double.IsFinite(text.WidthFactor) && Math.Abs(text.WidthFactor) > double.Epsilon ? Math.Abs(text.WidthFactor) : 1;
+        var horizontalScale = yScale <= double.Epsilon ? widthFactor : widthFactor * xScale / yScale;
+        if (text.IsBackward) horizontalScale = -horizontalScale;
+        var verticalScale = text.IsUpsideDown ? -1d : 1d;
+        var shear = double.IsFinite(text.ObliqueAngleRadians) ? Math.Tan(text.ObliqueAngleRadians) : 0;
+        return new TextScreenPlacement(origin, rotation, Math.Max(1, text.Height * yScale), horizontalScale, verticalScale, shear);
     }
 }

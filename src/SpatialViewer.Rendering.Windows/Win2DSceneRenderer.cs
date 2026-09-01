@@ -99,10 +99,18 @@ public sealed class Win2DSceneRenderer : ISceneRenderer
         var placement = TextScreenTransform.Resolve(text, map);
         var origin = new Vector2((float)placement.Origin.X, (float)placement.Origin.Y);
         var previous = session.Transform;
-        session.Transform = Matrix3x2.CreateRotation((float)placement.RotationRadians, origin) * previous;
+        using var format = new CanvasTextFormat { FontSize = (float)placement.FontSizePixels };
+        if (!string.IsNullOrWhiteSpace(text.FontFamily)) format.FontFamily = text.FontFamily;
+        var presentation = Matrix3x2.CreateScale((float)placement.HorizontalScale, (float)placement.VerticalScale, origin);
+        if (Math.Abs(placement.ObliqueShear) > double.Epsilon)
+        {
+            var shear = new Matrix3x2(1, 0, (float)-placement.ObliqueShear, 1, 0, 0);
+            presentation = presentation * Matrix3x2.CreateTranslation(-origin) * shear * Matrix3x2.CreateTranslation(origin);
+        }
+        session.Transform = presentation * Matrix3x2.CreateRotation((float)placement.RotationRadians, origin) * previous;
         try
         {
-            session.DrawText(text.Text, origin, color, new CanvasTextFormat { FontSize = (float)placement.FontSizePixels });
+            session.DrawText(text.Text, origin, color, format);
         }
         finally
         {

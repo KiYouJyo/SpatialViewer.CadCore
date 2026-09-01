@@ -2,6 +2,7 @@ using ACadSharp;
 using ACadSharp.Entities;
 using ACadSharp.IO;
 using ACadSharp.Objects;
+using ACadSharp.Tables;
 using CSMath;
 
 namespace SpatialViewer.Formats.Cad.ACadSharp;
@@ -110,6 +111,53 @@ public static class ACadSharpFixtureTranscoder
             TwistAngle = 0
         });
         document.Layouts.Add(layout);
+
+        using var writer = new DxfWriter(dxfPath, document, false);
+        writer.Write();
+    }
+
+    public static void WriteTextFidelityDxf(string dxfPath)
+    {
+        var document = new global::ACadSharp.CadDocument();
+        document.CreateDefaults();
+
+        var shx = new TextStyle("CadCoreSHX")
+        {
+            Filename = "simplex.shx",
+            Width = .8,
+            ObliqueAngle = .05
+        };
+        var ttf = new TextStyle("CadCoreTTF")
+        {
+            Filename = "simhei.ttf"
+        };
+        document.TextStyles.Add(shx);
+        document.TextStyles.Add(ttf);
+
+        document.Entities.Add(new TextEntity
+        {
+            Value = "ROOM%%d",
+            InsertPoint = new XYZ(10, 20, 0),
+            AlignmentPoint = new XYZ(100, 50, 0),
+            Height = 10,
+            HorizontalAlignment = TextHorizontalAlignment.Center,
+            VerticalAlignment = TextVerticalAlignmentType.Middle,
+            WidthFactor = .9,
+            ObliqueAngle = .2,
+            Mirror = TextMirrorFlag.Backward,
+            Style = shx
+        });
+
+        document.Entities.Add(new MText("第一行\\P第二行")
+        {
+            InsertPoint = new XYZ(30, 40, 0),
+            AlignmentPoint = XYZ.AxisX,
+            Height = 5,
+            AttachmentPoint = AttachmentPointType.BottomRight,
+            RectangleWidth = 42,
+            LineSpacing = 1.5,
+            Style = ttf
+        });
 
         using var writer = new DxfWriter(dxfPath, document, false);
         writer.Write();
