@@ -6,6 +6,7 @@ on:
     paths:
       - 'Directory.Build.props'
       - 'CHANGELOG.md'
+      - 'docs/releases/**'
       - '.github/workflows/publish-release.yml'
 
 permissions:
@@ -112,37 +113,21 @@ jobs:
         shell: pwsh
         run: |
           $version = '${{ steps.version.outputs.version }}'
-          $abiVersion = '${{ steps.version.outputs.abiVersion }}'
-          @"
-          ## SpatialViewer.CadCore v$version
+          $notesPath = Join-Path $PWD "docs/releases/$version.md"
+          if (Test-Path $notesPath) {
+            Get-Content $notesPath -Raw | Set-Content release-notes.md -Encoding utf8
+            Write-Host "Using versioned release notes: $notesPath"
+            exit 0
+          }
 
-          ### 中文
-          - 新增独立于读取器的 Layout / Paper Space / Viewport 语义模型，保留布局顺序、纸张尺寸与范围、纸空间实体，以及视口纸面位置、模型视图中心/目标/高度、扭转角、冻结图层、启用状态和裁剪边界身份。
-          - CadDocument 新增 Layouts 与 GetLayoutScene(...)；既有模型空间 Scene 行为保持不变，SpatialViewer 可以按布局显式请求纸空间场景。
-          - 纸空间场景会把原生纸空间实体与“经视口投影的模型实体”分开保留，并执行视口比例/扭转变换和逐视口冻结图层过滤。
-          - SceneNode → SceneItem → RenderCommand → HitTest → Win2D 已贯通继承式矩形 ClipBounds，视口外模型内容不会再被绘制或拾取；可见视口框也不会抢占视口内部模型实体的点击。
-          - 增加由 ACadSharp Writer 生成真实 Layout/Paper Space/Viewport DXF 的端到端回归，完整经过 Writer → Reader → CAD 语义模型 → Layout Scene → clipping/render preparation。
-          - 本版坚持 2D 看图边界：支持的非矩形裁剪多段线语义会被保留，但 v0.6.0 实际渲染/拾取仍以矩形纸面视口 bounds 裁剪，不虚假宣称已完成任意多边形裁剪；任意 3D 视口方向/透视投影同样不在本版支持声明内。
-          - CLR ABI 继续稳定为 $abiVersion，可继续使用 SpatialViewer 0.2.x 的独立内核更新与重启激活链。
-
-          ### 日本語
-          - Reader 非依存の Layout / Paper Space / Viewport 意味モデルを追加し、タブ順、用紙サイズ/範囲、Paper Space エンティティ、Viewport の用紙位置、モデル View Center/Target/Height、Twist、Frozen Layers、Active 状態、Clipping Boundary の識別情報を保持します。
-          - CadDocument に Layouts と GetLayoutScene(...) を追加しました。従来の Model Space Scene は変更せず、Paper Layout は明示的に取得できます。
-          - Layout Scene は Paper Space 固有エンティティと Viewport 経由の Model Space エンティティを分離し、Viewport Scale/Twist と Viewport ごとの Frozen Layer フィルタを適用します。
-          - SceneNode → SceneItem → RenderCommand → HitTest → Win2D まで矩形 ClipBounds を一貫して伝播し、Viewport 外のモデル形状を描画・選択しません。Viewport 枠も内部モデル形状の選択を奪いません。
-          - ACadSharp Writer が生成する実 Layout/Paper Space/Viewport DXF を使い、Writer → Reader → CAD 意味モデル → Layout Scene → clipping/render preparation のエンドツーエンド回帰を追加しました。
-          - v0.6.0 は 2D Viewer を対象とします。対応 Polyline の非矩形 Clipping Boundary 意味は保持しますが、実際の描画/HitTest clip は矩形 Paper Bounds です。任意 Polygon Clip や任意 3D View Direction/Perspective の完全対応はまだ主張しません。
-          - CLR ABI は $abiVersion のままで、SpatialViewer 0.2.x の独立 Kernel Update / Restart Activation 経路と互換です。
-
-          ### English
-          - Adds reader-independent Layout / Paper Space / Viewport semantics for tab order, paper size/extents, paper-space entities, viewport paper geometry, model view center/target/height, twist, frozen layers, active state, and clipping-boundary identity.
-          - Adds CadDocument.Layouts and GetLayoutScene(...) while preserving the existing model-space Scene behavior for current callers.
-          - Layout scenes keep native paper entities distinct from model entities projected through each viewport, applying viewport scale/twist transforms and per-viewport frozen-layer filtering.
-          - Propagates inherited rectangular ClipBounds through SceneNode → SceneItem → RenderCommand → HitTest → Win2D so model content outside a viewport is neither rendered nor picked; visible viewport frames no longer steal picks from model geometry inside the viewport.
-          - Adds ACadSharp-writer-backed real Layout/Paper Space/Viewport DXF coverage through Writer → Reader → reader-independent CAD model → Layout Scene → clipping/render preparation.
-          - v0.6.0 deliberately remains a 2D-viewer milestone. Supported non-rectangular polyline clipping-boundary semantics are retained, but rendering/hit testing still enforce the rectangular paper viewport bounds; arbitrary polygon clipping and arbitrary 3D view-direction/perspective projection are not claimed as complete support yet.
-          - The CLR ABI remains $abiVersion and stays compatible with the SpatialViewer 0.2.x independent kernel update and restart-activation path.
-          "@ | Set-Content release-notes.md -Encoding utf8
+          $changelog = Get-Content CHANGELOG.md -Raw
+          $escapedVersion = [regex]::Escape($version)
+          $pattern = "(?ms)^## $escapedVersion(?: - [^\r\n]+)?\r?\n(?<body>.*?)(?=^## |\z)"
+          $match = [regex]::Match($changelog, $pattern)
+          if (-not $match.Success) { throw "No release notes file or changelog section found for $version" }
+          $body = $match.Groups['body'].Value.Trim()
+          "## SpatialViewer.CadCore v$version`r`n`r`n$body" | Set-Content release-notes.md -Encoding utf8
+          Write-Host "Using CHANGELOG fallback for $version"
 
       - name: Publish GitHub release
         shell: pwsh
