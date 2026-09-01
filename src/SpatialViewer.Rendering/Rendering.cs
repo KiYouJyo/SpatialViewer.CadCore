@@ -17,6 +17,24 @@ public interface ISceneRenderer : IDisposable
 }
 public static class RenderPreparation
 {
-    /// <summary>Flattens only visible layers. Local origin is camera target to preserve float precision in GPU-facing backends.</summary>
-    public static RenderFrame Prepare(Scene2D scene, Camera2D camera) => new(scene.GetItems().Select(item => new RenderCommand(item.Id, item.Geometry, item.Transform, item.Style, item.Bounds, item.Metadata, item.ClipBounds)).ToArray(), camera.Target);
+    /// <summary>Flattens all items on visible layers. Local origin is camera target to preserve float precision in GPU-facing backends.</summary>
+    public static RenderFrame Prepare(Scene2D scene, Camera2D camera) => CreateFrame(scene.GetItems(), camera.Target);
+
+    /// <summary>Uses the scene spatial index to prepare only items intersecting the current viewport, preserving original draw order.</summary>
+    public static RenderFrame Prepare(Scene2D scene, Camera2D camera, Size2D viewport, double overscanPixels = 0)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        ArgumentNullException.ThrowIfNull(camera);
+        if (!double.IsFinite(overscanPixels)) throw new ArgumentOutOfRangeException(nameof(overscanPixels));
+        if (viewport.IsEmpty) return new(Array.Empty<RenderCommand>(), camera.Target);
+
+        var visibleBounds = camera.GetVisibleWorldBounds(viewport);
+        var zoom = Math.Abs(camera.Zoom);
+        if (zoom > double.Epsilon && Math.Abs(overscanPixels) > double.Epsilon) visibleBounds = visibleBounds.Inflate(Math.Abs(overscanPixels) / zoom);
+        return CreateFrame(scene.QueryItems(visibleBounds), camera.Target);
+    }
+
+    private static RenderFrame CreateFrame(IEnumerable<SceneItem> items, Point2D localOrigin) => new(
+        items.Select(item => new RenderCommand(item.Id, item.Geometry, item.Transform, item.Style, item.Bounds, item.Metadata, item.ClipBounds)).ToArray(),
+        localOrigin);
 }

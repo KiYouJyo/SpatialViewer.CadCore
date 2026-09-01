@@ -15,6 +15,13 @@ public sealed class Camera2D
     { var anchored = ScreenToWorld(screen, viewport); SetZoom(Zoom * multiplier); var after = ScreenToWorld(screen, viewport); Target += anchored - after; }
     public Point2D WorldToScreen(Point2D world, Size2D viewport) => new(((world.X - Target.X) * Zoom) + viewport.Width / 2, ((Target.Y - world.Y) * Zoom) + viewport.Height / 2);
     public Point2D ScreenToWorld(Point2D screen, Size2D viewport) => new(((screen.X - viewport.Width / 2) / Zoom) + Target.X, Target.Y - ((screen.Y - viewport.Height / 2) / Zoom));
+    public BoundingBox2D GetVisibleWorldBounds(Size2D viewport)
+    {
+        if (viewport.IsEmpty) return BoundingBox2D.Empty;
+        var first = ScreenToWorld(Point2D.Origin, viewport);
+        var second = ScreenToWorld(new(viewport.Width, viewport.Height), viewport);
+        return new(Math.Min(first.X, second.X), Math.Min(first.Y, second.Y), Math.Max(first.X, second.X), Math.Max(first.Y, second.Y));
+    }
     public void Fit(BoundingBox2D bounds, Size2D viewport, double margin = .08)
     { if (bounds.IsEmpty || viewport.IsEmpty) return; SetTarget(bounds.Center); var usableWidth = viewport.Width * (1 - (2 * margin)); var usableHeight = viewport.Height * (1 - (2 * margin)); SetZoom(Math.Min(usableWidth / Math.Max(bounds.Width, 1e-12), usableHeight / Math.Max(bounds.Height, 1e-12))); }
 }
@@ -26,10 +33,12 @@ public static class HitTesting
         ArgumentNullException.ThrowIfNull(scene);
         if (!double.IsFinite(tolerance)) throw new ArgumentOutOfRangeException(nameof(tolerance));
         var worldTolerance = Math.Abs(tolerance);
+        var query = new BoundingBox2D(worldPoint.X - worldTolerance, worldPoint.Y - worldTolerance, worldPoint.X + worldTolerance, worldPoint.Y + worldTolerance);
+        var candidates = SceneSpatialQueries.QueryItemIndices(scene, query);
         var items = scene.Items;
-        for (var index = items.Count - 1; index >= 0; index--)
+        for (var candidate = candidates.Count - 1; candidate >= 0; candidate--)
         {
-            var item = items[index];
+            var item = items[candidates[candidate]];
             if (!item.Layer.IsVisible) continue;
             if (item.ClipBounds is { } clip && !clip.Inflate(worldTolerance).Contains(worldPoint)) continue;
             if (item.Bounds.Inflate(worldTolerance).Contains(worldPoint) && Hit(item, worldPoint, worldTolerance)) return item;
