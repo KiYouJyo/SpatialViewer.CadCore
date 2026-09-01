@@ -134,8 +134,9 @@ public static class ACadSharpFixtureTranscoder
         document.TextStyles.Add(shx);
         document.TextStyles.Add(ttf);
 
-        document.Entities.Add(new TextEntity("ROOM%%d")
+        document.Entities.Add(new TextEntity
         {
+            Value = "ROOM%%d",
             InsertPoint = new XYZ(10, 20, 0),
             AlignmentPoint = new XYZ(100, 50, 0),
             Height = 10,
