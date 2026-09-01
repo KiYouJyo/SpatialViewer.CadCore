@@ -79,4 +79,39 @@ public static class ACadSharpFixtureTranscoder
         using var writer = new DxfWriter(dxfPath, document, false);
         writer.Write();
     }
+
+    public static void WriteLayoutDxf(string dxfPath)
+    {
+        var document = new global::ACadSharp.CadDocument();
+        document.CreateDefaults();
+        document.Entities.Add(new Line { StartPoint = new XYZ(-100, 0, 0), EndPoint = new XYZ(100, 0, 0) });
+
+        var layout = new Layout("SheetV060")
+        {
+            TabOrder = 2,
+            PaperWidth = 200,
+            PaperHeight = 100,
+            MinLimits = new XY(0, 0),
+            MaxLimits = new XY(200, 100),
+            MinExtents = new XYZ(0, 0, 0),
+            MaxExtents = new XYZ(200, 100, 0)
+        };
+        layout.UpdatePaperViewport();
+        layout.AssociatedBlock.Entities.Add(new Line { StartPoint = new XYZ(10, 10, 0), EndPoint = new XYZ(40, 10, 0) });
+        layout.AddViewport(new Viewport
+        {
+            ActiveStatus = 2,
+            Center = new XYZ(100, 50, 0),
+            Width = 100,
+            Height = 50,
+            ViewCenter = new XY(0, 0),
+            ViewTarget = XYZ.Zero,
+            ViewHeight = 50,
+            TwistAngle = 0
+        });
+        document.Layouts.Add(layout);
+
+        using var writer = new DxfWriter(dxfPath, document, false);
+        writer.Write();
+    }
 }

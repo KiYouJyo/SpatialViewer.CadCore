@@ -4,6 +4,28 @@ All notable CadCore changes are recorded here.
 
 ## Unreleased
 
+## 0.6.0 - 2026-09-01
+
+### Added
+- Added reader-independent `CadLayoutDefinition` and `CadViewportDefinition` semantics for Model/Paper Space, layout order, paper size, limits/extents, paper-space entities, viewport paper geometry, model view center/target/height, twist, frozen layers, active state and clipping-boundary identity.
+- Added `CadDocument.Layouts` and `GetLayoutScene(...)` while leaving the existing model-space `Scene` path unchanged for existing callers.
+- Added paper-space scene composition that keeps native paper entities separate from model entities projected through each active viewport, including viewport scale/twist transforms and per-viewport frozen-layer filtering.
+- Added inherited scene clip bounds through `SceneNode`, `SceneItem`, `RenderCommand`, hit testing and the Win2D backend so rectangular viewport clipping is enforced consistently for display and picking instead of being metadata-only.
+- Added viewport-boundary scene geometry and metadata without allowing the boundary frame to steal picks from model geometry inside the viewport.
+- Added ACadSharp adapter coverage for `CadDocument.Layouts`, associated paper-space block entities, `Viewport` geometry/view properties, frozen layers and supported polyline clipping-boundary data.
+- Added ACadSharp-writer-backed end-to-end Layout/Paper Space/Viewport DXF regression coverage through Writer → Reader → reader-independent CAD model → layout Scene → clipping/render preparation.
+
+### Fixed
+- Projected scene-item bounds now represent the actual projected geometry intersected with inherited viewport clipping rather than incorrectly expanding to the entire viewport rectangle.
+- Hit testing rejects geometry outside an inherited viewport clip and preserves expected model-entity selection inside the viewport.
+- Viewport frames are ordered below ordinary paper/model content so a visible frame does not mask CAD entity selection.
+
+### Compatibility
+- v0.6.0 is additive at the CAD/layout API boundary and retains stable CLR ABI `1.0.0.0`; product/file version advances independently to `0.6.0` for SpatialViewer 0.2.x kernel updates.
+- Model-space behavior remains the default `CadDocument.Scene`; paper layouts are opt-in through `GetLayoutScene(...)`, reducing regression risk for existing SpatialViewer integration.
+- This release deliberately targets the 2D CAD viewing path. Non-rectangular viewport boundary semantics are preserved when ACadSharp exposes a supported polyline boundary, but exact polygonal clipping is not claimed yet; rectangular paper bounds remain the enforced render/hit-test clip in v0.6.0. Arbitrary 3D viewport direction/perspective projection is likewise not claimed as 2D support.
+- SHX/text fidelity remains scheduled for v0.7.0; large-drawing spatial indexing remains scheduled for v0.8.0.
+
 ## 0.5.0 - 2026-08-31
 
 ### Added

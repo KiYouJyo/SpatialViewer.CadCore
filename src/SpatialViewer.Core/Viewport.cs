@@ -31,6 +31,7 @@ public static class HitTesting
         {
             var item = items[index];
             if (!item.Layer.IsVisible) continue;
+            if (item.ClipBounds is { } clip && !clip.Inflate(worldTolerance).Contains(worldPoint)) continue;
             if (item.Bounds.Inflate(worldTolerance).Contains(worldPoint) && Hit(item, worldPoint, worldTolerance)) return item;
         }
         return null;

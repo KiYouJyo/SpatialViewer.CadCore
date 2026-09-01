@@ -117,31 +117,31 @@ jobs:
           ## SpatialViewer.CadCore v$version
 
           ### 中文
-          - 新增 DIMENSION 语义模型，覆盖线性、对齐、角度、半径、直径、坐标与弧长等标注族；保留测量值、标注文字、定义点、文字位置、样式和子类型参考点，不再把匿名标注块当作黑盒图形。
-          - 新增 LEADER 与 MLEADER：保留经典引线顶点、关联注释身份、多根 MLeader 路径、Dogleg、嵌入文字、内容类型和箭头尺寸。
-          - CAD-to-Scene 现在可生成可拾取的尺寸线、延伸线、径向/角度标注、基础箭头、引线路径、Dogleg 与 MLeader 文字；角度标注在可用时继续保留解析 `ArcGeometry`。
-          - 增加 ACadSharp Writer 驱动的真实 DXF 端到端回归，DIMENSION / LEADER / MLEADER 均经过 Reader → 语义层 → Scene → HitTest；另以 DXF→DWG round-trip 验证 DIMENSION / LEADER 的 DWG 路径。
-          - ACadSharp 3.7.1 的 DWG MLEADER writer/reader 存在已确认的位流不对称：writer 直接写 Block Label Count，而 reader 同一位置先读取 Arrowhead Count。本版显式记录该上游限制，不以 ACadSharp 自造 DWG 伪装成 MLEADER DWG round-trip 已通过。
-          - 本版不虚假宣称完整 AutoCAD DIMSTYLE：自定义箭头块、Tolerance/Alternate Units 复杂排版、所有关联式标注关系和 MLeader 边框细节仍属于后续精修。
-          - CLR ABI 继续稳定为 $abiVersion，与 v0.3.x / v0.4.0 的独立更新激活链保持兼容。
+          - 新增独立于读取器的 Layout / Paper Space / Viewport 语义模型，保留布局顺序、纸张尺寸与范围、纸空间实体，以及视口纸面位置、模型视图中心/目标/高度、扭转角、冻结图层、启用状态和裁剪边界身份。
+          - CadDocument 新增 Layouts 与 GetLayoutScene(...)；既有模型空间 Scene 行为保持不变，SpatialViewer 可以按布局显式请求纸空间场景。
+          - 纸空间场景会把原生纸空间实体与“经视口投影的模型实体”分开保留，并执行视口比例/扭转变换和逐视口冻结图层过滤。
+          - SceneNode → SceneItem → RenderCommand → HitTest → Win2D 已贯通继承式矩形 ClipBounds，视口外模型内容不会再被绘制或拾取；可见视口框也不会抢占视口内部模型实体的点击。
+          - 增加由 ACadSharp Writer 生成真实 Layout/Paper Space/Viewport DXF 的端到端回归，完整经过 Writer → Reader → CAD 语义模型 → Layout Scene → clipping/render preparation。
+          - 本版坚持 2D 看图边界：支持的非矩形裁剪多段线语义会被保留，但 v0.6.0 实际渲染/拾取仍以矩形纸面视口 bounds 裁剪，不虚假宣称已完成任意多边形裁剪；任意 3D 视口方向/透视投影同样不在本版支持声明内。
+          - CLR ABI 继续稳定为 $abiVersion，可继续使用 SpatialViewer 0.2.x 的独立内核更新与重启激活链。
 
           ### 日本語
-          - DIMENSION の意味モデルを追加し、Linear / Aligned / Angular / Radius / Diameter / Ordinate / Arc Length 系を対象に、計測値・表示文字・定義点・文字位置・スタイル・サブタイプ固有参照点を保持します。匿名寸法ブロックを単なる画像として扱いません。
-          - LEADER / MLEADER に対応し、従来 Leader の頂点、関連注釈 ID、複数の MLeader パス、Dogleg、埋め込み文字、コンテンツ種別、矢印サイズを保持します。
-          - CAD-to-Scene で選択可能な寸法線・補助線・半径/角度寸法・基本矢印・Leader パス・Dogleg・MLeader 文字を生成し、角度寸法は可能な場合 `ArcGeometry` を維持します。
-          - ACadSharp Writer を用いた実 DXF のエンドツーエンド回帰で DIMENSION / LEADER / MLEADER を Reader → 意味モデル → Scene → HitTest まで検証し、DXF→DWG round-trip では DIMENSION / LEADER の DWG 経路も検証します。
-          - ACadSharp 3.7.1 の DWG MLEADER writer/reader には確認済みのビットストリーム非対称があります。writer は Block Label Count を直接書きますが、reader は同位置で先に Arrowhead Count を読みます。本リリースではこの上流制約を明示し、自己生成 DWG を MLEADER round-trip 成功として扱いません。
-          - カスタム矢印ブロック、Tolerance / Alternate Units の完全なレイアウト、すべての連想寸法関係、MLeader フレームなど、完全な AutoCAD DIMSTYLE 再現は本版の対応範囲外です。
-          - CLR ABI は $abiVersion のまま維持し、v0.3.x / v0.4.0 の独立更新経路と互換です。
+          - Reader 非依存の Layout / Paper Space / Viewport 意味モデルを追加し、タブ順、用紙サイズ/範囲、Paper Space エンティティ、Viewport の用紙位置、モデル View Center/Target/Height、Twist、Frozen Layers、Active 状態、Clipping Boundary の識別情報を保持します。
+          - CadDocument に Layouts と GetLayoutScene(...) を追加しました。従来の Model Space Scene は変更せず、Paper Layout は明示的に取得できます。
+          - Layout Scene は Paper Space 固有エンティティと Viewport 経由の Model Space エンティティを分離し、Viewport Scale/Twist と Viewport ごとの Frozen Layer フィルタを適用します。
+          - SceneNode → SceneItem → RenderCommand → HitTest → Win2D まで矩形 ClipBounds を一貫して伝播し、Viewport 外のモデル形状を描画・選択しません。Viewport 枠も内部モデル形状の選択を奪いません。
+          - ACadSharp Writer が生成する実 Layout/Paper Space/Viewport DXF を使い、Writer → Reader → CAD 意味モデル → Layout Scene → clipping/render preparation のエンドツーエンド回帰を追加しました。
+          - v0.6.0 は 2D Viewer を対象とします。対応 Polyline の非矩形 Clipping Boundary 意味は保持しますが、実際の描画/HitTest clip は矩形 Paper Bounds です。任意 Polygon Clip や任意 3D View Direction/Perspective の完全対応はまだ主張しません。
+          - CLR ABI は $abiVersion のままで、SpatialViewer 0.2.x の独立 Kernel Update / Restart Activation 経路と互換です。
 
           ### English
-          - Adds reader-independent DIMENSION semantics for linear, aligned, angular, radius, diameter, ordinate, and arc-length families, retaining measurement values, display text, definition/text points, style data, and subtype-specific reference points instead of treating anonymous dimension blocks as opaque pictures.
-          - Adds LEADER and MLEADER semantics for classic vertices, linked-annotation identity, multiple MLeader paths, doglegs, embedded text, content type, and arrow sizing.
-          - CAD-to-Scene now emits pickable dimension/extension lines, radial and angular annotations, basic arrowheads, leader paths, doglegs, and MLeader text; angular dimensions keep analytic `ArcGeometry` when available.
-          - Adds ACadSharp-writer-backed real DXF end-to-end coverage for DIMENSION / LEADER / MLEADER through Reader → semantic model → Scene → HitTest, plus DXF-to-DWG round-trip coverage for the DIMENSION / LEADER DWG path.
-          - ACadSharp 3.7.1 has a confirmed DWG MLEADER writer/reader bitstream asymmetry: the writer emits the block-label count where the reader first expects an arrowhead count. This upstream limitation is tracked explicitly rather than presenting an ACadSharp-generated DWG as a successful MLEADER round-trip.
-          - Full AutoCAD DIMSTYLE fidelity is deliberately not claimed yet: custom arrow blocks, tolerance/alternate-unit layout, every associative dimension relationship, and MLeader framing remain refinement work.
-          - The CLR ABI remains $abiVersion and stays compatible with the v0.3.x / v0.4.0 independent-update activation path.
+          - Adds reader-independent Layout / Paper Space / Viewport semantics for tab order, paper size/extents, paper-space entities, viewport paper geometry, model view center/target/height, twist, frozen layers, active state, and clipping-boundary identity.
+          - Adds CadDocument.Layouts and GetLayoutScene(...) while preserving the existing model-space Scene behavior for current callers.
+          - Layout scenes keep native paper entities distinct from model entities projected through each viewport, applying viewport scale/twist transforms and per-viewport frozen-layer filtering.
+          - Propagates inherited rectangular ClipBounds through SceneNode → SceneItem → RenderCommand → HitTest → Win2D so model content outside a viewport is neither rendered nor picked; visible viewport frames no longer steal picks from model geometry inside the viewport.
+          - Adds ACadSharp-writer-backed real Layout/Paper Space/Viewport DXF coverage through Writer → Reader → reader-independent CAD model → Layout Scene → clipping/render preparation.
+          - v0.6.0 deliberately remains a 2D-viewer milestone. Supported non-rectangular polyline clipping-boundary semantics are retained, but rendering/hit testing still enforce the rectangular paper viewport bounds; arbitrary polygon clipping and arbitrary 3D view-direction/perspective projection are not claimed as complete support yet.
+          - The CLR ABI remains $abiVersion and stays compatible with the SpatialViewer 0.2.x independent kernel update and restart-activation path.
           "@ | Set-Content release-notes.md -Encoding utf8
 
       - name: Publish GitHub release
