@@ -17,7 +17,7 @@ public sealed class TextFidelityV070ReaderTests
             var document = Assert.IsType<CadDocument>(result.Document);
             Assert.True(result.IsSuccess);
 
-            var text = Assert.Single(document.ModelSpace.OfType<CadTextEntity>().Where(entity => !entity.IsMText));
+            var text = Assert.Single(document.ModelSpace.OfType<CadTextEntity>(), entity => !entity.IsMText);
             Assert.Equal("ROOM°", text.Text);
             Assert.Equal("CadCoreSHX", text.Presentation.StyleName);
             Assert.Equal("simplex.shx", text.Presentation.FontFileName, ignoreCase: true);
@@ -28,7 +28,7 @@ public sealed class TextFidelityV070ReaderTests
             Assert.Equal(.2, text.Presentation.ObliqueAngleRadians, 6);
             Assert.True(text.Presentation.IsBackward);
 
-            var mtext = Assert.Single(document.ModelSpace.OfType<CadTextEntity>().Where(entity => entity.IsMText));
+            var mtext = Assert.Single(document.ModelSpace.OfType<CadTextEntity>(), entity => entity.IsMText);
             Assert.Equal("CadCoreTTF", mtext.Presentation.StyleName);
             Assert.Equal("simhei.ttf", mtext.Presentation.FontFileName, ignoreCase: true);
             Assert.Equal("BottomRight", mtext.Presentation.AttachmentPoint);
@@ -37,7 +37,7 @@ public sealed class TextFidelityV070ReaderTests
             Assert.Contains("第一行", mtext.Text, StringComparison.Ordinal);
             Assert.Contains("第二行", mtext.Text, StringComparison.Ordinal);
 
-            var textItem = Assert.Single(document.Scene.GetItems().Where(item => item.Metadata.TryGetValue("TextStyle", out var style) && style == "CadCoreSHX"));
+            var textItem = Assert.Single(document.Scene.GetItems(), item => item.Metadata.TryGetValue("TextStyle", out var style) && style == "CadCoreSHX");
             var textGeometry = Assert.IsType<TextGeometry>(textItem.Geometry);
             Assert.Equal(new Point2D(100, 50), textGeometry.Origin);
             Assert.Equal(TextHorizontalAlignment2D.Center, textGeometry.HorizontalAlignment);
@@ -45,7 +45,7 @@ public sealed class TextFidelityV070ReaderTests
             Assert.Equal("Shx", textItem.Metadata["FontKind"]);
             Assert.Equal(bool.TrueString, textItem.Metadata["FontFallbackApplied"]);
 
-            var mtextItem = Assert.Single(document.Scene.GetItems().Where(item => item.Metadata.TryGetValue("TextStyle", out var style) && style == "CadCoreTTF"));
+            var mtextItem = Assert.Single(document.Scene.GetItems(), item => item.Metadata.TryGetValue("TextStyle", out var style) && style == "CadCoreTTF");
             var mtextGeometry = Assert.IsType<TextGeometry>(mtextItem.Geometry);
             Assert.Equal(TextHorizontalAlignment2D.Right, mtextGeometry.HorizontalAlignment);
             Assert.Equal(TextVerticalAlignment2D.Bottom, mtextGeometry.VerticalAlignment);
