@@ -69,7 +69,84 @@ public sealed record ArcGeometry(Point2D Center, double Radius, double StartRadi
 }
 public sealed record EllipseGeometry(Point2D Center, double RadiusX, double RadiusY) : Geometry2D { public override BoundingBox2D GetBounds() => new(Center.X - RadiusX, Center.Y - RadiusY, Center.X + RadiusX, Center.Y + RadiusY); }
 public sealed record PathGeometry(IReadOnlyList<Point2D> Points, bool IsClosed = false) : Geometry2D { public override BoundingBox2D GetBounds() => BoundingBox2D.FromPoints(Points); }
-public sealed record TextGeometry(Point2D Origin, string Text, double Height = 10) : Geometry2D { public override BoundingBox2D GetBounds() => new(Origin.X, Origin.Y - Height, Origin.X + (Math.Max(1, Text.Length) * Height * .6), Origin.Y); }
+
+public enum TextHorizontalAlignment2D { Left, Center, Right }
+public enum TextVerticalAlignment2D { Top, Middle, Bottom, Baseline }
+
+/// <summary>Backend-neutral text geometry. The primary constructor remains compatible with Stage 1 while optional layout properties retain richer source semantics.</summary>
+public sealed record TextGeometry(Point2D Origin, string Text, double Height = 10) : Geometry2D
+{
+    public string FontFamily { get; init; } = string.Empty;
+    public double WidthFactor { get; init; } = 1;
+    public double ObliqueAngleRadians { get; init; }
+    public double LayoutWidth { get; init; }
+    public double LineSpacingFactor { get; init; } = 1;
+    public TextHorizontalAlignment2D HorizontalAlignment { get; init; } = TextHorizontalAlignment2D.Left;
+    public TextVerticalAlignment2D VerticalAlignment { get; init; } = TextVerticalAlignment2D.Top;
+    public bool IsBackward { get; init; }
+    public bool IsUpsideDown { get; init; }
+    public bool IsMultiline { get; init; }
+
+    public double EstimatedWidth
+    {
+        get
+        {
+            if (double.IsFinite(LayoutWidth) && LayoutWidth > double.Epsilon) return LayoutWidth;
+            var factor = double.IsFinite(WidthFactor) && Math.Abs(WidthFactor) > double.Epsilon ? Math.Abs(WidthFactor) : 1;
+            var lines = Lines();
+            var units = lines.Length == 0 ? .6 : lines.Max(VisualUnits);
+            return Math.Max(Height * .6, units * Height * factor);
+        }
+    }
+
+    public double EstimatedHeight
+    {
+        get
+        {
+            var lines = Math.Max(1, Lines().Length);
+            var spacing = double.IsFinite(LineSpacingFactor) && LineSpacingFactor > double.Epsilon ? LineSpacingFactor : 1;
+            return Height * (1 + ((lines - 1) * spacing));
+        }
+    }
+
+    public override BoundingBox2D GetBounds()
+    {
+        var width = Math.Max(0, EstimatedWidth);
+        var height = Math.Max(0, EstimatedHeight);
+        var (minX, maxX) = HorizontalAlignment switch
+        {
+            TextHorizontalAlignment2D.Center => (-width / 2, width / 2),
+            TextHorizontalAlignment2D.Right => (-width, 0),
+            _ => (0d, width)
+        };
+        var (minY, maxY) = VerticalAlignment switch
+        {
+            TextVerticalAlignment2D.Middle => (-height / 2, height / 2),
+            TextVerticalAlignment2D.Bottom or TextVerticalAlignment2D.Baseline => (0d, height),
+            _ => (-height, 0d)
+        };
+        return new BoundingBox2D(Origin.X + minX, Origin.Y + minY, Origin.X + maxX, Origin.Y + maxY);
+    }
+
+    private string[] Lines() => Text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
+
+    private static double VisualUnits(string line)
+    {
+        if (line.Length == 0) return .6;
+        var units = 0d;
+        foreach (var character in line)
+        {
+            units += character switch
+            {
+                '\t' => 2.4,
+                >= '\u2E80' => 1,
+                _ => .6
+            };
+        }
+        return Math.Max(.6, units);
+    }
+}
+
 public sealed record ImageGeometry(Point2D Origin, Size2D Size, string Source) : Geometry2D { public override BoundingBox2D GetBounds() => new(Origin.X, Origin.Y, Origin.X + Size.Width, Origin.Y + Size.Height); }
 
 public sealed class SceneNode
