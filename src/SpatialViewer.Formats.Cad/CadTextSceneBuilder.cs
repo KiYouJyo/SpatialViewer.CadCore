@@ -13,7 +13,15 @@ internal static class CadTextSceneBuilder
 
     private static SceneNode Create(ObjectId id, Point2D insertionPoint, string sourceText, double sourceHeight, double sourceRotation, bool isMText, CadTextPresentation presentation, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
     {
+        CadMTextParseResult? mtext = null;
         var text = CadTextNormalizer.Normalize(sourceText);
+        if (isMText)
+        {
+            var raw = string.IsNullOrEmpty(presentation.RawText) ? sourceText : presentation.RawText;
+            mtext = CadMTextParser.Parse(raw);
+            text = mtext.PlainText;
+        }
+
         var origin = insertionPoint;
         var height = Math.Max(double.Epsilon, Math.Abs(sourceHeight));
         var rotation = sourceRotation;
@@ -75,6 +83,18 @@ internal static class CadTextSceneBuilder
             ["TextMirrorUpsideDown"] = presentation.IsUpsideDown.ToString()
         };
         if (!string.IsNullOrEmpty(presentation.RawText)) enriched["RawText"] = presentation.RawText;
+        if (mtext is not null)
+        {
+            enriched["MTextInlineFormatting"] = mtext.HasInlineFormatting.ToString();
+            enriched["MTextStackedText"] = mtext.HasStackedText.ToString();
+            enriched["MTextFontOverrides"] = mtext.HasFontOverrides.ToString();
+            enriched["MTextColorOverrides"] = mtext.HasColorOverrides.ToString();
+            enriched["MTextHeightOverrides"] = mtext.HasHeightOverrides.ToString();
+            enriched["MTextWidthOverrides"] = mtext.HasWidthOverrides.ToString();
+            enriched["MTextObliqueOverrides"] = mtext.HasObliqueOverrides.ToString();
+            enriched["MTextTrackingOverrides"] = mtext.HasTrackingOverrides.ToString();
+            enriched["MTextDecorations"] = mtext.HasDecorations.ToString();
+        }
 
         var geometry = new TextGeometry(origin, text, height)
         {
