@@ -22,13 +22,24 @@ public sealed partial class ACadSharpCadImporter
             .Select(graphic => graphic.GraphicsType.ToString())
             .Distinct(StringComparer.Ordinal)
             .ToArray();
+        var proxyPrimitives = ACadSharpProxyGraphicsMapping.Map(
+            entity.ProxyGeometries,
+            out var unsupportedProxyGraphicCount,
+            out var statefulGeometryCommandsPresent);
+        var representation = proxyPrimitives.Count > 0
+            ? CadCustomEntityRepresentation.ProxyGraphics
+            : CadCustomEntityRepresentation.Opaque;
         var metadata = new Dictionary<string, string>(common.Metadata, StringComparer.Ordinal)
         {
             ["CustomEntity"] = bool.TrueString,
             ["CustomEntityType"] = entity.ObjectName,
-            ["CustomRepresentation"] = (graphicKinds.Length > 0 ? CadCustomEntityRepresentation.ProxyGraphics : CadCustomEntityRepresentation.Opaque).ToString(),
+            ["CustomRepresentation"] = representation.ToString(),
             ["ProxyGraphicCount"] = entity.ProxyGeometries.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ["ProxyGraphicKinds"] = string.Join(';', graphicKinds)
+            ["ProxyGraphicKinds"] = string.Join(';', graphicKinds),
+            ["ProxyGraphicTranslatedCount"] = proxyPrimitives.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["ProxyGraphicUnsupportedCount"] = unsupportedProxyGraphicCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["ProxyGraphicStatefulGeometryCommandsPresent"] = statefulGeometryCommandsPresent.ToString(),
+            ["ProxyGraphicTraitsApplied"] = bool.FalseString
         };
         if (definition is not null)
         {
@@ -43,8 +54,9 @@ public sealed partial class ACadSharpCadImporter
         return new CadCustomEntity(common.Handle, entity.ObjectName, common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, metadata)
         {
             ClassDefinition = definition,
-            Representation = graphicKinds.Length > 0 ? CadCustomEntityRepresentation.ProxyGraphics : CadCustomEntityRepresentation.Opaque,
-            ProxyGraphicKinds = graphicKinds
+            Representation = representation,
+            ProxyGraphicKinds = graphicKinds,
+            ProxyPrimitives = proxyPrimitives
         };
     }
 
