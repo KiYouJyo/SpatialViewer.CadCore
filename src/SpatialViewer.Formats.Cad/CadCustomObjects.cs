@@ -42,6 +42,8 @@ public sealed record CadCustomEntity(
     public IReadOnlyList<string> ProxyGraphicKinds { get; init; } = Array.Empty<string>();
     public IReadOnlyList<CadProxyPrimitive> ProxyPrimitives { get; init; } = Array.Empty<CadProxyPrimitive>();
     public CadDxfCustomPayload? RawDxfPayload { get; init; }
+    public CadDxfCustomPayloadProfile? RawDxfProfile { get; init; }
+    public IReadOnlyList<CadCustomHandleReference> HandleReferences { get; init; } = Array.Empty<CadCustomHandleReference>();
     public CadCustomSemantic? NativeSemantics { get; init; }
     public bool IsTianzheng => ClassDefinition?.IsTianzheng == true || CadCustomObjectClassifier.IsTianzheng(SourceEntityType);
 }
