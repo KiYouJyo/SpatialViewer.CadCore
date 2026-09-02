@@ -21,7 +21,7 @@ internal sealed record DwgRawObjectCaptureSnapshot(
 /// This deliberately retains the complete DWG object record rather than pretending the proprietary Databits region
 /// has already been separated from common entity framing or the handle stream.
 /// </summary>
-internal sealed class DwgRawObjectCaptureState
+internal sealed class DwgRawObjectCaptureState : IDisposable
 {
     private const int MaxObjectRecordBytes = 8 * 1024 * 1024;
     private const int MaxTotalCaptureBytes = 128 * 1024 * 1024;
@@ -148,6 +148,8 @@ internal sealed class DwgRawObjectCaptureState
             CaptureMethod,
             StatusReason);
 
+    public void Dispose() => _objectStream?.Dispose();
+
     private static bool TryHandle(string handle, out ulong value)
     {
         value = 0;
@@ -163,6 +165,8 @@ internal static class ACadSharpDwgRawObjectReader
     internal const string CaptureMethod = "ACadSharp-3.7.1-reflection-object-section-v1";
     private const string ObjectsSectionName = "AcDb:AcDbObjects";
     private static readonly BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+    private static readonly Type[] SectionStreamParameterTypes = { typeof(string) };
+    private static readonly object[] SectionStreamArguments = { ObjectsSectionName };
 
     public static DwgRawObjectCaptureState Initialize(DwgReader reader, global::ACadSharp.CadDocument document)
     {
@@ -175,13 +179,13 @@ internal static class ACadSharpDwgRawObjectReader
         {
             var readerType = typeof(DwgReader);
             var readHandles = readerType.GetMethod("readHandles", PrivateInstance);
-            var getSectionStream = readerType.GetMethod("getSectionStream", PrivateInstance, null, new[] { typeof(string) }, null);
+            var getSectionStream = readerType.GetMethod("getSectionStream", PrivateInstance, null, SectionStreamParameterTypes, null);
             if (readHandles is null || getSectionStream is null)
                 return DwgRawObjectCaptureState.Failed("Required ACadSharp DWG section hooks were not found.");
 
             if (readHandles.Invoke(reader, null) is not Dictionary<ulong, long> handles)
                 return DwgRawObjectCaptureState.Failed("ACadSharp handle-map hook returned an unexpected type.");
-            var sectionReader = getSectionStream.Invoke(reader, new object[] { ObjectsSectionName });
+            var sectionReader = getSectionStream.Invoke(reader, SectionStreamArguments);
             if (sectionReader is null)
                 return DwgRawObjectCaptureState.Failed("ACadSharp did not expose the decompressed AcDbObjects section.");
 
