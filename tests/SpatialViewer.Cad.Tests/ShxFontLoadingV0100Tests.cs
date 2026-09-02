@@ -70,6 +70,38 @@ public sealed class ShxFontLoadingV0100Tests
     }
 
     [Fact]
+    public async Task StaleAbsoluteShxReferenceRelocatesByBasenameIntoSupportDirectory()
+    {
+        var root = TemporaryDirectory();
+        var support = TemporaryDirectory();
+        try
+        {
+            var dxf = Path.Combine(root, "drawing.dxf");
+            var stale = Path.Combine(root, "old-machine-support", "fixture.shx");
+            await File.WriteAllBytesAsync(Path.Combine(support, "fixture.shx"), BuildShapeFont());
+            WriteTextDxf(dxf, stale);
+            var options = new ImportOptions(Metadata: new Dictionary<string, string>
+            {
+                [CadFontImportMetadata.ShxSearchPaths] = support
+            });
+
+            var result = await new ACadSharpCadImporter().ImportAsync(new ImportRequest(dxf, options));
+            var document = Assert.IsType<CadDocument>(result.Document);
+            var text = Assert.Single(document.ModelSpace.OfType<CadTextEntity>());
+
+            Assert.True(result.IsSuccess);
+            Assert.NotNull(text.Presentation.VectorFont);
+            Assert.Equal("1", document.Metadata["ShxLoadedFontCount"]);
+            Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "CAD_SHX_FONT_NOT_FOUND");
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+            Directory.Delete(support, true);
+        }
+    }
+
+    [Fact]
     public async Task MissingShxFallsBackWithoutFailingImportAndReportsOnce()
     {
         var root = TemporaryDirectory();
