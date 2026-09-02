@@ -12,7 +12,9 @@ internal static class CadReaderFactory
     public static ICadReader CreateReader(string filePath)
     {
         ACadSharpCustomPayloadContext.Initialize(filePath);
-        var reader = global::ACadSharp.IO.CadReaderFactory.CreateReader(filePath);
+        ICadReader reader = string.Equals(Path.GetExtension(filePath), ".dwg", StringComparison.OrdinalIgnoreCase)
+            ? new CadCoreDwgReader(filePath)
+            : global::ACadSharp.IO.CadReaderFactory.CreateReader(filePath);
         switch (reader)
         {
             case DxfReader dxfReader:

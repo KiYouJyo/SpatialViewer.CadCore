@@ -24,7 +24,7 @@ public sealed record CadCustomClassDefinition(
 /// <summary>
 /// Preserves an application-defined CAD entity even when CadCore does not yet understand its native semantics.
 /// Decoded proxy primitives are display fallbacks only and do not imply native object semantics.
-/// Raw DXF groups are retained as evidence for later native decoders rather than interpreted speculatively.
+/// Raw DXF groups and bounded raw DWG object records are retained as evidence for later native decoders rather than interpreted speculatively.
 /// </summary>
 public sealed record CadCustomEntity(
     string Handle,
@@ -44,6 +44,7 @@ public sealed record CadCustomEntity(
     public CadDxfCustomPayload? RawDxfPayload { get; init; }
     public CadDxfCustomPayloadProfile? RawDxfProfile { get; init; }
     public IReadOnlyList<CadCustomHandleReference> HandleReferences { get; init; } = Array.Empty<CadCustomHandleReference>();
+    public CadDwgCustomObjectRecord? RawDwgObjectRecord { get; init; }
     public CadCustomSemantic? NativeSemantics { get; init; }
     public bool IsTianzheng => ClassDefinition?.IsTianzheng == true || CadCustomObjectClassifier.IsTianzheng(SourceEntityType);
 }
