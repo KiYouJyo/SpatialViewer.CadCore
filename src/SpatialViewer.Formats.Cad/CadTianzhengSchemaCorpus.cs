@@ -6,6 +6,7 @@ namespace SpatialViewer.Formats.Cad;
 /// <summary>
 /// One privacy-safe Tianzheng custom-entity schema cluster. The report deliberately contains no handles,
 /// coordinates, text values, raw DXF values, raw DWG bytes, document names, or source paths.
+/// Relationship fields are aggregate coverage only and never participate in schema identity.
 /// </summary>
 public sealed record CadTianzhengSchemaCorpusEntry(
     string DxfName,
@@ -20,7 +21,11 @@ public sealed record CadTianzhengSchemaCorpusEntry(
     int TruncatedRawDxfEntityCount,
     int NativeSemanticEntityCount,
     int ProxyGraphicsEntityCount,
-    int RawDwgEvidenceEntityCount);
+    int RawDwgEvidenceEntityCount,
+    int ResolvedRelationshipEntityCount,
+    int ResolvedRelationshipCount,
+    int OpeningHostWallEntityCount,
+    int OpeningHostWallRelationshipCount);
 
 /// <summary>A mergeable anonymized schema report for one or more CAD samples.</summary>
 public sealed record CadTianzhengSchemaCorpusReport(
@@ -33,12 +38,12 @@ public sealed record CadTianzhengSchemaCorpusReport(
 
 /// <summary>
 /// Builds deterministic Tianzheng schema corpora from already-imported CadCore documents. Only structural
-/// evidence is aggregated, allowing samples from different Tianzheng generations to be compared without
-/// exporting drawing contents.
+/// evidence and aggregate relationship coverage are retained, allowing samples from different Tianzheng
+/// generations to be compared without exporting drawing contents.
 /// </summary>
 public static class CadTianzhengSchemaCorpus
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
     private const string Unavailable = "unavailable";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -48,10 +53,12 @@ public static class CadTianzhengSchemaCorpus
     public static CadTianzhengSchemaCorpusReport Build(CadDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
+        var relationshipsBySource = CadCustomRelationshipResolver.Resolve(document)
+            .ToLookup(relationship => relationship.SourceHandle, StringComparer.OrdinalIgnoreCase);
         var entries = EnumerateCustomEntities(document)
             .Where(entity => entity.IsTianzheng)
             .GroupBy(ProfileKey.Create)
-            .Select(group => CreateEntry(group.Key, group))
+            .Select(group => CreateEntry(group.Key, group, relationshipsBySource))
             .OrderBy(entry => entry.DxfName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(entry => entry.SchemaFingerprint, StringComparer.Ordinal)
             .ThenBy(entry => entry.ReferenceCodeSignature, StringComparer.Ordinal)
@@ -95,7 +102,11 @@ public static class CadTianzhengSchemaCorpus
                 group.Sum(entry => entry.TruncatedRawDxfEntityCount),
                 group.Sum(entry => entry.NativeSemanticEntityCount),
                 group.Sum(entry => entry.ProxyGraphicsEntityCount),
-                group.Sum(entry => entry.RawDwgEvidenceEntityCount)))
+                group.Sum(entry => entry.RawDwgEvidenceEntityCount),
+                group.Sum(entry => entry.ResolvedRelationshipEntityCount),
+                group.Sum(entry => entry.ResolvedRelationshipCount),
+                group.Sum(entry => entry.OpeningHostWallEntityCount),
+                group.Sum(entry => entry.OpeningHostWallRelationshipCount)))
             .OrderBy(entry => entry.DxfName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(entry => entry.SchemaFingerprint, StringComparer.Ordinal)
             .ThenBy(entry => entry.ReferenceCodeSignature, StringComparer.Ordinal)
@@ -115,9 +126,23 @@ public static class CadTianzhengSchemaCorpus
 
     private static CadTianzhengSchemaCorpusEntry CreateEntry(
         ProfileKey key,
-        IEnumerable<CadCustomEntity> entities)
+        IEnumerable<CadCustomEntity> entities,
+        ILookup<string, CadCustomRelationship> relationshipsBySource)
     {
         var materialized = entities.ToArray();
+        var relationships = materialized
+            .SelectMany(entity => relationshipsBySource[entity.Handle])
+            .ToArray();
+        var openingHostWallRelationships = relationships
+            .Where(relationship => relationship.Kind == CadCustomRelationshipKind.TianzhengOpeningHostWall)
+            .ToArray();
+        var resolvedSourceHandles = relationships
+            .Select(relationship => relationship.SourceHandle)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var openingHostSourceHandles = openingHostWallRelationships
+            .Select(relationship => relationship.SourceHandle)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         return new CadTianzhengSchemaCorpusEntry(
             key.DxfName,
             key.CppClassName,
@@ -131,7 +156,11 @@ public static class CadTianzhengSchemaCorpus
             materialized.Count(entity => entity.RawDxfPayload?.IsTruncated == true),
             materialized.Count(entity => entity.NativeSemantics is not null),
             materialized.Count(entity => entity.Representation == CadCustomEntityRepresentation.ProxyGraphics),
-            materialized.Count(entity => entity.RawDwgObjectRecord is not null));
+            materialized.Count(entity => entity.RawDwgObjectRecord is not null),
+            resolvedSourceHandles.Count,
+            relationships.Length,
+            openingHostSourceHandles.Count,
+            openingHostWallRelationships.Length);
     }
 
     private static IEnumerable<CadCustomEntity> EnumerateCustomEntities(CadDocument document)
