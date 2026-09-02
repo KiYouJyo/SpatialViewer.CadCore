@@ -56,7 +56,10 @@ public sealed partial class ACadSharpCadImporter
             ["RawDwgCaptureSupported"] = (rawDwgCapture?.Supported == true).ToString(),
             ["RawDwgCaptureFailed"] = (rawDwgCapture?.CaptureFailed == true).ToString(),
             ["CustomHandleReferenceCount"] = handleReferences.Count.ToString(CultureInfo.InvariantCulture),
-            ["NativeSemanticsDecoded"] = (nativeSemantics is not null).ToString()
+            ["NativeSemanticsDecoded"] = (nativeSemantics is not null).ToString(),
+            ["NativeSemanticEvidenceDecoded"] = (nativeSemantics is not null).ToString(),
+            ["NativeSemanticCoverage"] = nativeSemantics?.Coverage.ToString() ?? "None",
+            ["NativeSemanticDrawable2D"] = (nativeSemantics?.IsDrawable2D == true).ToString()
         };
         if (rawDxfPayload is not null)
         {
