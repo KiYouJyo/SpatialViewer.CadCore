@@ -1,6 +1,7 @@
 using ACadSharp.Classes;
 using ACadSharp.Entities;
 using ACadSharp.IO;
+using SpatialViewer.Core;
 using SpatialViewer.Formats.Cad;
 using SpatialViewer.Formats.Cad.ACadSharp;
 
@@ -42,7 +43,7 @@ public sealed class TianzhengCompatibilityV0110ReaderTests
             var result = await new ACadSharpCadImporter().ImportAsync(new ImportRequest(path));
             var document = Assert.IsType<CadDocument>(result.Document);
             var custom = Assert.Single(document.ModelSpace.OfType<CadCustomEntity>());
-            var preservedClass = Assert.Single(document.CustomClasses.Where(candidate => candidate.DxfName == "TCH_WALL"));
+            var preservedClass = Assert.Single(document.CustomClasses, candidate => candidate.DxfName == "TCH_WALL");
 
             Assert.True(result.IsSuccess);
             Assert.True(preservedClass.IsTianzheng);
