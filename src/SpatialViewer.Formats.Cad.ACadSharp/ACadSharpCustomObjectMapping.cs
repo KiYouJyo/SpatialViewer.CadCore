@@ -29,6 +29,8 @@ public sealed partial class ACadSharpCadImporter
         var representation = proxyPrimitives.Count > 0
             ? CadCustomEntityRepresentation.ProxyGraphics
             : CadCustomEntityRepresentation.Opaque;
+        var rawDxfPayload = ACadSharpCustomPayloadContext.FindDxfPayload(common.Handle);
+        var rawScan = ACadSharpCustomPayloadContext.Snapshot();
         var metadata = new Dictionary<string, string>(common.Metadata, StringComparer.Ordinal)
         {
             ["CustomEntity"] = bool.TrueString,
@@ -39,8 +41,17 @@ public sealed partial class ACadSharpCadImporter
             ["ProxyGraphicTranslatedCount"] = proxyPrimitives.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["ProxyGraphicUnsupportedCount"] = unsupportedProxyGraphicCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["ProxyGraphicStatefulGeometryCommandsPresent"] = statefulGeometryCommandsPresent.ToString(),
-            ["ProxyGraphicTraitsApplied"] = bool.FalseString
+            ["ProxyGraphicTraitsApplied"] = bool.FalseString,
+            ["RawDxfPayloadAvailable"] = (rawDxfPayload is not null).ToString(),
+            ["RawDxfScanBinary"] = (rawScan?.IsBinaryDxf == true).ToString(),
+            ["RawDxfScanFailed"] = (rawScan?.ScanFailed == true).ToString()
         };
+        if (rawDxfPayload is not null)
+        {
+            metadata["RawDxfGroupCount"] = rawDxfPayload.Groups.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            metadata["RawDxfPayloadTruncated"] = rawDxfPayload.IsTruncated.ToString();
+            metadata["RawDxfByteProjection"] = rawDxfPayload.ByteProjection;
+        }
         if (definition is not null)
         {
             metadata["CustomDxfClass"] = definition.DxfName;
@@ -56,7 +67,8 @@ public sealed partial class ACadSharpCadImporter
             ClassDefinition = definition,
             Representation = representation,
             ProxyGraphicKinds = graphicKinds,
-            ProxyPrimitives = proxyPrimitives
+            ProxyPrimitives = proxyPrimitives,
+            RawDxfPayload = rawDxfPayload
         };
     }
 

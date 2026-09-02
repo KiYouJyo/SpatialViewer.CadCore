@@ -57,6 +57,7 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
             var customEntities = allEntities.OfType<CadCustomEntity>().ToArray();
             var tianzhengClasses = customClasses.Where(definition => definition.IsTianzheng).ToArray();
             var tianzhengEntities = customEntities.Where(entity => entity.IsTianzheng).ToArray();
+            var rawScan = ACadSharpCustomPayloadContext.Snapshot() ?? DxfCustomPayloadScanResult.Empty;
             var metadata = new Dictionary<string, string>
             {
                 ["Reader"] = "ACadSharp",
@@ -73,7 +74,11 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
                 ["CustomProxyGraphicEntityCount"] = customEntities.Count(entity => entity.Representation == CadCustomEntityRepresentation.ProxyGraphics).ToString(CultureInfo.InvariantCulture),
                 ["TianzhengDetected"] = (tianzhengClasses.Length > 0 || tianzhengEntities.Length > 0).ToString(),
                 ["TianzhengClassCount"] = tianzhengClasses.Length.ToString(CultureInfo.InvariantCulture),
-                ["TianzhengEntityCount"] = tianzhengEntities.Length.ToString(CultureInfo.InvariantCulture)
+                ["TianzhengEntityCount"] = tianzhengEntities.Length.ToString(CultureInfo.InvariantCulture),
+                ["RawDxfCapturedCustomRecordCount"] = rawScan.CapturedRecordCount.ToString(CultureInfo.InvariantCulture),
+                ["RawDxfTruncatedCustomRecordCount"] = rawScan.TruncatedRecordCount.ToString(CultureInfo.InvariantCulture),
+                ["RawDxfScanBinary"] = rawScan.IsBinaryDxf.ToString(),
+                ["RawDxfScanFailed"] = rawScan.ScanFailed.ToString()
             };
             if (customEntities.Length > 0)
             {
@@ -87,6 +92,11 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
                         ["ProxyGraphicEntityCount"] = customEntities.Count(entity => entity.Representation == CadCustomEntityRepresentation.ProxyGraphics).ToString(CultureInfo.InvariantCulture),
                         ["TianzhengEntityCount"] = tianzhengEntities.Length.ToString(CultureInfo.InvariantCulture)
                     }));
+
+                if (extension == ".dxf" && rawScan.IsBinaryDxf)
+                    diagnostics.Add(new Diagnostic(DiagnosticSeverity.Warning, "CAD_CUSTOM_RAW_DXF_BINARY_UNAVAILABLE", "Application-defined entities were preserved, but raw proprietary group capture currently supports text DXF only."));
+                else if (extension == ".dxf" && rawScan.ScanFailed)
+                    diagnostics.Add(new Diagnostic(DiagnosticSeverity.Warning, "CAD_CUSTOM_RAW_DXF_SCAN_FAILED", "Application-defined entities were preserved, but the raw proprietary group pre-scan failed. Native decoding must not assume that missing raw fields were absent from the source."));
             }
             if (entities.OfType<CadUnsupportedEntity>().Any()) diagnostics.Add(new Diagnostic(DiagnosticSeverity.Warning, "CAD_PARTIAL_IMPORT", $"Skipped {entities.OfType<CadUnsupportedEntity>().Count()} unsupported entity or entities."));
             var document = new SpatialViewer.Formats.Cad.CadDocument(Path.GetFileName(request.FilePath), extension.TrimStart('.').ToUpperInvariant(), source.Header.Version.ToString(), MapUnits(source.Header.InsUnits.ToString()), layers, blocks, entities, diagnostics, metadata, layouts)
