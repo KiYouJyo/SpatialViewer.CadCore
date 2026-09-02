@@ -158,7 +158,7 @@ public sealed partial class CadSceneTranslator
         return new Point2D(start.X + (dx * t), start.Y + (dy * t));
     }
 
-    private static IReadOnlyDictionary<string, string> ArrowMetadata(IReadOnlyDictionary<string, string> metadata, CadDimensionPresentation presentation, bool first)
+    private static Dictionary<string, string> ArrowMetadata(IReadOnlyDictionary<string, string> metadata, CadDimensionPresentation presentation, bool first)
     {
         var result = new Dictionary<string, string>(metadata, StringComparer.Ordinal)
         {
