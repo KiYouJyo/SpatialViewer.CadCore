@@ -48,15 +48,21 @@ public static class CadCustomObjectClassifier
     public static bool IsTianzheng(string? dxfName, string? cppClassName = null, string? applicationName = null)
     {
         if (!string.IsNullOrWhiteSpace(dxfName) && dxfName.StartsWith("TCH_", StringComparison.OrdinalIgnoreCase)) return true;
-        return ContainsTianzhengIdentity(applicationName) || ContainsTianzhengIdentity(cppClassName);
+        return ContainsExplicitIdentity(cppClassName) || ContainsApplicationIdentity(applicationName);
     }
 
-    private static bool ContainsTianzhengIdentity(string? value)
+    private static bool ContainsExplicitIdentity(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return false;
         return value.Contains("Tianzheng", StringComparison.OrdinalIgnoreCase)
-            || value.Contains("Tangent", StringComparison.OrdinalIgnoreCase)
             || value.Contains("TArch", StringComparison.OrdinalIgnoreCase)
             || value.Contains("天正", StringComparison.Ordinal);
+    }
+
+    private static bool ContainsApplicationIdentity(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        return ContainsExplicitIdentity(value)
+            || value.Contains("Tangent", StringComparison.OrdinalIgnoreCase);
     }
 }
