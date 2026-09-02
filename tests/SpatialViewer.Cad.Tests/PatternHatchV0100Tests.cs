@@ -59,7 +59,9 @@ public sealed class PatternHatchV0100Tests
     [Fact]
     public void PatternAngleAndScaleTransformLineFamily()
     {
-        var hatch = Hatch(Rectangle(0, 0, 10, 10), new CadHatchPatternLine(0, new Point2D(1, 0), new Vector2D(2, 0), Array.Empty<double>()), patternAngle: Math.PI / 2, patternScale: 2);
+        // The family offset must contain a component perpendicular to the source line.
+        // An offset parallel to the source direction describes the same infinite line repeatedly.
+        var hatch = Hatch(Rectangle(0, 0, 10, 10), new CadHatchPatternLine(0, new Point2D(1, 0), new Vector2D(0, 2), Array.Empty<double>()), patternAngle: Math.PI / 2, patternScale: 2);
         var result = CadHatchPatternTessellator.Tessellate(hatch, Loops(hatch));
         var lines = result.Geometries.OfType<LineGeometry>().ToArray();
 
