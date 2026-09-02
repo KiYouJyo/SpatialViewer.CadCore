@@ -19,7 +19,8 @@ public sealed record CadTextPresentation(
     bool IsBackward = false,
     bool IsUpsideDown = false,
     bool IsShapeFile = false,
-    string RawText = "");
+    string RawText = "",
+    CadShxFont? VectorFont = null);
 
 public enum CadFontKind { Default, TrueType, Shx }
 public readonly record struct CadFontResolution(CadFontKind Kind, string Family, bool UsesFallback);
