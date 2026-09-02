@@ -41,7 +41,13 @@ public sealed record CadHatchEllipseEdge(Point2D Center, Point2D MajorAxisEndPoi
 public sealed record CadHatchPolylineEdge(IReadOnlyList<Point2D> Vertices, IReadOnlyList<double> Bulges, bool IsClosed = true) : CadHatchEdge;
 public sealed record CadHatchSplineEdge(CadSplineDefinition Spline) : CadHatchEdge;
 public sealed record CadHatchLoop(IReadOnlyList<CadHatchEdge> Edges, string Flags = "");
-public sealed record CadHatchEntity(string Handle, IReadOnlyList<CadHatchLoop> Loops, bool IsSolid = true, string PatternName = "SOLID", double PatternAngleRadians = 0, double PatternScale = 1, string LayerName = "0", CadColor Color = default, bool IsVisible = true, string LineTypeName = "Continuous", int? LineWeight = null, IReadOnlyDictionary<string, string>? Metadata = null) : CadEntity(Handle, LayerName, Color == default ? CadColor.ByLayer : Color, IsVisible, LineTypeName, LineWeight, Metadata ?? EmptyMetadata.Value);
+/// <summary>One reader-independent line family from a CAD hatch pattern definition.</summary>
+public sealed record CadHatchPatternLine(double AngleRadians, Point2D BasePoint, Vector2D Offset, IReadOnlyList<double> DashLengths);
+public sealed record CadHatchEntity(string Handle, IReadOnlyList<CadHatchLoop> Loops, bool IsSolid = true, string PatternName = "SOLID", double PatternAngleRadians = 0, double PatternScale = 1, string LayerName = "0", CadColor Color = default, bool IsVisible = true, string LineTypeName = "Continuous", int? LineWeight = null, IReadOnlyDictionary<string, string>? Metadata = null) : CadEntity(Handle, LayerName, Color == default ? CadColor.ByLayer : Color, IsVisible, LineTypeName, LineWeight, Metadata ?? EmptyMetadata.Value)
+{
+    /// <summary>Source PAT/DWG/DXF line families. Empty means the reader did not provide a drawable pattern definition.</summary>
+    public IReadOnlyList<CadHatchPatternLine> PatternLines { get; init; } = Array.Empty<CadHatchPatternLine>();
+}
 
 public sealed record CadTextEntity(string Handle, Point2D InsertionPoint, string Text, double Height, double RotationRadians = 0, double Width = 0, bool IsMText = false, string LayerName = "0", CadColor Color = default, bool IsVisible = true, string LineTypeName = "Continuous", int? LineWeight = null, IReadOnlyDictionary<string, string>? Metadata = null) : CadEntity(Handle, LayerName, Color == default ? CadColor.ByLayer : Color, IsVisible, LineTypeName, LineWeight, Metadata ?? EmptyMetadata.Value)
 {
