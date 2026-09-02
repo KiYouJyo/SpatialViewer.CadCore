@@ -38,6 +38,7 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
             cancellationToken.ThrowIfCancellationRequested();
             progress?.Report(new ImportProgress("Adapter", .55, "Copying reader data into CAD model"));
             var globalLineTypeScale = source.Header.LineTypeScale;
+            var customClasses = MapCustomClasses(source);
             var layers = source.Layers.Select(layer => new CadLayer(layer.Name, MapColor(layer.Color), layer.IsOn, false, NameOf(layer.LineType), ParseLineWeight(layer.LineWeight))).ToArray();
             var entities = source.Entities.Select(entity => MapEntity(entity, diagnostics, globalLineTypeScale)).ToArray();
             var blocks = MapBlocks(source, diagnostics, globalLineTypeScale);
@@ -48,7 +49,14 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
             blocks = blocks.Select(shxFonts.Apply).ToArray();
             layouts = layouts.Select(shxFonts.Apply).ToArray();
 
-            ValidateBlockReferences(entities.Concat(blocks.SelectMany(block => block.Entities)).Concat(layouts.SelectMany(layout => layout.Entities)), blocks, diagnostics);
+            var allEntities = entities
+                .Concat(blocks.SelectMany(block => block.Entities))
+                .Concat(layouts.Where(layout => layout.IsPaperSpace).SelectMany(layout => layout.Entities))
+                .ToArray();
+            ValidateBlockReferences(allEntities, blocks, diagnostics);
+            var customEntities = allEntities.OfType<CadCustomEntity>().ToArray();
+            var tianzhengClasses = customClasses.Where(definition => definition.IsTianzheng).ToArray();
+            var tianzhengEntities = customEntities.Where(entity => entity.IsTianzheng).ToArray();
             var metadata = new Dictionary<string, string>
             {
                 ["Reader"] = "ACadSharp",
@@ -59,10 +67,32 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
                 ["LineTypeScale"] = globalLineTypeScale.ToString(CultureInfo.InvariantCulture),
                 ["ShxSearchDirectoryCount"] = shxFonts.SearchDirectoryCount.ToString(CultureInfo.InvariantCulture),
                 ["ShxRequestedFontCount"] = shxFonts.RequestedFontCount.ToString(CultureInfo.InvariantCulture),
-                ["ShxLoadedFontCount"] = shxFonts.LoadedFontCount.ToString(CultureInfo.InvariantCulture)
+                ["ShxLoadedFontCount"] = shxFonts.LoadedFontCount.ToString(CultureInfo.InvariantCulture),
+                ["CustomClassCount"] = customClasses.Length.ToString(CultureInfo.InvariantCulture),
+                ["CustomEntityCount"] = customEntities.Length.ToString(CultureInfo.InvariantCulture),
+                ["CustomProxyGraphicEntityCount"] = customEntities.Count(entity => entity.Representation == CadCustomEntityRepresentation.ProxyGraphics).ToString(CultureInfo.InvariantCulture),
+                ["TianzhengDetected"] = (tianzhengClasses.Length > 0 || tianzhengEntities.Length > 0).ToString(),
+                ["TianzhengClassCount"] = tianzhengClasses.Length.ToString(CultureInfo.InvariantCulture),
+                ["TianzhengEntityCount"] = tianzhengEntities.Length.ToString(CultureInfo.InvariantCulture)
             };
+            if (customEntities.Length > 0)
+            {
+                diagnostics.Add(new Diagnostic(
+                    DiagnosticSeverity.Warning,
+                    "CAD_CUSTOM_ENTITY_PRESERVED",
+                    $"Preserved {customEntities.Length} application-defined CAD entity or entities for compatibility processing; native semantics are not decoded yet.",
+                    new Dictionary<string, string>
+                    {
+                        ["CustomEntityCount"] = customEntities.Length.ToString(CultureInfo.InvariantCulture),
+                        ["ProxyGraphicEntityCount"] = customEntities.Count(entity => entity.Representation == CadCustomEntityRepresentation.ProxyGraphics).ToString(CultureInfo.InvariantCulture),
+                        ["TianzhengEntityCount"] = tianzhengEntities.Length.ToString(CultureInfo.InvariantCulture)
+                    }));
+            }
             if (entities.OfType<CadUnsupportedEntity>().Any()) diagnostics.Add(new Diagnostic(DiagnosticSeverity.Warning, "CAD_PARTIAL_IMPORT", $"Skipped {entities.OfType<CadUnsupportedEntity>().Count()} unsupported entity or entities."));
-            var document = new SpatialViewer.Formats.Cad.CadDocument(Path.GetFileName(request.FilePath), extension.TrimStart('.').ToUpperInvariant(), source.Header.Version.ToString(), MapUnits(source.Header.InsUnits.ToString()), layers, blocks, entities, diagnostics, metadata, layouts);
+            var document = new SpatialViewer.Formats.Cad.CadDocument(Path.GetFileName(request.FilePath), extension.TrimStart('.').ToUpperInvariant(), source.Header.Version.ToString(), MapUnits(source.Header.InsUnits.ToString()), layers, blocks, entities, diagnostics, metadata, layouts)
+            {
+                CustomClasses = customClasses
+            };
             progress?.Report(new ImportProgress("Scene", 1, "CAD scene ready"));
             return new ImportResult(document, diagnostics);
         }
@@ -96,6 +126,7 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
             MText text => MapMText(text, common),
             TextEntity text => MapText(text, common),
             Insert insert => MapInsert(insert, common, diagnostics, globalLineTypeScale),
+            _ when IsCustomEntity(entity) => MapCustomEntity(entity, common),
             _ => Unsupported(entity, common, diagnostics)
         };
     }
