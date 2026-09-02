@@ -91,10 +91,26 @@ public sealed partial class CadSceneTranslator
             ["HatchPattern"] = hatch.PatternName,
             ["HatchPatternAngle"] = hatch.PatternAngleRadians.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
             ["HatchPatternScale"] = hatch.PatternScale.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
-            ["HatchLoopCount"] = loops.Length.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            ["HatchLoopCount"] = loops.Length.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["HatchPatternDefinitionLineCount"] = hatch.PatternLines.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)
         };
         var hatchStyle = hatch.IsSolid ? style with { Fill = ToHex(effectiveColor) } : style;
-        return new SceneNode(hatch.ObjectId, new CompoundPathGeometry(loops), style: hatchStyle, metadata: enriched);
+        if (hatch.IsSolid) return new SceneNode(hatch.ObjectId, new CompoundPathGeometry(loops), style: hatchStyle, metadata: enriched);
+
+        var tessellation = CadHatchPatternTessellator.Tessellate(hatch, loops);
+        enriched["HatchPatternGeometryCount"] = tessellation.Geometries.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        enriched["HatchPatternCandidateLineCount"] = tessellation.CandidateLineCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        enriched["HatchPatternTruncated"] = tessellation.Truncated.ToString();
+        enriched["HatchPatternDefinitionMissing"] = (hatch.PatternLines.Count == 0).ToString();
+
+        var patternMetadata = new Dictionary<string, string>(enriched, StringComparer.Ordinal);
+        patternMetadata.Remove("LineTypePattern");
+        patternMetadata.Remove("LineTypeScale");
+        patternMetadata.Remove("GlobalLineTypeScale");
+        var children = tessellation.Geometries
+            .Select(geometry => new SceneNode(hatch.ObjectId, geometry, style: style, metadata: patternMetadata))
+            .ToArray();
+        return new SceneNode(hatch.ObjectId, new CompoundPathGeometry(loops), style: hatchStyle, children: children, metadata: enriched);
     }
 
     private static SceneNode AttributeNode(CadAttributeEntity attribute, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
