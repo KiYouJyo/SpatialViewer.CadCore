@@ -4,8 +4,19 @@ using SpatialViewer.Core;
 
 namespace SpatialViewer.Formats.Cad;
 
+/// <summary>How far CadCore can safely promote recovered custom-object meaning toward native 2D geometry.</summary>
+public enum CadCustomSemanticCoverage
+{
+    Partial,
+    Drawable2D
+}
+
 /// <summary>Reader-independent native meaning recovered from an application-defined CAD object.</summary>
-public abstract record CadCustomSemantic(string DecoderProfile);
+public abstract record CadCustomSemantic(string DecoderProfile)
+{
+    public virtual CadCustomSemanticCoverage Coverage => CadCustomSemanticCoverage.Partial;
+    public bool IsDrawable2D => Coverage == CadCustomSemanticCoverage.Drawable2D;
+}
 
 /// <summary>
 /// Native 2D semantics for a straight Tianzheng wall. Widths are measured from the wall centerline
@@ -22,6 +33,7 @@ public sealed record CadTianzhengWallSemantic(
     string DecoderProfile)
     : CadCustomSemantic(DecoderProfile)
 {
+    public override CadCustomSemanticCoverage Coverage => CadCustomSemanticCoverage.Drawable2D;
     public double Length => Start.DistanceTo(End);
     public double TotalWidth => LeftWidth + RightWidth;
 }
