@@ -65,6 +65,20 @@ public sealed record CadTianzhengElevationSemantic(
     : CadCustomSemantic(DecoderProfile);
 
 /// <summary>
+/// Partial native evidence for a Tianzheng room/space object. Public entget evidence exposes the TDbSpace
+/// subclass together with point group 10, group 1 room name, and group 2 room number. Area, volume,
+/// perimeter, skirting length, and wall/opening areas remain intentionally undecoded until their raw field
+/// mappings are independently verified.
+/// </summary>
+public sealed record CadTianzhengSpaceSemantic(
+    Point2D InsertionPoint,
+    double? InsertionZ,
+    string Name,
+    string Number,
+    string DecoderProfile)
+    : CadCustomSemantic(DecoderProfile);
+
+/// <summary>
 /// Evidence-gated Tianzheng native decoder. A profile succeeds only when the raw payload matches a
 /// known layout. Unknown or malformed payloads remain preserved without speculative semantics.
 /// </summary>
@@ -74,6 +88,7 @@ public static class CadTianzhengSemanticDecoder
     public const string WallPacked300Profile = "TCH_WALL_PACKED_300_UTF16LE";
     public const string OpeningAnchorDirectProfile = "TCH_OPENING_ANCHOR_10";
     public const string ElevationTextDirectProfile = "TCH_ELEVATION_TEXT_10_1";
+    public const string SpaceNameNumberDirectProfile = "TCH_SPACE_NAME_NUMBER_10_1_2";
 
     public static CadCustomSemantic? Decode(
         string sourceEntityType,
@@ -87,6 +102,8 @@ public static class CadTianzhengSemanticDecoder
             return TryDecodeOpeningAnchor(payload);
         if (IsTianzhengElevation(sourceEntityType, classDefinition, payload))
             return TryDecodeElevation(payload);
+        if (IsTianzhengSpace(sourceEntityType, classDefinition, payload))
+            return TryDecodeSpace(payload);
         return null;
     }
 
@@ -132,6 +149,18 @@ public static class CadTianzhengSemanticDecoder
         return payload.Groups.Any(group => group.Code == 100 && string.Equals(group.RawValue.Trim(), "TDbSymbElevation", StringComparison.OrdinalIgnoreCase));
     }
 
+    private static bool IsTianzhengSpace(
+        string sourceEntityType,
+        CadCustomClassDefinition? classDefinition,
+        CadDxfCustomPayload payload)
+    {
+        var isSpaceName = string.Equals(sourceEntityType, "TCH_SPACE", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(classDefinition?.DxfName, "TCH_SPACE", StringComparison.OrdinalIgnoreCase);
+        if (!isSpaceName) return false;
+
+        return payload.Groups.Any(group => group.Code == 100 && string.Equals(group.RawValue.Trim(), "TDbSpace", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static CadTianzhengOpeningAnchorSemantic? TryDecodeOpeningAnchor(CadDxfCustomPayload payload)
     {
         if (!TryNumber(payload, 10, out var x) || !TryNumber(payload, 20, out var y)) return null;
@@ -156,6 +185,22 @@ public static class CadTianzhengSemanticDecoder
             text,
             PositiveOptionalNumber(payload, 47),
             ElevationTextDirectProfile);
+    }
+
+    private static CadTianzhengSpaceSemantic? TryDecodeSpace(CadDxfCustomPayload payload)
+    {
+        if (!TryNumber(payload, 10, out var x) || !TryNumber(payload, 20, out var y)) return null;
+        var nameGroup = payload.Groups.FirstOrDefault(group => group.Code == 1);
+        var numberGroup = payload.Groups.FirstOrDefault(group => group.Code == 2);
+        if (nameGroup is null || numberGroup is null) return null;
+        var insertionPoint = new Point2D(x, y);
+        if (!Finite(insertionPoint)) return null;
+        return new CadTianzhengSpaceSemantic(
+            insertionPoint,
+            OptionalNumber(payload, 30),
+            nameGroup.RawValue,
+            numberGroup.RawValue,
+            SpaceNameNumberDirectProfile);
     }
 
     private static CadTianzhengWallSemantic? TryDecodeDirectWall(CadDxfCustomPayload payload)
