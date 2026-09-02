@@ -4,7 +4,7 @@ namespace SpatialViewer.Formats.Cad;
 public static class CadFontImportMetadata
 {
     /// <summary>
-    /// Optional <see cref="ImportOptions.Metadata"/> value containing additional directories in which SHX files may be resolved.
+    /// Optional import metadata value containing additional directories in which SHX files may be resolved.
     /// Directories are separated with <see cref="Path.PathSeparator"/>. The drawing directory is always searched first.
     /// CadCore deliberately does not scan the Windows registry or AutoCAD installation directories on its own.
     /// </summary>
