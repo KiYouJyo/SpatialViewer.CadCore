@@ -5,6 +5,9 @@ namespace SpatialViewer.Cad.Tests;
 
 public sealed class PatternHatchV0100Tests
 {
+    private static readonly double[] ExpectedHorizontalYs = [1d, 3d, 5d, 7d, 9d];
+    private static readonly double[] TwoOneDashPattern = [2d, -1d];
+
     [Fact]
     public void ContinuousPatternLinesAreClippedInsideRectangle()
     {
@@ -14,7 +17,7 @@ public sealed class PatternHatchV0100Tests
 
         Assert.False(result.Truncated);
         Assert.Equal(5, lines.Length);
-        Assert.Equal(new[] { 1d, 3d, 5d, 7d, 9d }, lines.Select(line => line.Start.Y).ToArray());
+        Assert.Equal(ExpectedHorizontalYs, lines.Select(line => line.Start.Y).ToArray());
         Assert.All(lines, line =>
         {
             Assert.Equal(0, Math.Min(line.Start.X, line.End.X), 8);
@@ -26,7 +29,7 @@ public sealed class PatternHatchV0100Tests
     public void EvenOddClippingPreservesHoleInPatternHatch()
     {
         var hatch = Hatch(
-            new[] { Rectangle(0, 0, 10, 10), Rectangle(4, 4, 6, 6) },
+            new Point2D[][] { Rectangle(0, 0, 10, 10), Rectangle(4, 4, 6, 6) },
             new CadHatchPatternLine(0, new Point2D(0, 1), new Vector2D(0, 2), Array.Empty<double>()));
         var result = CadHatchPatternTessellator.Tessellate(hatch, Loops(hatch));
         var middle = result.Geometries.OfType<LineGeometry>().Where(line => Math.Abs(line.Start.Y - 5) < 1e-8).OrderBy(line => line.Start.X).ToArray();
@@ -42,7 +45,7 @@ public sealed class PatternHatchV0100Tests
     [Fact]
     public void DashPatternIsExpandedBeforeRendering()
     {
-        var hatch = Hatch(Rectangle(0, 0, 10, 2), new CadHatchPatternLine(0, new Point2D(0, 1), new Vector2D(0, 5), new[] { 2d, -1d }));
+        var hatch = Hatch(Rectangle(0, 0, 10, 2), new CadHatchPatternLine(0, new Point2D(0, 1), new Vector2D(0, 5), TwoOneDashPattern));
         var result = CadHatchPatternTessellator.Tessellate(hatch, Loops(hatch));
         var lines = result.Geometries.OfType<LineGeometry>().OrderBy(line => line.Start.X).ToArray();
 
@@ -92,23 +95,23 @@ public sealed class PatternHatchV0100Tests
         Assert.NotNull(item.Style.Fill);
     }
 
-    private static CadHatchEntity Hatch(IReadOnlyList<Point2D> rectangle, CadHatchPatternLine line, double patternAngle = 0, double patternScale = 1)
-        => Hatch(new[] { rectangle }, line, patternAngle, patternScale);
+    private static CadHatchEntity Hatch(Point2D[] rectangle, CadHatchPatternLine line, double patternAngle = 0, double patternScale = 1)
+        => Hatch(new Point2D[][] { rectangle }, line, patternAngle, patternScale);
 
-    private static CadHatchEntity Hatch(IReadOnlyList<IReadOnlyList<Point2D>> boundaries, CadHatchPatternLine line, double patternAngle = 0, double patternScale = 1)
+    private static CadHatchEntity Hatch(Point2D[][] boundaries, CadHatchPatternLine line, double patternAngle = 0, double patternScale = 1)
         => new("PAT10", boundaries.Select(Loop).ToArray(), IsSolid: false, PatternName: "CUSTOM", PatternAngleRadians: patternAngle, PatternScale: patternScale)
         {
             PatternLines = new[] { line }
         };
 
     private static IReadOnlyList<IReadOnlyList<Point2D>> Loops(CadHatchEntity hatch)
-        => hatch.Loops.Select(CadCurveTessellator.HatchLoop).Where(loop => loop.Count >= 3).ToArray();
+        => hatch.Loops.Select(loop => (IReadOnlyList<Point2D>)((CadHatchPolylineEdge)loop.Edges[0]).Vertices).ToArray();
 
     private static CadHatchLoop Loop(IReadOnlyList<Point2D> points)
         => new(new CadHatchEdge[] { new CadHatchPolylineEdge(points, Enumerable.Repeat(0d, points.Count).ToArray(), true) });
 
-    private static IReadOnlyList<Point2D> Rectangle(double minX, double minY, double maxX, double maxY)
-        => new[] { new Point2D(minX, minY), new Point2D(maxX, minY), new Point2D(maxX, maxY), new Point2D(minX, maxY) };
+    private static Point2D[] Rectangle(double minX, double minY, double maxX, double maxY)
+        => [new Point2D(minX, minY), new Point2D(maxX, minY), new Point2D(maxX, maxY), new Point2D(minX, maxY)];
 
     private static CadDocument Document(CadEntity entity) => new(
         "pattern-v0100.dxf",
