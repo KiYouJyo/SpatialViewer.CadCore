@@ -119,19 +119,32 @@ internal sealed class ACadSharpShxFontLoading
             try
             {
                 var full = Path.GetFullPath(sourceName);
-                return File.Exists(full) ? full : null;
+                if (File.Exists(full)) return full;
             }
             catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
             {
-                return null;
+                // Continue with basename recovery below.
             }
+
+            var relocatedName = Path.GetFileName(sourceName);
+            return relocatedName.Length == 0 ? null : ResolveFromSearchDirectories(relocatedName);
         }
 
+        var exactRelative = ResolveFromSearchDirectories(sourceName);
+        if (exactRelative is not null) return exactRelative;
+        var fileName = Path.GetFileName(sourceName);
+        return fileName.Length > 0 && !fileName.Equals(sourceName, StringComparison.OrdinalIgnoreCase)
+            ? ResolveFromSearchDirectories(fileName)
+            : null;
+    }
+
+    private string? ResolveFromSearchDirectories(string reference)
+    {
         foreach (var directory in _searchDirectories)
         {
             try
             {
-                var candidate = Path.GetFullPath(Path.Combine(directory, sourceName));
+                var candidate = Path.GetFullPath(Path.Combine(directory, reference));
                 if (File.Exists(candidate)) return candidate;
             }
             catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
