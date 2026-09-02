@@ -23,7 +23,7 @@ public sealed record CadCustomClassDefinition(
 
 /// <summary>
 /// Preserves an application-defined CAD entity even when CadCore does not yet understand its native semantics.
-/// Proxy graphics are intentionally identified here but translated in a later compatibility layer.
+/// Decoded proxy primitives are display fallbacks only and do not imply native object semantics.
 /// </summary>
 public sealed record CadCustomEntity(
     string Handle,
@@ -39,6 +39,7 @@ public sealed record CadCustomEntity(
     public CadCustomClassDefinition? ClassDefinition { get; init; }
     public CadCustomEntityRepresentation Representation { get; init; } = CadCustomEntityRepresentation.Opaque;
     public IReadOnlyList<string> ProxyGraphicKinds { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<CadProxyPrimitive> ProxyPrimitives { get; init; } = Array.Empty<CadProxyPrimitive>();
     public bool IsTianzheng => ClassDefinition?.IsTianzheng == true || CadCustomObjectClassifier.IsTianzheng(SourceEntityType);
 }
 
