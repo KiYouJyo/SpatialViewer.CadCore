@@ -141,6 +141,14 @@ internal static class ACadSharpDxfCustomPayloadReader
         return read == BinaryDxfPrefix.Length && prefix.SequenceEqual(BinaryDxfPrefix);
     }
 
+    private static string CanonicalHandle(string rawHandle)
+    {
+        var trimmed = rawHandle.Trim();
+        return ulong.TryParse(trimmed, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var value)
+            ? value.ToString(CultureInfo.InvariantCulture)
+            : trimmed;
+    }
+
     private sealed class PayloadBuilder
     {
         private int _projectedCharacters;
@@ -154,7 +162,7 @@ internal static class ACadSharpDxfCustomPayloadReader
 
         public void Add(int code, string rawValue)
         {
-            if (code == 5 && string.IsNullOrWhiteSpace(Handle)) Handle = rawValue.Trim();
+            if (code == 5 && string.IsNullOrWhiteSpace(Handle)) Handle = CanonicalHandle(rawValue);
             if (IsTruncated) return;
             if (Groups.Count >= MaxGroupsPerEntity || _projectedCharacters + rawValue.Length > MaxProjectedCharactersPerEntity)
             {
