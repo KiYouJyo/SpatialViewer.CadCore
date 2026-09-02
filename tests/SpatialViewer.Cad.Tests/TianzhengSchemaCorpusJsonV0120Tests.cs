@@ -24,6 +24,20 @@ public sealed class TianzhengSchemaCorpusJsonV0120Tests
     }
 
     [Fact]
+    public void EmptyCorpusRemainsAValidPortableReport()
+    {
+        var empty = CadTianzhengSchemaCorpus.Merge(Array.Empty<CadTianzhengSchemaCorpusReport>());
+        var json = CadTianzhengSchemaCorpus.ToJson(empty);
+
+        var parsed = CadTianzhengSchemaCorpus.FromJson(json);
+
+        Assert.Equal(CadTianzhengSchemaCorpus.CurrentSchemaVersion, parsed.SchemaVersion);
+        Assert.Equal(0, parsed.SampleCount);
+        Assert.Equal(0, parsed.EntityCount);
+        Assert.Empty(parsed.Entries);
+    }
+
+    [Fact]
     public void MergeJsonCombinesIndependentReports()
     {
         var first = CadTianzhengSchemaCorpus.ToJson(CadTianzhengSchemaCorpus.Build(Document("100")));
