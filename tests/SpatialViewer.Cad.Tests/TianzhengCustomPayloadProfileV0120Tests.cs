@@ -35,7 +35,9 @@ public sealed class TianzhengCustomPayloadProfileV0120Tests
 
         Assert.Equal(firstProfile.Fingerprint, secondProfile.Fingerprint);
         Assert.Equal(firstProfile.GroupCodeSignature, secondProfile.GroupCodeSignature);
-        Assert.Equal(new[] { "AcDbEntity", "TDbOpening" }, firstProfile.SubclassMarkers);
+        Assert.Equal(2, firstProfile.SubclassMarkers.Count);
+        Assert.Equal("AcDbEntity", firstProfile.SubclassMarkers[0]);
+        Assert.Equal("TDbOpening", firstProfile.SubclassMarkers[1]);
         Assert.DoesNotContain("1200.25", firstProfile.GroupCodeSignature, StringComparison.Ordinal);
         Assert.DoesNotContain("WINDOW-A", firstProfile.GroupCodeSignature, StringComparison.Ordinal);
         Assert.Equal(64, firstProfile.Fingerprint.Length);
