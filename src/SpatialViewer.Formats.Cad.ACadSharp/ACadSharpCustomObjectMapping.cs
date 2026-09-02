@@ -30,6 +30,8 @@ public sealed partial class ACadSharpCadImporter
             ? CadCustomEntityRepresentation.ProxyGraphics
             : CadCustomEntityRepresentation.Opaque;
         var rawDxfPayload = ACadSharpCustomPayloadContext.FindDxfPayload(common.Handle);
+        var rawDxfProfile = CadDxfCustomPayloadProfiler.Create(rawDxfPayload);
+        var handleReferences = CadDxfCustomPayloadProfiler.ExtractHandleReferences(rawDxfPayload);
         var rawScan = ACadSharpCustomPayloadContext.Snapshot();
         var nativeSemantics = CadTianzhengSemanticDecoder.Decode(entity.ObjectName, definition, rawDxfPayload);
         var metadata = new Dictionary<string, string>(common.Metadata, StringComparer.Ordinal)
@@ -46,6 +48,7 @@ public sealed partial class ACadSharpCadImporter
             ["RawDxfPayloadAvailable"] = (rawDxfPayload is not null).ToString(),
             ["RawDxfScanBinary"] = (rawScan?.IsBinaryDxf == true).ToString(),
             ["RawDxfScanFailed"] = (rawScan?.ScanFailed == true).ToString(),
+            ["CustomHandleReferenceCount"] = handleReferences.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["NativeSemanticsDecoded"] = (nativeSemantics is not null).ToString()
         };
         if (rawDxfPayload is not null)
@@ -53,6 +56,16 @@ public sealed partial class ACadSharpCadImporter
             metadata["RawDxfGroupCount"] = rawDxfPayload.Groups.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
             metadata["RawDxfPayloadTruncated"] = rawDxfPayload.IsTruncated.ToString();
             metadata["RawDxfByteProjection"] = rawDxfPayload.ByteProjection;
+        }
+        if (rawDxfProfile is not null)
+        {
+            metadata["RawDxfSchemaFingerprint"] = rawDxfProfile.Fingerprint;
+            metadata["RawDxfGroupCodeSignature"] = rawDxfProfile.GroupCodeSignature;
+            metadata["RawDxfSubclassMarkers"] = string.Join(';', rawDxfProfile.SubclassMarkers);
+        }
+        if (handleReferences.Count > 0)
+        {
+            metadata["CustomHandleReferenceCodes"] = string.Join(';', handleReferences.Select(reference => reference.GroupCode.ToString(System.Globalization.CultureInfo.InvariantCulture)).Distinct(StringComparer.Ordinal));
         }
         if (definition is not null)
         {
@@ -76,6 +89,8 @@ public sealed partial class ACadSharpCadImporter
             ProxyGraphicKinds = graphicKinds,
             ProxyPrimitives = proxyPrimitives,
             RawDxfPayload = rawDxfPayload,
+            RawDxfProfile = rawDxfProfile,
+            HandleReferences = handleReferences,
             NativeSemantics = nativeSemantics
         };
     }
