@@ -16,3 +16,24 @@ public sealed record CadDxfCustomPayload(
     /// <summary>Byte-to-character projection used while preserving raw text-DXF value lines.</summary>
     public string ByteProjection { get; init; } = "ISO-8859-1";
 }
+
+/// <summary>
+/// Bounded byte copy of one complete custom-object record from the decompressed DWG AcDbObjects section.
+/// The record still contains DWG common/object framing and is intentionally not mislabeled as decoded proprietary entity data.
+/// </summary>
+public sealed record CadDwgCustomObjectRecord
+{
+    public CadDwgCustomObjectRecord(ReadOnlyMemory<byte> bytes, long objectSectionOffset, bool isTruncated, string captureMethod)
+    {
+        Bytes = bytes.ToArray();
+        ObjectSectionOffset = objectSectionOffset;
+        IsTruncated = isTruncated;
+        CaptureMethod = captureMethod ?? string.Empty;
+    }
+
+    public ReadOnlyMemory<byte> Bytes { get; }
+    public long ObjectSectionOffset { get; }
+    public bool IsTruncated { get; }
+    public string CaptureMethod { get; }
+    public int ByteCount => Bytes.Length;
+}
