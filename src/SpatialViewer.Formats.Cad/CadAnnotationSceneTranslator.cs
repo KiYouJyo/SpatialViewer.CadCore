@@ -7,13 +7,49 @@ public sealed partial class CadSceneTranslator
 {
     private static SceneNode DimensionNode(CadDimensionEntity dimension, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
     {
+        var presentation = dimension.Presentation;
         var enriched = new Dictionary<string, string>(metadata, StringComparer.Ordinal)
         {
             ["DimensionKind"] = dimension.Kind.ToString(),
             ["DimensionMeasurement"] = dimension.Measurement.ToString("R", CultureInfo.InvariantCulture),
             ["DimensionStyle"] = dimension.StyleName,
-            ["DimensionSemantic"] = bool.TrueString
+            ["DimensionSemantic"] = bool.TrueString,
+            ["DimensionExtensionLineOffset"] = presentation.ExtensionLineOffset.ToString("R", CultureInfo.InvariantCulture),
+            ["DimensionExtensionLineExtension"] = presentation.ExtensionLineExtension.ToString("R", CultureInfo.InvariantCulture),
+            ["DimensionLineExtension"] = presentation.DimensionLineExtension.ToString("R", CultureInfo.InvariantCulture),
+            ["DimensionLineGap"] = presentation.DimensionLineGap.ToString("R", CultureInfo.InvariantCulture),
+            ["DimensionSuppressFirstExtensionLine"] = presentation.SuppressFirstExtensionLine.ToString(),
+            ["DimensionSuppressSecondExtensionLine"] = presentation.SuppressSecondExtensionLine.ToString(),
+            ["DimensionSuppressFirstDimensionLine"] = presentation.SuppressFirstDimensionLine.ToString(),
+            ["DimensionSuppressSecondDimensionLine"] = presentation.SuppressSecondDimensionLine.ToString(),
+            ["DimensionArrowBlock"] = presentation.ArrowBlockName,
+            ["DimensionFirstArrowBlock"] = presentation.FirstArrowBlockName,
+            ["DimensionSecondArrowBlock"] = presentation.SecondArrowBlockName,
+            ["DimensionSeparateArrowBlocks"] = presentation.SeparateArrowBlocks.ToString(),
+            ["DimensionDecimalPlaces"] = presentation.DecimalPlaces.ToString(CultureInfo.InvariantCulture),
+            ["DimensionDecimalSeparator"] = presentation.DecimalSeparator.ToString(),
+            ["DimensionRounding"] = presentation.Rounding.ToString("R", CultureInfo.InvariantCulture),
+            ["DimensionPrefix"] = presentation.Prefix,
+            ["DimensionSuffix"] = presentation.Suffix,
+            ["DimensionTolerances"] = presentation.GenerateTolerances.ToString(),
+            ["DimensionLimits"] = presentation.LimitsGeneration.ToString(),
+            ["DimensionPlusTolerance"] = presentation.PlusTolerance.ToString("R", CultureInfo.InvariantCulture),
+            ["DimensionMinusTolerance"] = presentation.MinusTolerance.ToString("R", CultureInfo.InvariantCulture),
+            ["DimensionToleranceDecimalPlaces"] = presentation.ToleranceDecimalPlaces.ToString(CultureInfo.InvariantCulture),
+            ["DimensionToleranceScaleFactor"] = presentation.ToleranceScaleFactor.ToString("R", CultureInfo.InvariantCulture),
+            ["DimensionAlternateUnits"] = presentation.AlternateUnitsEnabled.ToString(),
+            ["DimensionAlternateUnitScale"] = presentation.AlternateUnitScaleFactor.ToString("R", CultureInfo.InvariantCulture),
+            ["DimensionAlternateUnitDecimalPlaces"] = presentation.AlternateUnitDecimalPlaces.ToString(CultureInfo.InvariantCulture),
+            ["DimensionAlternateUnitSuffix"] = presentation.AlternateUnitSuffix,
+            ["DimensionLinearUnitFormat"] = presentation.LinearUnitFormat,
+            ["DimensionAngularUnitFormat"] = presentation.AngularUnitFormat
         };
+        var customArrowRequested = presentation.SeparateArrowBlocks
+            ? !string.IsNullOrWhiteSpace(presentation.FirstArrowBlockName) || !string.IsNullOrWhiteSpace(presentation.SecondArrowBlockName)
+            : !string.IsNullOrWhiteSpace(presentation.ArrowBlockName);
+        enriched["DimensionCustomArrowRequested"] = customArrowRequested.ToString();
+        enriched["DimensionCustomArrowFallbackApplied"] = customArrowRequested.ToString();
+
         var children = new List<SceneNode>();
         switch (dimension.Kind)
         {
@@ -70,11 +106,70 @@ public sealed partial class CadSceneTranslator
             dimSecond = new Point2D(second.X + (perpendicular.X * offset), second.Y + (perpendicular.Y * offset));
         }
 
-        children.Add(LineNode(dimension.ObjectId, first, dimFirst, style, metadata));
-        children.Add(LineNode(dimension.ObjectId, second, dimSecond, style, metadata));
-        children.Add(LineNode(dimension.ObjectId, dimFirst, dimSecond, style, metadata));
-        AddArrow(children, dimension.ObjectId, dimFirst, dimSecond, dimension.ArrowSize, style, metadata);
-        AddArrow(children, dimension.ObjectId, dimSecond, dimFirst, dimension.ArrowSize, style, metadata);
+        var presentation = dimension.Presentation;
+        AddExtensionLine(children, dimension.ObjectId, first, dimFirst, presentation.ExtensionLineOffset, presentation.ExtensionLineExtension, presentation.SuppressFirstExtensionLine, style, metadata);
+        AddExtensionLine(children, dimension.ObjectId, second, dimSecond, presentation.ExtensionLineOffset, presentation.ExtensionLineExtension, presentation.SuppressSecondExtensionLine, style, metadata);
+
+        var dimensionDirection = Normalize(new Point2D(dimSecond.X - dimFirst.X, dimSecond.Y - dimFirst.Y));
+        var lineStart = new Point2D(dimFirst.X - (dimensionDirection.X * presentation.DimensionLineExtension), dimFirst.Y - (dimensionDirection.Y * presentation.DimensionLineExtension));
+        var lineEnd = new Point2D(dimSecond.X + (dimensionDirection.X * presentation.DimensionLineExtension), dimSecond.Y + (dimensionDirection.Y * presentation.DimensionLineExtension));
+        AddDimensionLine(children, dimension.ObjectId, lineStart, lineEnd, dimension.TextPosition, presentation.SuppressFirstDimensionLine, presentation.SuppressSecondDimensionLine, style, metadata);
+
+        var firstArrowMetadata = ArrowMetadata(metadata, presentation, first: true);
+        var secondArrowMetadata = ArrowMetadata(metadata, presentation, first: false);
+        AddArrow(children, dimension.ObjectId, dimFirst, dimSecond, dimension.ArrowSize, style, firstArrowMetadata);
+        AddArrow(children, dimension.ObjectId, dimSecond, dimFirst, dimension.ArrowSize, style, secondArrowMetadata);
+    }
+
+    private static void AddExtensionLine(List<SceneNode> children, ObjectId id, Point2D origin, Point2D dimensionPoint, double offset, double extension, bool suppressed, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
+    {
+        if (suppressed) return;
+        var direction = Normalize(new Point2D(dimensionPoint.X - origin.X, dimensionPoint.Y - origin.Y));
+        if (direction == Point2D.Origin) return;
+        var safeOffset = double.IsFinite(offset) ? Math.Max(0, offset) : 0;
+        var safeExtension = double.IsFinite(extension) ? Math.Max(0, extension) : 0;
+        var start = new Point2D(origin.X + (direction.X * safeOffset), origin.Y + (direction.Y * safeOffset));
+        var end = new Point2D(dimensionPoint.X + (direction.X * safeExtension), dimensionPoint.Y + (direction.Y * safeExtension));
+        children.Add(LineNode(id, start, end, style, metadata));
+    }
+
+    private static void AddDimensionLine(List<SceneNode> children, ObjectId id, Point2D first, Point2D second, Point2D textPosition, bool suppressFirst, bool suppressSecond, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
+    {
+        if (suppressFirst && suppressSecond) return;
+        if (!suppressFirst && !suppressSecond)
+        {
+            children.Add(LineNode(id, first, second, style, metadata));
+            return;
+        }
+
+        var split = ProjectToSegment(textPosition, first, second);
+        if (!suppressFirst && first.DistanceTo(split) > 1e-9) children.Add(LineNode(id, first, split, style, metadata));
+        if (!suppressSecond && split.DistanceTo(second) > 1e-9) children.Add(LineNode(id, split, second, style, metadata));
+    }
+
+    private static Point2D ProjectToSegment(Point2D point, Point2D start, Point2D end)
+    {
+        var dx = end.X - start.X;
+        var dy = end.Y - start.Y;
+        var lengthSquared = (dx * dx) + (dy * dy);
+        if (lengthSquared <= double.Epsilon) return start;
+        var t = (((point.X - start.X) * dx) + ((point.Y - start.Y) * dy)) / lengthSquared;
+        t = Math.Clamp(t, 0, 1);
+        return new Point2D(start.X + (dx * t), start.Y + (dy * t));
+    }
+
+    private static IReadOnlyDictionary<string, string> ArrowMetadata(IReadOnlyDictionary<string, string> metadata, CadDimensionPresentation presentation, bool first)
+    {
+        var result = new Dictionary<string, string>(metadata, StringComparer.Ordinal)
+        {
+            ["DimensionArrowEnd"] = first ? "First" : "Second"
+        };
+        var requested = presentation.SeparateArrowBlocks
+            ? first ? presentation.FirstArrowBlockName : presentation.SecondArrowBlockName
+            : presentation.ArrowBlockName;
+        result["DimensionArrowRequestedBlock"] = requested;
+        result["DimensionArrowFallbackApplied"] = (!string.IsNullOrWhiteSpace(requested)).ToString();
+        return result;
     }
 
     private static void AddRadialDimension(CadDimensionEntity dimension, SceneStyle style, IReadOnlyDictionary<string, string> metadata, List<SceneNode> children)
@@ -85,17 +180,21 @@ public sealed partial class CadSceneTranslator
             return;
         }
         var edge = dimension.DefinitionPoint;
-        if (dimension.Kind == CadDimensionKind.Diameter)
+        var presentation = dimension.Presentation;
+        if (!presentation.SuppressFirstDimensionLine && !presentation.SuppressSecondDimensionLine)
         {
-            var opposite = new Point2D((2 * center.X) - edge.X, (2 * center.Y) - edge.Y);
-            children.Add(LineNode(dimension.ObjectId, opposite, edge, style, metadata));
-            AddArrow(children, dimension.ObjectId, opposite, center, dimension.ArrowSize, style, metadata);
+            if (dimension.Kind == CadDimensionKind.Diameter)
+            {
+                var opposite = new Point2D((2 * center.X) - edge.X, (2 * center.Y) - edge.Y);
+                children.Add(LineNode(dimension.ObjectId, opposite, edge, style, metadata));
+                AddArrow(children, dimension.ObjectId, opposite, center, dimension.ArrowSize, style, ArrowMetadata(metadata, presentation, true));
+            }
+            else
+            {
+                children.Add(LineNode(dimension.ObjectId, center, edge, style, metadata));
+            }
+            AddArrow(children, dimension.ObjectId, edge, center, dimension.ArrowSize, style, ArrowMetadata(metadata, presentation, false));
         }
-        else
-        {
-            children.Add(LineNode(dimension.ObjectId, center, edge, style, metadata));
-        }
-        AddArrow(children, dimension.ObjectId, edge, center, dimension.ArrowSize, style, metadata);
     }
 
     private static void AddAngularDimension(CadDimensionEntity dimension, SceneStyle style, IReadOnlyDictionary<string, string> metadata, List<SceneNode> children)
@@ -124,8 +223,9 @@ public sealed partial class CadSceneTranslator
             arcPoint = TryReference(dimension, "DimensionArc", out var candidate) ? candidate : dimension.DefinitionPoint;
         }
 
-        children.Add(LineNode(dimension.ObjectId, center, first, style, metadata));
-        children.Add(LineNode(dimension.ObjectId, center, second, style, metadata));
+        if (!dimension.Presentation.SuppressFirstExtensionLine) children.Add(LineNode(dimension.ObjectId, center, first, style, metadata));
+        if (!dimension.Presentation.SuppressSecondExtensionLine) children.Add(LineNode(dimension.ObjectId, center, second, style, metadata));
+        if (dimension.Presentation.SuppressFirstDimensionLine && dimension.Presentation.SuppressSecondDimensionLine) return;
         var radius = center.DistanceTo(arcPoint);
         if (radius <= double.Epsilon) return;
         var start = Math.Atan2(first.Y - center.Y, first.X - center.X);
