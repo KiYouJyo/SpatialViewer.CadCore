@@ -37,7 +37,7 @@ public sealed class TianzhengRelationshipGraphV0120Tests
         var relationships = CadCustomRelationshipResolver.Resolve(document);
 
         Assert.Equal(3, relationships.Count);
-        var unrelatedEdge = Assert.Single(relationships.Where(relationship => relationship.TargetHandle == "999"));
+        var unrelatedEdge = Assert.Single(relationships, relationship => relationship.TargetHandle == "999");
         Assert.Equal(CadCustomRelationshipKind.ObjectReference, unrelatedEdge.Kind);
         Assert.Equal(330, unrelatedEdge.GroupCode);
         var wallEdges = relationships.Where(relationship => relationship.TargetHandle == "100").OrderBy(relationship => relationship.GroupCode).ToArray();
