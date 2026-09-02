@@ -51,6 +51,20 @@ public sealed record CadTianzhengOpeningAnchorSemantic(
     : CadCustomSemantic(DecoderProfile);
 
 /// <summary>
+/// Partial native evidence for a Tianzheng elevation symbol. Public Tianzheng-oriented AutoLISP examples
+/// identify point group 10 as the insertion point and group 1 as the elevation text. Group 47 is retained
+/// only as an optional plot-scale value because that mapping is explicitly documented by the same examples.
+/// Symbol geometry, orientation, text height, and leader/arrow details remain intentionally undecoded.
+/// </summary>
+public sealed record CadTianzhengElevationSemantic(
+    Point2D InsertionPoint,
+    double? InsertionZ,
+    string Text,
+    double? PlotScale,
+    string DecoderProfile)
+    : CadCustomSemantic(DecoderProfile);
+
+/// <summary>
 /// Evidence-gated Tianzheng native decoder. A profile succeeds only when the raw payload matches a
 /// known layout. Unknown or malformed payloads remain preserved without speculative semantics.
 /// </summary>
@@ -59,6 +73,7 @@ public static class CadTianzhengSemanticDecoder
     public const string WallDirectProfile = "TCH_WALL_DIRECT_10_11";
     public const string WallPacked300Profile = "TCH_WALL_PACKED_300_UTF16LE";
     public const string OpeningAnchorDirectProfile = "TCH_OPENING_ANCHOR_10";
+    public const string ElevationTextDirectProfile = "TCH_ELEVATION_TEXT_10_1";
 
     public static CadCustomSemantic? Decode(
         string sourceEntityType,
@@ -70,6 +85,8 @@ public static class CadTianzhengSemanticDecoder
             return TryDecodePackedWall(payload) ?? TryDecodeDirectWall(payload);
         if (IsTianzhengOpening(sourceEntityType, classDefinition, payload))
             return TryDecodeOpeningAnchor(payload);
+        if (IsTianzhengElevation(sourceEntityType, classDefinition, payload))
+            return TryDecodeElevation(payload);
         return null;
     }
 
@@ -101,6 +118,20 @@ public static class CadTianzhengSemanticDecoder
             || string.Equals(classDefinition?.CppClassName, "TDbOpening", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool IsTianzhengElevation(
+        string sourceEntityType,
+        CadCustomClassDefinition? classDefinition,
+        CadDxfCustomPayload payload)
+    {
+        var isElevationName = string.Equals(sourceEntityType, "TCH_ELEVATION", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(classDefinition?.DxfName, "TCH_ELEVATION", StringComparison.OrdinalIgnoreCase);
+        if (!isElevationName) return false;
+
+        // Unlike the wall/opening profiles, do not guess a CLASSES-table C++ identity here. Public evidence
+        // exposes the concrete TDbSymbElevation subclass marker, so require that marker in the raw payload.
+        return payload.Groups.Any(group => group.Code == 100 && string.Equals(group.RawValue.Trim(), "TDbSymbElevation", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static CadTianzhengOpeningAnchorSemantic? TryDecodeOpeningAnchor(CadDxfCustomPayload payload)
     {
         if (!TryNumber(payload, 10, out var x) || !TryNumber(payload, 20, out var y)) return null;
@@ -110,6 +141,21 @@ public static class CadTianzhengSemanticDecoder
             insertionPoint,
             OptionalNumber(payload, 30),
             OpeningAnchorDirectProfile);
+    }
+
+    private static CadTianzhengElevationSemantic? TryDecodeElevation(CadDxfCustomPayload payload)
+    {
+        if (!TryNumber(payload, 10, out var x) || !TryNumber(payload, 20, out var y)) return null;
+        var text = payload.Groups.FirstOrDefault(group => group.Code == 1)?.RawValue;
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        var insertionPoint = new Point2D(x, y);
+        if (!Finite(insertionPoint)) return null;
+        return new CadTianzhengElevationSemantic(
+            insertionPoint,
+            OptionalNumber(payload, 30),
+            text,
+            PositiveOptionalNumber(payload, 47),
+            ElevationTextDirectProfile);
     }
 
     private static CadTianzhengWallSemantic? TryDecodeDirectWall(CadDxfCustomPayload payload)
