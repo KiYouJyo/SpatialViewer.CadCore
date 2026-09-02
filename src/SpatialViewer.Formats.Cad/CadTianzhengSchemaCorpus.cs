@@ -26,7 +26,14 @@ public sealed record CadTianzhengSchemaCorpusEntry(
     int ResolvedRelationshipEntityCount,
     int ResolvedRelationshipCount,
     int OpeningHostWallEntityCount,
-    int OpeningHostWallRelationshipCount);
+    int OpeningHostWallRelationshipCount)
+{
+    /// <summary>Entities whose recovered native semantics remain evidence-backed but not safely drawable as native 2D geometry.</summary>
+    public int PartialSemanticEntityCount { get; init; }
+
+    /// <summary>Entities whose recovered native semantics are sufficient for native 2D Scene geometry.</summary>
+    public int Drawable2DSemanticEntityCount { get; init; }
+}
 
 /// <summary>A mergeable anonymized schema report for one or more CAD samples.</summary>
 public sealed record CadTianzhengSchemaCorpusReport(
@@ -39,12 +46,12 @@ public sealed record CadTianzhengSchemaCorpusReport(
 
 /// <summary>
 /// Builds deterministic Tianzheng schema corpora from already-imported CadCore documents. Only structural
-/// evidence and aggregate relationship coverage are retained, allowing samples from different Tianzheng
-/// generations to be compared without exporting drawing contents.
+/// evidence and aggregate relationship/semantic coverage are retained, allowing samples from different
+/// Tianzheng generations to be compared without exporting drawing contents.
 /// </summary>
 public static class CadTianzhengSchemaCorpus
 {
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
     private const string Unavailable = "unavailable";
     private const int MaxJsonBytes = 16 * 1024 * 1024;
     private const int MaxEntries = 100_000;
@@ -105,7 +112,11 @@ public static class CadTianzhengSchemaCorpus
                 group.Sum(entry => entry.ResolvedRelationshipEntityCount),
                 group.Sum(entry => entry.ResolvedRelationshipCount),
                 group.Sum(entry => entry.OpeningHostWallEntityCount),
-                group.Sum(entry => entry.OpeningHostWallRelationshipCount)))
+                group.Sum(entry => entry.OpeningHostWallRelationshipCount))
+            {
+                PartialSemanticEntityCount = group.Sum(entry => entry.PartialSemanticEntityCount),
+                Drawable2DSemanticEntityCount = group.Sum(entry => entry.Drawable2DSemanticEntityCount)
+            })
             .OrderBy(entry => entry.DxfName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(entry => entry.SchemaFingerprint, StringComparer.Ordinal)
             .ThenBy(entry => entry.ReferenceCodeSignature, StringComparer.Ordinal)
@@ -191,11 +202,15 @@ public static class CadTianzhengSchemaCorpus
 
             ValidateEntityCoverage(entry.TruncatedRawDxfEntityCount, entry.EntityCount, nameof(entry.TruncatedRawDxfEntityCount), parameterName);
             ValidateEntityCoverage(entry.NativeSemanticEntityCount, entry.EntityCount, nameof(entry.NativeSemanticEntityCount), parameterName);
+            ValidateEntityCoverage(entry.PartialSemanticEntityCount, entry.EntityCount, nameof(entry.PartialSemanticEntityCount), parameterName);
+            ValidateEntityCoverage(entry.Drawable2DSemanticEntityCount, entry.EntityCount, nameof(entry.Drawable2DSemanticEntityCount), parameterName);
             ValidateEntityCoverage(entry.ProxyGraphicsEntityCount, entry.EntityCount, nameof(entry.ProxyGraphicsEntityCount), parameterName);
             ValidateEntityCoverage(entry.RawDwgEvidenceEntityCount, entry.EntityCount, nameof(entry.RawDwgEvidenceEntityCount), parameterName);
             ValidateEntityCoverage(entry.ResolvedRelationshipEntityCount, entry.EntityCount, nameof(entry.ResolvedRelationshipEntityCount), parameterName);
             ValidateEntityCoverage(entry.OpeningHostWallEntityCount, entry.EntityCount, nameof(entry.OpeningHostWallEntityCount), parameterName);
 
+            if (entry.PartialSemanticEntityCount + entry.Drawable2DSemanticEntityCount != entry.NativeSemanticEntityCount)
+                throw new ArgumentException("Partial and drawable semantic coverage must exactly equal native semantic coverage.", parameterName);
             if (entry.ResolvedRelationshipCount < 0)
                 throw new ArgumentException("Resolved relationship count cannot be negative.", parameterName);
             if (entry.OpeningHostWallRelationshipCount < 0 || entry.OpeningHostWallRelationshipCount > entry.ResolvedRelationshipCount)
@@ -237,6 +252,9 @@ public static class CadTianzhengSchemaCorpus
         var openingHostSourceHandles = openingHostWallRelationships
             .Select(relationship => relationship.SourceHandle)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var nativeSemanticEntityCount = materialized.Count(entity => entity.NativeSemantics is not null);
+        var partialSemanticEntityCount = materialized.Count(entity => entity.NativeSemantics?.Coverage == CadCustomSemanticCoverage.Partial);
+        var drawable2DSemanticEntityCount = materialized.Count(entity => entity.NativeSemantics?.Coverage == CadCustomSemanticCoverage.Drawable2D);
 
         return new CadTianzhengSchemaCorpusEntry(
             key.DxfName,
@@ -249,13 +267,17 @@ public static class CadTianzhengSchemaCorpus
             materialized.Length,
             1,
             materialized.Count(entity => entity.RawDxfPayload?.IsTruncated == true),
-            materialized.Count(entity => entity.NativeSemantics is not null),
+            nativeSemanticEntityCount,
             materialized.Count(entity => entity.Representation == CadCustomEntityRepresentation.ProxyGraphics),
             materialized.Count(entity => entity.RawDwgObjectRecord is not null),
             resolvedSourceHandles.Count,
             relationships.Length,
             openingHostSourceHandles.Count,
-            openingHostWallRelationships.Length);
+            openingHostWallRelationships.Length)
+        {
+            PartialSemanticEntityCount = partialSemanticEntityCount,
+            Drawable2DSemanticEntityCount = drawable2DSemanticEntityCount
+        };
     }
 
     private static IEnumerable<CadCustomEntity> EnumerateCustomEntities(CadDocument document)
