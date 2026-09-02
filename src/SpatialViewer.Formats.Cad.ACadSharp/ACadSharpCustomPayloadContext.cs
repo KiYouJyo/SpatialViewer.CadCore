@@ -14,12 +14,16 @@ internal static class ACadSharpCustomPayloadContext
 
     public static void Initialize(string filePath)
     {
+        CurrentDwgCapture.Value?.Dispose();
         CurrentDxfScan.Value = ACadSharpDxfCustomPayloadReader.Scan(filePath);
         CurrentDwgCapture.Value = null;
     }
 
     public static void InitializeDwg(DwgReader reader, global::ACadSharp.CadDocument document)
-        => CurrentDwgCapture.Value = ACadSharpDwgRawObjectReader.Initialize(reader, document);
+    {
+        CurrentDwgCapture.Value?.Dispose();
+        CurrentDwgCapture.Value = ACadSharpDwgRawObjectReader.Initialize(reader, document);
+    }
 
     public static CadDxfCustomPayload? FindDxfPayload(string handle)
     {
@@ -36,6 +40,7 @@ internal static class ACadSharpCustomPayloadContext
 
     public static void Clear()
     {
+        CurrentDwgCapture.Value?.Dispose();
         CurrentDxfScan.Value = null;
         CurrentDwgCapture.Value = null;
     }
