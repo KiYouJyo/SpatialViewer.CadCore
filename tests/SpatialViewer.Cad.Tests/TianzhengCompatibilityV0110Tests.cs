@@ -73,7 +73,9 @@ public sealed class TianzhengCompatibilityV0110Tests
         Assert.Contains(custom, document.ModelSpace);
         Assert.True(custom.IsTianzheng);
         Assert.Equal(CadCustomEntityRepresentation.ProxyGraphics, custom.Representation);
-        Assert.Equal(new[] { "Polyline", "Circle" }, custom.ProxyGraphicKinds);
+        Assert.Equal(2, custom.ProxyGraphicKinds.Count);
+        Assert.Equal("Polyline", custom.ProxyGraphicKinds[0]);
+        Assert.Equal("Circle", custom.ProxyGraphicKinds[1]);
 
         var sceneItems = document.Scene.GetItems().ToArray();
         Assert.Single(sceneItems);
