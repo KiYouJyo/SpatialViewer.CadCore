@@ -11,6 +11,7 @@ internal static class CadReaderFactory
 {
     public static ICadReader CreateReader(string filePath)
     {
+        ACadSharpCustomPayloadContext.Initialize(filePath);
         var reader = global::ACadSharp.IO.CadReaderFactory.CreateReader(filePath);
         switch (reader)
         {
