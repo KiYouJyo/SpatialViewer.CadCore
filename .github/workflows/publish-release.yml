@@ -21,18 +21,29 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Read version and ABI
+      - name: Read release contract
         id: version
         shell: pwsh
         run: |
           [xml]$props = Get-Content Directory.Build.props
           $version = [string]$props.Project.PropertyGroup.Version
           $abiVersion = [string]$props.Project.PropertyGroup.AbiVersion
-          if ([string]::IsNullOrWhiteSpace($version)) { throw 'Version is missing from Directory.Build.props' }
-          if ([string]::IsNullOrWhiteSpace($abiVersion)) { throw 'AbiVersion is missing from Directory.Build.props' }
+          $hostContractName = [string]$props.Project.PropertyGroup.HostContractName
+          $hostContractMinVersion = [string]$props.Project.PropertyGroup.HostContractMinVersion
+          $hostContractMaxVersionExclusive = [string]$props.Project.PropertyGroup.HostContractMaxVersionExclusive
+          $manifestSchemaVersion = [string]$props.Project.PropertyGroup.ReleaseManifestSchemaVersion
+          foreach ($required in @($version, $abiVersion, $hostContractName, $hostContractMinVersion, $hostContractMaxVersionExclusive, $manifestSchemaVersion)) {
+            if ([string]::IsNullOrWhiteSpace($required)) { throw 'CadCore release contract metadata is incomplete.' }
+          }
+          if ([int]$manifestSchemaVersion -ne 2) { throw "Unsupported release manifest schema: $manifestSchemaVersion" }
+          if ([version]$hostContractMinVersion -ge [version]$hostContractMaxVersionExclusive) { throw 'CadCore host contract range is invalid.' }
           "version=$version" >> $env:GITHUB_OUTPUT
           "tag=v$version" >> $env:GITHUB_OUTPUT
           "abiVersion=$abiVersion" >> $env:GITHUB_OUTPUT
+          "hostContractName=$hostContractName" >> $env:GITHUB_OUTPUT
+          "hostContractMinVersion=$hostContractMinVersion" >> $env:GITHUB_OUTPUT
+          "hostContractMaxVersionExclusive=$hostContractMaxVersionExclusive" >> $env:GITHUB_OUTPUT
+          "manifestSchemaVersion=$manifestSchemaVersion" >> $env:GITHUB_OUTPUT
 
       - name: Restore
         run: dotnet restore SpatialViewer.CadCore.sln
@@ -68,9 +79,9 @@ jobs:
             $normalizedProductVersion = [version]::new($version.Major, $version.Minor, [Math]::Max(0, $version.Build))
             if ($normalizedFileVersion -ne $normalizedProductVersion) { throw "Product version mismatch for $project.dll: $fileVersionText != $version" }
           }
-          Write-Host "CadCore release identity PASS: product=$version ABI=$abiVersion"
+          Write-Host "CadCore release identity PASS: product=$version ABI=$abiVersion host=${{ steps.version.outputs.hostContractName }} ${{ steps.version.outputs.hostContractMinVersion }}..<${{ steps.version.outputs.hostContractMaxVersionExclusive }}"
 
-      - name: Package release binaries
+      - name: Package release binaries and manifest
         shell: pwsh
         run: |
           $version = '${{ steps.version.outputs.version }}'
@@ -91,6 +102,7 @@ jobs:
             Copy-Item $source (Join-Path $bin $project) -Recurse -Force
           }
           $manifest = [ordered]@{
+            schemaVersion = [int]'${{ steps.version.outputs.manifestSchemaVersion }}'
             product = 'SpatialViewer.CadCore'
             version = $version
             abiVersion = $abiVersion
@@ -99,15 +111,25 @@ jobs:
             runtime = 'x64'
             framework = 'net10.0'
             sourceRepository = 'KiYouJyo/SpatialViewer.CadCore'
-            compatibility = 'SpatialViewer 0.2.x'
-          } | ConvertTo-Json
-          Set-Content -Path (Join-Path $root 'cadcore-release.json') -Value $manifest -Encoding utf8
+            hostContract = [ordered]@{
+              name = '${{ steps.version.outputs.hostContractName }}'
+              minVersion = '${{ steps.version.outputs.hostContractMinVersion }}'
+              maxVersionExclusive = '${{ steps.version.outputs.hostContractMaxVersionExclusive }}'
+            }
+          } | ConvertTo-Json -Depth 4
+          $packageManifest = Join-Path $root 'cadcore-release.json'
+          Set-Content -Path $packageManifest -Value $manifest -Encoding utf8
+          Copy-Item $packageManifest (Join-Path $PWD 'cadcore-release.json') -Force
           Copy-Item CHANGELOG.md (Join-Path $root 'CHANGELOG.md')
           Copy-Item LICENSE (Join-Path $root 'LICENSE')
           $zip = Join-Path $PWD "CadCore-v$version-x64.zip"
           Compress-Archive -Path "$root/*" -DestinationPath $zip -CompressionLevel Optimal
-          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  $(Split-Path $zip -Leaf)" | Set-Content -Path (Join-Path $PWD 'SHA256SUMS.txt') -Encoding ascii
+          $zipHash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $manifestHash = (Get-FileHash (Join-Path $PWD 'cadcore-release.json') -Algorithm SHA256).Hash.ToLowerInvariant()
+          @(
+            "$zipHash  $(Split-Path $zip -Leaf)",
+            "$manifestHash  cadcore-release.json"
+          ) | Set-Content -Path (Join-Path $PWD 'SHA256SUMS.txt') -Encoding ascii
 
       - name: Write release notes
         shell: pwsh
@@ -140,11 +162,18 @@ jobs:
               --repo $env:GITHUB_REPOSITORY `
               --title "SpatialViewer.CadCore $tag" `
               --notes-file release-notes.md
-            Write-Host "$tag already exists; refreshed release notes."
+            gh release upload $tag `
+              "CadCore-v${{ steps.version.outputs.version }}-x64.zip" `
+              'cadcore-release.json' `
+              'SHA256SUMS.txt' `
+              --repo $env:GITHUB_REPOSITORY `
+              --clobber
+            Write-Host "$tag already exists; refreshed release notes and assets."
             exit 0
           }
           gh release create $tag `
             "CadCore-v${{ steps.version.outputs.version }}-x64.zip" `
+            'cadcore-release.json' `
             'SHA256SUMS.txt' `
             --repo $env:GITHUB_REPOSITORY `
             --target $env:GITHUB_SHA `
