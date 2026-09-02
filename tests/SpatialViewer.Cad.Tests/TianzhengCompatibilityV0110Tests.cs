@@ -20,6 +20,7 @@ public sealed class TianzhengCompatibilityV0110Tests
     [InlineData("LINE", "AcDbLine", "ObjectDBX Classes")]
     [InlineData("AEC_WALL", "AecWall", "Autodesk AEC")]
     [InlineData("CUSTOM", "ThirdPartyWall", "OtherVendor")]
+    [InlineData("CUSTOM", "TangentCurve", "OtherVendor")]
     public void ClassifierDoesNotClaimUnrelatedCustomObjects(string dxfName, string cppClass, string application)
     {
         Assert.False(CadCustomObjectClassifier.IsTianzheng(dxfName, cppClass, application));
