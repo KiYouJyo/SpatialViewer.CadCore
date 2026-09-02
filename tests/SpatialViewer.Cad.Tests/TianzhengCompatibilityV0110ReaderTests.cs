@@ -91,24 +91,33 @@ public sealed class TianzhengCompatibilityV0110ReaderTests
 
     private static void InjectProxyEntity(string path, int classNumber)
     {
-        var source = File.ReadAllText(path, Encoding.ASCII);
-        var marker = $"{NewLine}0{NewLine}ENDSEC{NewLine}0{NewLine}EOF";
-        var insertAt = source.LastIndexOf(marker, StringComparison.Ordinal);
-        Assert.True(insertAt >= 0, "Generated DXF did not contain the final ENTITIES section terminator.");
+        var source = File.ReadAllText(path, Encoding.ASCII).Replace("\r\n", "\n", StringComparison.Ordinal);
+        var entitiesMarker = "\n  0\nSECTION\n  2\nENTITIES";
+        var entitiesAt = source.IndexOf(entitiesMarker, StringComparison.Ordinal);
+        if (entitiesAt < 0)
+        {
+            entitiesMarker = "\n0\nSECTION\n2\nENTITIES";
+            entitiesAt = source.IndexOf(entitiesMarker, StringComparison.Ordinal);
+        }
+        Assert.True(entitiesAt >= 0, "Generated DXF did not contain an ENTITIES section.");
 
-        var proxy = string.Join(NewLine,
+        var endAt = source.IndexOf("\n  0\nENDSEC", entitiesAt, StringComparison.Ordinal);
+        if (endAt < 0) endAt = source.IndexOf("\n0\nENDSEC", entitiesAt, StringComparison.Ordinal);
+        Assert.True(endAt >= 0, "Generated DXF did not contain the ENTITIES section terminator.");
+
+        var proxy = string.Join("\n",
             string.Empty,
-            "0", "ACAD_PROXY_ENTITY",
-            "5", "7FFFFFFE",
+            "  0", "ACAD_PROXY_ENTITY",
+            "  5", "7FFFFFFE",
             "100", "AcDbEntity",
-            "8", "0",
+            "  8", "0",
             "100", "AcDbProxyEntity",
-            "90", "498",
-            "91", classNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            "70", "1",
-            "95", "0");
+            " 90", "498",
+            " 91", classNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            " 70", "1",
+            " 95", "0");
 
-        File.WriteAllText(path, source.Insert(insertAt, proxy), Encoding.ASCII);
+        File.WriteAllText(path, source.Insert(endAt, proxy), Encoding.ASCII);
     }
 
     private static string TemporaryDirectory()
@@ -117,6 +126,4 @@ public sealed class TianzhengCompatibilityV0110ReaderTests
         Directory.CreateDirectory(path);
         return path;
     }
-
-    private static string NewLine => Environment.NewLine;
 }
