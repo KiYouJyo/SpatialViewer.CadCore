@@ -142,7 +142,7 @@ internal sealed class ACadSharpShxFontLoading
         return null;
     }
 
-    private void ReportOnce(string code, string sourceName, string message, IReadOnlyDictionary<string, string> data)
+    private void ReportOnce(string code, string sourceName, string message, Dictionary<string, string> data)
     {
         var key = $"{code}\u001f{sourceName}";
         if (!_reportedFailures.Add(key)) return;
