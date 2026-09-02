@@ -64,6 +64,7 @@ public sealed partial class CadSceneTranslator
             CadTextEntity text => CadTextSceneBuilder.Create(text, style, metadata),
             CadAttributeEntity attribute => AttributeNode(attribute, style, metadata),
             CadBlockReferenceEntity reference => BlockNode(reference, layers, blocks, effectiveColor, layerColor, stack, metadata),
+            CadCustomEntity custom => CustomEntityNode(custom, style, metadata),
             _ => null
         };
     }
@@ -80,6 +81,37 @@ public sealed partial class CadSceneTranslator
         };
         return new SceneNode(spline.ObjectId, new PathGeometry(points, spline.Spline.IsClosed || spline.Spline.IsPeriodic), style: style, metadata: enriched);
     }
+
+    private static SceneNode? CustomEntityNode(CadCustomEntity custom, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
+    {
+        if (custom.ProxyPrimitives.Count == 0) return null;
+        var enriched = new Dictionary<string, string>(metadata, StringComparer.Ordinal)
+        {
+            ["CustomProxyFallback"] = bool.TrueString,
+            ["ProxyPrimitiveCount"] = custom.ProxyPrimitives.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["ProxyTraitsApplied"] = bool.FalseString,
+            ["NativeSemanticsDecoded"] = bool.FalseString
+        };
+        var children = custom.ProxyPrimitives
+            .Select(ProxyGeometry)
+            .Where(geometry => geometry is not null)
+            .Select(geometry => new SceneNode(custom.ObjectId, geometry!, style: style, metadata: enriched))
+            .ToArray();
+        return children.Length == 0
+            ? null
+            : new SceneNode(custom.ObjectId, style: style, children: children, metadata: enriched);
+    }
+
+    private static Geometry2D? ProxyGeometry(CadProxyPrimitive primitive)
+        => primitive switch
+        {
+            CadProxyPolyline polyline when polyline.Points.Count >= 2 => new PolylineGeometry(polyline.Points),
+            CadProxyPolygon polygon when polygon.Points.Count >= 3 => new PolygonGeometry(polygon.Points),
+            CadProxyCircle circle when double.IsFinite(circle.Radius) && circle.Radius > double.Epsilon => new CircleGeometry(circle.Center, circle.Radius),
+            CadProxyArc arc when double.IsFinite(arc.Radius) && arc.Radius > double.Epsilon && double.IsFinite(arc.StartRadians) && double.IsFinite(arc.SweepRadians)
+                => new ArcGeometry(arc.Center, arc.Radius, arc.StartRadians, arc.SweepRadians),
+            _ => null
+        };
 
     private static SceneNode? HatchNode(CadHatchEntity hatch, CadColor effectiveColor, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
     {
