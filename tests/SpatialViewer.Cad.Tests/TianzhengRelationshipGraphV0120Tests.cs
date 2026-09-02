@@ -82,7 +82,7 @@ public sealed class TianzhengRelationshipGraphV0120Tests
             ClassDefinition = OpeningClass,
             HandleReferences = new CadCustomHandleReference[] { new(330, "500") }
         };
-        var block = new CadBlockDefinition("TchWallBlock", Point2D.Zero, new CadEntity[] { wall });
+        var block = new CadBlockDefinition("TchWallBlock", Point2D.Origin, new CadEntity[] { wall });
         var layout = new CadLayoutDefinition(
             "Sheet1",
             1,
