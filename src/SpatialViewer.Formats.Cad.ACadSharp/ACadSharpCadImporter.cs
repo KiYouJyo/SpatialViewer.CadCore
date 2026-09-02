@@ -49,7 +49,10 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
             blocks = blocks.Select(shxFonts.Apply).ToArray();
             layouts = layouts.Select(shxFonts.Apply).ToArray();
 
-            var allEntities = entities.Concat(blocks.SelectMany(block => block.Entities)).Concat(layouts.SelectMany(layout => layout.Entities)).ToArray();
+            var allEntities = entities
+                .Concat(blocks.SelectMany(block => block.Entities))
+                .Concat(layouts.Where(layout => layout.IsPaperSpace).SelectMany(layout => layout.Entities))
+                .ToArray();
             ValidateBlockReferences(allEntities, blocks, diagnostics);
             var customEntities = allEntities.OfType<CadCustomEntity>().ToArray();
             var tianzhengClasses = customClasses.Where(definition => definition.IsTianzheng).ToArray();
