@@ -35,7 +35,12 @@ public sealed class TianzhengOpeningAnchorV0120Tests
             Assert.Equal(CadTianzhengSemanticDecoder.OpeningAnchorDirectProfile, opening.DecoderProfile);
             Assert.Equal(new Point2D(124819.3754, -80530.6856), opening.InsertionPoint);
             Assert.Equal(600.0, opening.Elevation);
+            Assert.Equal(CadCustomSemanticCoverage.Partial, opening.Coverage);
+            Assert.False(opening.IsDrawable2D);
             Assert.Equal(bool.TrueString, custom.Metadata["NativeSemanticsDecoded"]);
+            Assert.Equal(bool.TrueString, custom.Metadata["NativeSemanticEvidenceDecoded"]);
+            Assert.Equal(nameof(CadCustomSemanticCoverage.Partial), custom.Metadata["NativeSemanticCoverage"]);
+            Assert.Equal(bool.FalseString, custom.Metadata["NativeSemanticDrawable2D"]);
             Assert.Equal(nameof(CadTianzhengOpeningAnchorSemantic), custom.Metadata["NativeSemanticType"]);
             Assert.Equal(CadTianzhengSemanticDecoder.OpeningAnchorDirectProfile, custom.Metadata["NativeDecoderProfile"]);
         }
@@ -78,6 +83,8 @@ public sealed class TianzhengOpeningAnchorV0120Tests
             candidate => candidate.Kind == CadCustomRelationshipKind.TianzhengOpeningHostWall);
 
         Assert.Equal(new Point2D(500, 0), openingSemantic.InsertionPoint);
+        Assert.Equal(CadCustomSemanticCoverage.Partial, openingSemantic.Coverage);
+        Assert.False(openingSemantic.IsDrawable2D);
         Assert.Equal("200", relationship.SourceHandle);
         Assert.Equal("100", relationship.TargetHandle);
     }
@@ -112,6 +119,8 @@ public sealed class TianzhengOpeningAnchorV0120Tests
         Assert.Equal(new BoundingBox2D(90, 190, 110, 210), item.Bounds);
         Assert.Equal(bool.TrueString, item.Metadata["CustomProxyFallback"]);
         Assert.Equal(bool.FalseString, item.Metadata["NativeSemanticsDecoded"]);
+        Assert.Equal(CadCustomSemanticCoverage.Partial, semantic.Coverage);
+        Assert.False(semantic.IsDrawable2D);
         Assert.Equal(CadTianzhengSemanticDecoder.OpeningAnchorDirectProfile, custom.NativeSemantics?.DecoderProfile);
     }
 
@@ -153,11 +162,29 @@ public sealed class TianzhengOpeningAnchorV0120Tests
 
         Assert.Equal(new Point2D(100, 200), semantic.InsertionPoint);
         Assert.Equal(300, semantic.Elevation);
+        Assert.Equal(CadCustomSemanticCoverage.Partial, semantic.Coverage);
+        Assert.False(semantic.IsDrawable2D);
         Assert.DoesNotContain(
             typeof(CadTianzhengOpeningAnchorSemantic).GetProperties(),
             property => property.Name.Contains("Width", StringComparison.OrdinalIgnoreCase)
                 || property.Name.Contains("Height", StringComparison.OrdinalIgnoreCase)
                 || property.Name.Contains("Sill", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void WallSemanticIsExplicitlyDrawable2D()
+    {
+        CadCustomSemantic semantic = new CadTianzhengWallSemantic(
+            new Point2D(0, 0),
+            new Point2D(1000, 0),
+            75,
+            75,
+            0,
+            3000,
+            CadTianzhengSemanticDecoder.WallDirectProfile);
+
+        Assert.Equal(CadCustomSemanticCoverage.Drawable2D, semantic.Coverage);
+        Assert.True(semantic.IsDrawable2D);
     }
 
     private static CadDxfCustomPayload OpeningPayload(string x, string y, string z)
