@@ -104,7 +104,7 @@ public sealed class PatternHatchV0100Tests
             PatternLines = new[] { line }
         };
 
-    private static IReadOnlyList<IReadOnlyList<Point2D>> Loops(CadHatchEntity hatch)
+    private static IReadOnlyList<Point2D>[] Loops(CadHatchEntity hatch)
         => hatch.Loops.Select(loop => (IReadOnlyList<Point2D>)((CadHatchPolylineEdge)loop.Edges[0]).Vertices).ToArray();
 
     private static CadHatchLoop Loop(IReadOnlyList<Point2D> points)
