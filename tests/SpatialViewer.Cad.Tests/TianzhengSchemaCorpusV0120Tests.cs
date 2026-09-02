@@ -13,7 +13,7 @@ public sealed class TianzhengSchemaCorpusV0120Tests
     public void BuildClustersSameSchemaWithoutExportingDrawingContents()
     {
         var firstPayload = Payload("PRIVATE_ROOM_ALPHA", false);
-        var secondPayload = Payload("PRIVATE_ROOM_BETA", true);
+        var secondPayload = Payload("PRIVATE_ROOM_BETA", false);
         var first = Wall("A1B2", firstPayload, new CadCustomHandleReference[] { new(330, "SECRET_TARGET_1") }) with
         {
             NativeSemantics = new CadTianzhengWallSemantic(
@@ -49,7 +49,7 @@ public sealed class TianzhengSchemaCorpusV0120Tests
         Assert.Equal("TCH_WALL", entry.DxfName);
         Assert.Equal(2, entry.EntityCount);
         Assert.Equal(1, entry.SamplesContainingProfile);
-        Assert.Equal(1, entry.TruncatedRawDxfEntityCount);
+        Assert.Equal(0, entry.TruncatedRawDxfEntityCount);
         Assert.Equal(1, entry.NativeSemanticEntityCount);
         Assert.Equal(1, entry.ProxyGraphicsEntityCount);
         Assert.Equal(1, entry.RawDwgEvidenceEntityCount);
@@ -61,6 +61,26 @@ public sealed class TianzhengSchemaCorpusV0120Tests
         Assert.DoesNotContain("DWG_PRIVATE_BYTES_ALPHA", json, StringComparison.Ordinal);
         Assert.DoesNotContain("123456.789", json, StringComparison.Ordinal);
         Assert.DoesNotContain("VENDOR_SECRET_OBJECT", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TruncatedPayloadRemainsSeparateFromCompleteSchema()
+    {
+        var complete = Wall(
+            "100",
+            Payload("complete-value", false),
+            Array.Empty<CadCustomHandleReference>());
+        var truncated = Wall(
+            "101",
+            Payload("truncated-value", true),
+            Array.Empty<CadCustomHandleReference>());
+
+        var report = CadTianzhengSchemaCorpus.Build(Document("truncation.dxf", complete, truncated));
+
+        Assert.Equal(2, report.Entries.Count);
+        var truncatedEntry = Assert.Single(report.Entries, entry => entry.TruncatedRawDxfEntityCount == 1);
+        var completeEntry = Assert.Single(report.Entries, entry => entry.TruncatedRawDxfEntityCount == 0);
+        Assert.NotEqual(completeEntry.SchemaFingerprint, truncatedEntry.SchemaFingerprint);
     }
 
     [Fact]
