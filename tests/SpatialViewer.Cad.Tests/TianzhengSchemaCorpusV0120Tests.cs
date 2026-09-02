@@ -45,7 +45,7 @@ public sealed class TianzhengSchemaCorpusV0120Tests
         var report = CadTianzhengSchemaCorpus.Build(document);
         var json = CadTianzhengSchemaCorpus.ToJson(report);
 
-        Assert.Equal(2, report.SchemaVersion);
+        Assert.Equal(3, report.SchemaVersion);
         Assert.Equal(1, report.SampleCount);
         Assert.Equal(2, report.EntityCount);
         var entry = Assert.Single(report.Entries);
@@ -54,6 +54,8 @@ public sealed class TianzhengSchemaCorpusV0120Tests
         Assert.Equal(1, entry.SamplesContainingProfile);
         Assert.Equal(0, entry.TruncatedRawDxfEntityCount);
         Assert.Equal(1, entry.NativeSemanticEntityCount);
+        Assert.Equal(0, entry.PartialSemanticEntityCount);
+        Assert.Equal(1, entry.Drawable2DSemanticEntityCount);
         Assert.Equal(1, entry.ProxyGraphicsEntityCount);
         Assert.Equal(1, entry.RawDwgEvidenceEntityCount);
         Assert.Equal(0, entry.ResolvedRelationshipEntityCount);
@@ -170,13 +172,13 @@ public sealed class TianzhengSchemaCorpusV0120Tests
     public void MergeRejectsOlderCorpusSchema()
     {
         var older = new CadTianzhengSchemaCorpusReport(
-            1,
+            2,
             1,
             Array.Empty<CadTianzhengSchemaCorpusEntry>());
 
         var exception = Assert.Throws<ArgumentException>(() => CadTianzhengSchemaCorpus.Merge(new[] { older }));
 
-        Assert.Contains("version: 1", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("version: 2", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
