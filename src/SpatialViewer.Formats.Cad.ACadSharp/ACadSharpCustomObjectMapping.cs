@@ -31,6 +31,7 @@ public sealed partial class ACadSharpCadImporter
             : CadCustomEntityRepresentation.Opaque;
         var rawDxfPayload = ACadSharpCustomPayloadContext.FindDxfPayload(common.Handle);
         var rawScan = ACadSharpCustomPayloadContext.Snapshot();
+        var nativeSemantics = CadTianzhengSemanticDecoder.Decode(entity.ObjectName, definition, rawDxfPayload);
         var metadata = new Dictionary<string, string>(common.Metadata, StringComparer.Ordinal)
         {
             ["CustomEntity"] = bool.TrueString,
@@ -44,7 +45,8 @@ public sealed partial class ACadSharpCadImporter
             ["ProxyGraphicTraitsApplied"] = bool.FalseString,
             ["RawDxfPayloadAvailable"] = (rawDxfPayload is not null).ToString(),
             ["RawDxfScanBinary"] = (rawScan?.IsBinaryDxf == true).ToString(),
-            ["RawDxfScanFailed"] = (rawScan?.ScanFailed == true).ToString()
+            ["RawDxfScanFailed"] = (rawScan?.ScanFailed == true).ToString(),
+            ["NativeSemanticsDecoded"] = (nativeSemantics is not null).ToString()
         };
         if (rawDxfPayload is not null)
         {
@@ -61,6 +63,11 @@ public sealed partial class ACadSharpCadImporter
             metadata["CustomProxyFlags"] = definition.ProxyFlags;
             metadata["TianzhengObject"] = definition.IsTianzheng.ToString();
         }
+        if (nativeSemantics is not null)
+        {
+            metadata["NativeSemanticType"] = nativeSemantics.GetType().Name;
+            metadata["NativeDecoderProfile"] = nativeSemantics.DecoderProfile;
+        }
 
         return new CadCustomEntity(common.Handle, entity.ObjectName, common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, metadata)
         {
@@ -68,7 +75,8 @@ public sealed partial class ACadSharpCadImporter
             Representation = representation,
             ProxyGraphicKinds = graphicKinds,
             ProxyPrimitives = proxyPrimitives,
-            RawDxfPayload = rawDxfPayload
+            RawDxfPayload = rawDxfPayload,
+            NativeSemantics = nativeSemantics
         };
     }
 

@@ -84,6 +84,9 @@ public sealed partial class CadSceneTranslator
 
     private static SceneNode? CustomEntityNode(CadCustomEntity custom, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
     {
+        if (custom.NativeSemantics is CadTianzhengWallSemantic wall)
+            return TianzhengWallNode(custom, wall, style, metadata);
+
         if (custom.ProxyPrimitives.Count == 0) return null;
         var enriched = new Dictionary<string, string>(metadata, StringComparer.Ordinal)
         {
@@ -100,6 +103,40 @@ public sealed partial class CadSceneTranslator
         return children.Length == 0
             ? null
             : new SceneNode(custom.ObjectId, style: style, children: children, metadata: enriched);
+    }
+
+    private static SceneNode? TianzhengWallNode(CadCustomEntity custom, CadTianzhengWallSemantic wall, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
+    {
+        var dx = wall.End.X - wall.Start.X;
+        var dy = wall.End.Y - wall.Start.Y;
+        var length = Math.Sqrt((dx * dx) + (dy * dy));
+        if (!double.IsFinite(length) || length <= 1e-9) return null;
+        var normalX = -dy / length;
+        var normalY = dx / length;
+        var outline = new[]
+        {
+            new Point2D(wall.Start.X + (normalX * wall.LeftWidth), wall.Start.Y + (normalY * wall.LeftWidth)),
+            new Point2D(wall.End.X + (normalX * wall.LeftWidth), wall.End.Y + (normalY * wall.LeftWidth)),
+            new Point2D(wall.End.X - (normalX * wall.RightWidth), wall.End.Y - (normalY * wall.RightWidth)),
+            new Point2D(wall.Start.X - (normalX * wall.RightWidth), wall.Start.Y - (normalY * wall.RightWidth))
+        };
+        var enriched = new Dictionary<string, string>(metadata, StringComparer.Ordinal)
+        {
+            ["CustomProxyFallback"] = bool.FalseString,
+            ["ProxyFallbackSuppressedByNativeSemantics"] = (custom.ProxyPrimitives.Count > 0).ToString(),
+            ["NativeSemanticsDecoded"] = bool.TrueString,
+            ["NativeSemanticType"] = nameof(CadTianzhengWallSemantic),
+            ["NativeDecoderProfile"] = wall.DecoderProfile,
+            ["TianzhengWallLeftWidth"] = wall.LeftWidth.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
+            ["TianzhengWallRightWidth"] = wall.RightWidth.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
+            ["TianzhengWallTotalWidth"] = wall.TotalWidth.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
+            ["TianzhengWallLength"] = wall.Length.ToString("R", System.Globalization.CultureInfo.InvariantCulture)
+        };
+        if (wall.BaseElevation is { } baseElevation)
+            enriched["TianzhengWallBaseElevation"] = baseElevation.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+        if (wall.Height is { } height)
+            enriched["TianzhengWallHeight"] = height.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+        return new SceneNode(custom.ObjectId, new PolygonGeometry(outline), style: style, metadata: enriched);
     }
 
     private static Geometry2D? ProxyGeometry(CadProxyPrimitive primitive)
