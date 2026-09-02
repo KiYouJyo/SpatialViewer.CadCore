@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text;
-using SpatialViewer.Core;
 using SpatialViewer.Formats.Cad;
 
 namespace SpatialViewer.Formats.Cad.ACadSharp;
@@ -9,7 +8,8 @@ internal sealed record DxfCustomPayloadScanResult(
     IReadOnlyDictionary<string, CadDxfCustomPayload> Payloads,
     int CapturedRecordCount,
     int TruncatedRecordCount,
-    bool IsBinaryDxf)
+    bool IsBinaryDxf,
+    bool ScanFailed = false)
 {
     public static DxfCustomPayloadScanResult Empty { get; } = new(
         new Dictionary<string, CadDxfCustomPayload>(StringComparer.OrdinalIgnoreCase),
@@ -19,9 +19,9 @@ internal sealed record DxfCustomPayloadScanResult(
 }
 
 /// <summary>
-/// Preserves raw group-code evidence for application-defined ASCII DXF entities before ACadSharp's
+/// Preserves raw group-code evidence for application-defined text-DXF entities before ACadSharp's
 /// UnknownEntity path discards proprietary fields. Values are read using Latin-1 as a one-byte-to-one-char
-/// projection, making the original value bytes reconstructable without guessing the source code page.
+/// projection, making the original value-line bytes reconstructable without guessing the source code page.
 /// </summary>
 internal static class ACadSharpDxfCustomPayloadReader
 {
@@ -29,43 +29,23 @@ internal static class ACadSharpDxfCustomPayloadReader
     private const int MaxProjectedCharactersPerEntity = 8 * 1024 * 1024;
     private static readonly byte[] BinaryDxfPrefix = Encoding.ASCII.GetBytes("AutoCAD Binary DXF");
 
-    public static DxfCustomPayloadScanResult Scan(
-        string filePath,
-        IReadOnlyList<CadCustomClassDefinition> customClasses,
-        List<Diagnostic> diagnostics)
+    public static DxfCustomPayloadScanResult Scan(string filePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
-        ArgumentNullException.ThrowIfNull(customClasses);
-        ArgumentNullException.ThrowIfNull(diagnostics);
-
         if (!string.Equals(Path.GetExtension(filePath), ".dxf", StringComparison.OrdinalIgnoreCase))
             return DxfCustomPayloadScanResult.Empty;
 
         try
         {
-            if (IsBinaryDxf(filePath))
-            {
-                if (customClasses.Any(definition => definition.IsEntity))
-                {
-                    diagnostics.Add(new Diagnostic(
-                        DiagnosticSeverity.Warning,
-                        "CAD_CUSTOM_RAW_DXF_BINARY_UNAVAILABLE",
-                        "Application-defined DXF classes were detected, but raw custom payload capture currently supports text DXF only. Class identity and any reader-provided Proxy Graphics remain preserved."));
-                }
+            if (IsBinaryDxf(filePath)) return DxfCustomPayloadScanResult.Empty with { IsBinaryDxf = true };
 
-                return DxfCustomPayloadScanResult.Empty with { IsBinaryDxf = true };
-            }
-
-            var knownClassNames = new HashSet<string>(
-                customClasses
-                    .Where(definition => definition.IsEntity && !string.IsNullOrWhiteSpace(definition.DxfName))
-                    .Select(definition => definition.DxfName),
-                StringComparer.OrdinalIgnoreCase);
+            var knownClassNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var payloads = new Dictionary<string, CadDxfCustomPayload>(StringComparer.OrdinalIgnoreCase);
             var capturedRecords = 0;
             var truncatedRecords = 0;
             string? currentSection = null;
             var awaitingSectionName = false;
+            var inClassRecord = false;
             PayloadBuilder? current = null;
 
             using var reader = new StreamReader(filePath, Encoding.Latin1, detectEncodingFromByteOrderMarks: false);
@@ -74,38 +54,35 @@ internal static class ACadSharpDxfCustomPayloadReader
                 var codeLine = reader.ReadLine();
                 if (codeLine is null) break;
                 var valueLine = reader.ReadLine();
-                if (valueLine is null)
-                {
-                    diagnostics.Add(new Diagnostic(
-                        DiagnosticSeverity.Warning,
-                        "CAD_CUSTOM_RAW_DXF_ODD_LINE_COUNT",
-                        "Raw custom-payload scan stopped because the text DXF ended between a group code and value line."));
-                    break;
-                }
-
-                if (!int.TryParse(codeLine.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var code))
-                    continue;
+                if (valueLine is null) break;
+                if (!int.TryParse(codeLine.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var code)) continue;
 
                 if (code == 0)
                 {
                     FlushCurrent();
-                    if (string.Equals(valueLine.Trim(), "SECTION", StringComparison.OrdinalIgnoreCase))
+                    var token = valueLine.Trim();
+                    if (string.Equals(token, "SECTION", StringComparison.OrdinalIgnoreCase))
                     {
                         currentSection = null;
                         awaitingSectionName = true;
+                        inClassRecord = false;
                         continue;
                     }
 
-                    if (string.Equals(valueLine.Trim(), "ENDSEC", StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(token, "ENDSEC", StringComparison.OrdinalIgnoreCase))
                     {
                         currentSection = null;
                         awaitingSectionName = false;
+                        inClassRecord = false;
                         continue;
                     }
 
-                    if (IsEntitySection(currentSection) && IsCandidateCustomEntity(valueLine.Trim(), knownClassNames))
+                    inClassRecord = string.Equals(currentSection, "CLASSES", StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(token, "CLASS", StringComparison.OrdinalIgnoreCase);
+
+                    if (IsEntitySection(currentSection) && IsCandidateCustomEntity(token, knownClassNames))
                     {
-                        current = new PayloadBuilder(valueLine.Trim());
+                        current = new PayloadBuilder(token);
                         current.Add(code, valueLine);
                     }
 
@@ -117,6 +94,11 @@ internal static class ACadSharpDxfCustomPayloadReader
                     currentSection = valueLine.Trim();
                     awaitingSectionName = false;
                     continue;
+                }
+
+                if (inClassRecord && code == 1 && !string.IsNullOrWhiteSpace(valueLine))
+                {
+                    knownClassNames.Add(valueLine.Trim());
                 }
 
                 current?.Add(code, valueLine);
@@ -134,24 +116,13 @@ internal static class ACadSharpDxfCustomPayloadReader
                     capturedRecords++;
                     if (current.IsTruncated) truncatedRecords++;
                 }
-                else
-                {
-                    diagnostics.Add(new Diagnostic(
-                        DiagnosticSeverity.Warning,
-                        "CAD_CUSTOM_RAW_DXF_HANDLE_MISSING",
-                        $"A custom DXF entity payload could not be attached because no handle (group 5) was present: {current.EntityType}"));
-                }
 
                 current = null;
             }
         }
-        catch (Exception exception)
+        catch
         {
-            diagnostics.Add(new Diagnostic(
-                DiagnosticSeverity.Warning,
-                "CAD_CUSTOM_RAW_DXF_SCAN_FAILED",
-                $"Raw custom DXF payload capture failed; normal CAD import will continue: {exception.Message}"));
-            return DxfCustomPayloadScanResult.Empty;
+            return DxfCustomPayloadScanResult.Empty with { ScanFailed = true };
         }
     }
 
@@ -185,15 +156,14 @@ internal static class ACadSharpDxfCustomPayloadReader
         {
             if (code == 5 && string.IsNullOrWhiteSpace(Handle)) Handle = rawValue.Trim();
             if (IsTruncated) return;
-            var projectedLength = rawValue.Length;
-            if (Groups.Count >= MaxGroupsPerEntity || _projectedCharacters + projectedLength > MaxProjectedCharactersPerEntity)
+            if (Groups.Count >= MaxGroupsPerEntity || _projectedCharacters + rawValue.Length > MaxProjectedCharactersPerEntity)
             {
                 IsTruncated = true;
                 return;
             }
 
             Groups.Add(new CadRawDxfGroup(code, rawValue));
-            _projectedCharacters += projectedLength;
+            _projectedCharacters += rawValue.Length;
         }
     }
 }
