@@ -61,7 +61,10 @@ public sealed partial class ACadSharpCadImporter
             ["DimensionReferencePointCount"] = references.Count.ToString(CultureInfo.InvariantCulture)
         };
 
-        return new CadDimensionEntity(common.Handle, kind, Point(dimension.DefinitionPoint), Point(dimension.TextMiddlePoint), text, measurement, rotation, textHeight, arrowSize, styleName, references, common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, metadata);
+        return new CadDimensionEntity(common.Handle, kind, Point(dimension.DefinitionPoint), Point(dimension.TextMiddlePoint), text, measurement, rotation, textHeight, arrowSize, styleName, references, common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, metadata)
+        {
+            Presentation = MapDimensionPresentation(style)
+        };
     }
 
     private static CadDimensionKind DimensionKind(string typeName) => typeName switch

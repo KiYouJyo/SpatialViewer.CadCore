@@ -16,6 +16,42 @@ public enum CadDimensionKind
     ArcLength
 }
 
+/// <summary>
+/// Viewer-relevant DIMSTYLE semantics copied out of the source reader. Geometry fields are stored
+/// after the source style scale has been applied so scene construction does not depend on reader types.
+/// </summary>
+public sealed record CadDimensionPresentation(
+    double ExtensionLineOffset = 0,
+    double ExtensionLineExtension = 0,
+    double DimensionLineExtension = 0,
+    double DimensionLineGap = 0,
+    bool SuppressFirstExtensionLine = false,
+    bool SuppressSecondExtensionLine = false,
+    bool SuppressFirstDimensionLine = false,
+    bool SuppressSecondDimensionLine = false,
+    string ArrowBlockName = "",
+    string FirstArrowBlockName = "",
+    string SecondArrowBlockName = "",
+    bool SeparateArrowBlocks = false,
+    int DecimalPlaces = 2,
+    char DecimalSeparator = '.',
+    double Rounding = 0,
+    string Prefix = "",
+    string Suffix = "",
+    bool GenerateTolerances = false,
+    bool LimitsGeneration = false,
+    double PlusTolerance = 0,
+    double MinusTolerance = 0,
+    int ToleranceDecimalPlaces = 2,
+    double ToleranceScaleFactor = 1,
+    bool AlternateUnitsEnabled = false,
+    double AlternateUnitScaleFactor = 25.4,
+    int AlternateUnitDecimalPlaces = 3,
+    string AlternateUnitPrefix = "",
+    string AlternateUnitSuffix = "",
+    string LinearUnitFormat = "Decimal",
+    string AngularUnitFormat = "DecimalDegrees");
+
 /// <summary>Semantic dimension record. Reference points keep subtype-specific definition points by stable names.</summary>
 public sealed record CadDimensionEntity(
     string Handle,
@@ -35,7 +71,10 @@ public sealed record CadDimensionEntity(
     string LineTypeName = "Continuous",
     int? LineWeight = null,
     IReadOnlyDictionary<string, string>? Metadata = null)
-    : CadEntity(Handle, LayerName, Color == default ? CadColor.ByLayer : Color, IsVisible, LineTypeName, LineWeight, Metadata ?? EmptyMetadata.Value);
+    : CadEntity(Handle, LayerName, Color == default ? CadColor.ByLayer : Color, IsVisible, LineTypeName, LineWeight, Metadata ?? EmptyMetadata.Value)
+{
+    public CadDimensionPresentation Presentation { get; init; } = new();
+}
 
 /// <summary>One semantic leader path, used by both MLEADER and future compound annotation entities.</summary>
 public sealed record CadLeaderPath(
