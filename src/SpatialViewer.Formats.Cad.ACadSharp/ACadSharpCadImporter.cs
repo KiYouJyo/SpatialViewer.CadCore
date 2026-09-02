@@ -189,7 +189,10 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
             ["HatchStyle"] = StringProperty(hatch, "Style"),
             ["HatchPatternType"] = StringProperty(hatch, "PatternType")
         };
-        return new CadHatchEntity(common.Handle, loops, BoolProperty(hatch, "IsSolid"), NameOf(Property(hatch, "Pattern")), Degrees(DoubleProperty(hatch, "PatternAngle")), DoubleProperty(hatch, "PatternScale", 1), common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, metadata);
+        return new CadHatchEntity(common.Handle, loops, BoolProperty(hatch, "IsSolid"), NameOf(Property(hatch, "Pattern")), Degrees(DoubleProperty(hatch, "PatternAngle")), DoubleProperty(hatch, "PatternScale", 1), common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, metadata)
+        {
+            PatternLines = MapHatchPatternLines(hatch)
+        };
     }
 
     private static CadHatchLoop MapHatchLoop(object path, List<Diagnostic> diagnostics, string hatchHandle)
