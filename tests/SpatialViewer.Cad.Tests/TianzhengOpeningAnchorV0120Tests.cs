@@ -108,9 +108,7 @@ public sealed class TianzhengOpeningAnchorV0120Tests
 
         var item = Assert.Single(document.Scene.GetItems());
 
-        Assert.Null(item.Geometry);
-        var child = Assert.Single(item.Children);
-        Assert.IsType<PolylineGeometry>(child.Geometry);
+        Assert.IsType<PolylineGeometry>(item.Geometry);
         Assert.Equal(new BoundingBox2D(90, 190, 110, 210), item.Bounds);
         Assert.Equal(bool.TrueString, item.Metadata["CustomProxyFallback"]);
         Assert.Equal(bool.FalseString, item.Metadata["NativeSemanticsDecoded"]);
