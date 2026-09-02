@@ -85,6 +85,7 @@ public sealed class CadDocument : IDocument
     public IReadOnlyList<CadBlockDefinition> Blocks { get; }
     public IReadOnlyList<CadEntity> ModelSpace { get; }
     public IReadOnlyList<CadLayoutDefinition> Layouts { get; }
+    public IReadOnlyList<CadCustomClassDefinition> CustomClasses { get; init; } = Array.Empty<CadCustomClassDefinition>();
     public BoundingBox2D Bounds => Scene.GetBounds();
     public IReadOnlyList<Layer> Layers { get; }
     public Scene2D Scene { get; }
