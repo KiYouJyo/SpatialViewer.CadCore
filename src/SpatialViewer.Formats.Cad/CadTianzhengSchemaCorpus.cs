@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text;
 using System.Text.Json;
 
 namespace SpatialViewer.Formats.Cad;
@@ -45,6 +46,9 @@ public static class CadTianzhengSchemaCorpus
 {
     public const int CurrentSchemaVersion = 2;
     private const string Unavailable = "unavailable";
+    private const int MaxJsonBytes = 16 * 1024 * 1024;
+    private const int MaxEntries = 100_000;
+    private const int MaxIdentityLength = 4096;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true
@@ -79,12 +83,7 @@ public static class CadTianzhengSchemaCorpus
     {
         ArgumentNullException.ThrowIfNull(reports);
         var materialized = reports.ToArray();
-        foreach (var report in materialized)
-        {
-            ArgumentNullException.ThrowIfNull(report);
-            if (report.SchemaVersion != CurrentSchemaVersion)
-                throw new ArgumentException($"Unsupported Tianzheng schema corpus version: {report.SchemaVersion}.", nameof(reports));
-        }
+        foreach (var report in materialized) ValidateReport(report, nameof(reports));
 
         var entries = materialized
             .SelectMany(report => report.Entries)
@@ -112,16 +111,112 @@ public static class CadTianzhengSchemaCorpus
             .ThenBy(entry => entry.ReferenceCodeSignature, StringComparer.Ordinal)
             .ToArray();
 
-        return new CadTianzhengSchemaCorpusReport(
+        var merged = new CadTianzhengSchemaCorpusReport(
             CurrentSchemaVersion,
             materialized.Sum(report => report.SampleCount),
             new ReadOnlyCollection<CadTianzhengSchemaCorpusEntry>(entries));
+        ValidateReport(merged, nameof(reports));
+        return merged;
+    }
+
+    /// <summary>Deserialize and validate one externally supplied corpus report.</summary>
+    public static CadTianzhengSchemaCorpusReport FromJson(string json)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(json);
+        if (Encoding.UTF8.GetByteCount(json) > MaxJsonBytes)
+            throw new FormatException($"Tianzheng schema corpus JSON exceeds the {MaxJsonBytes} byte safety limit.");
+
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<CadTianzhengSchemaCorpusReport>(json, JsonOptions)
+                ?? throw new FormatException("Tianzheng schema corpus JSON did not contain a report.");
+            ValidateReport(parsed, nameof(json));
+            return Freeze(parsed);
+        }
+        catch (JsonException exception)
+        {
+            throw new FormatException("Invalid Tianzheng schema corpus JSON.", exception);
+        }
+    }
+
+    /// <summary>Deserialize, validate, and merge independently generated corpus JSON reports.</summary>
+    public static CadTianzhengSchemaCorpusReport MergeJson(IEnumerable<string> reports)
+    {
+        ArgumentNullException.ThrowIfNull(reports);
+        return Merge(reports.Select(FromJson));
     }
 
     public static string ToJson(CadTianzhengSchemaCorpusReport report)
     {
         ArgumentNullException.ThrowIfNull(report);
+        ValidateReport(report, nameof(report));
         return JsonSerializer.Serialize(report, JsonOptions);
+    }
+
+    private static CadTianzhengSchemaCorpusReport Freeze(CadTianzhengSchemaCorpusReport report)
+        => new(
+            report.SchemaVersion,
+            report.SampleCount,
+            new ReadOnlyCollection<CadTianzhengSchemaCorpusEntry>(report.Entries.ToArray()));
+
+    private static void ValidateReport(CadTianzhengSchemaCorpusReport? report, string parameterName)
+    {
+        if (report is null) throw new ArgumentException("Tianzheng schema corpus report cannot be null.", parameterName);
+        if (report.SchemaVersion != CurrentSchemaVersion)
+            throw new ArgumentException($"Unsupported Tianzheng schema corpus version: {report.SchemaVersion}.", parameterName);
+        if (report.SampleCount < 0)
+            throw new ArgumentException("Tianzheng schema corpus sample count cannot be negative.", parameterName);
+        if (report.Entries is null)
+            throw new ArgumentException("Tianzheng schema corpus entries cannot be null.", parameterName);
+        if (report.Entries.Count > MaxEntries)
+            throw new ArgumentException($"Tianzheng schema corpus contains more than {MaxEntries} entries.", parameterName);
+        if (report.Entries.Count > 0 && report.SampleCount == 0)
+            throw new ArgumentException("A non-empty Tianzheng schema corpus must represent at least one sample.", parameterName);
+
+        foreach (var entry in report.Entries)
+        {
+            if (entry is null) throw new ArgumentException("Tianzheng schema corpus cannot contain null entries.", parameterName);
+            ValidateIdentity(entry.DxfName, nameof(entry.DxfName), parameterName, required: true);
+            ValidateIdentity(entry.CppClassName, nameof(entry.CppClassName), parameterName, required: false);
+            ValidateIdentity(entry.ApplicationName, nameof(entry.ApplicationName), parameterName, required: false);
+            ValidateIdentity(entry.SchemaFingerprint, nameof(entry.SchemaFingerprint), parameterName, required: true);
+            ValidateIdentity(entry.GroupCodeSignature, nameof(entry.GroupCodeSignature), parameterName, required: true);
+            ValidateIdentity(entry.SubclassMarkerSignature, nameof(entry.SubclassMarkerSignature), parameterName, required: true);
+            ValidateIdentity(entry.ReferenceCodeSignature, nameof(entry.ReferenceCodeSignature), parameterName, required: false);
+
+            if (entry.EntityCount <= 0)
+                throw new ArgumentException("Tianzheng schema corpus entity counts must be positive.", parameterName);
+            if (entry.SamplesContainingProfile <= 0 || entry.SamplesContainingProfile > report.SampleCount)
+                throw new ArgumentException("Tianzheng schema corpus profile sample coverage is inconsistent with the report sample count.", parameterName);
+
+            ValidateEntityCoverage(entry.TruncatedRawDxfEntityCount, entry.EntityCount, nameof(entry.TruncatedRawDxfEntityCount), parameterName);
+            ValidateEntityCoverage(entry.NativeSemanticEntityCount, entry.EntityCount, nameof(entry.NativeSemanticEntityCount), parameterName);
+            ValidateEntityCoverage(entry.ProxyGraphicsEntityCount, entry.EntityCount, nameof(entry.ProxyGraphicsEntityCount), parameterName);
+            ValidateEntityCoverage(entry.RawDwgEvidenceEntityCount, entry.EntityCount, nameof(entry.RawDwgEvidenceEntityCount), parameterName);
+            ValidateEntityCoverage(entry.ResolvedRelationshipEntityCount, entry.EntityCount, nameof(entry.ResolvedRelationshipEntityCount), parameterName);
+            ValidateEntityCoverage(entry.OpeningHostWallEntityCount, entry.EntityCount, nameof(entry.OpeningHostWallEntityCount), parameterName);
+
+            if (entry.ResolvedRelationshipCount < 0)
+                throw new ArgumentException("Resolved relationship count cannot be negative.", parameterName);
+            if (entry.OpeningHostWallRelationshipCount < 0 || entry.OpeningHostWallRelationshipCount > entry.ResolvedRelationshipCount)
+                throw new ArgumentException("Opening-host-wall relationship count is inconsistent with resolved relationship count.", parameterName);
+            if (entry.OpeningHostWallEntityCount > entry.ResolvedRelationshipEntityCount)
+                throw new ArgumentException("Opening-host-wall entity coverage cannot exceed resolved relationship entity coverage.", parameterName);
+        }
+    }
+
+    private static void ValidateIdentity(string? value, string fieldName, string parameterName, bool required)
+    {
+        if (required && string.IsNullOrWhiteSpace(value))
+            throw new ArgumentException($"Tianzheng schema corpus field {fieldName} cannot be empty.", parameterName);
+        if (value?.Length > MaxIdentityLength)
+            throw new ArgumentException($"Tianzheng schema corpus field {fieldName} exceeds {MaxIdentityLength} characters.", parameterName);
+    }
+
+    private static void ValidateEntityCoverage(int value, int entityCount, string fieldName, string parameterName)
+    {
+        if (value < 0 || value > entityCount)
+            throw new ArgumentException($"Tianzheng schema corpus field {fieldName} must be between zero and the profile entity count.", parameterName);
     }
 
     private static CadTianzhengSchemaCorpusEntry CreateEntry(
