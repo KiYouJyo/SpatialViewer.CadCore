@@ -116,7 +116,7 @@ public static class CadTianzhengSemanticDecoder
             {
                 // Do not repair malformed proprietary notation such as "%+006". Returning no native
                 // semantics is safer than generating plausible geometry at the wrong coordinates.
-                if (tokens[index].Contains('%', StringComparison.Ordinal)
+                if (tokens[index].Contains('%')
                     || !double.TryParse(tokens[index], NumberStyles.Float, CultureInfo.InvariantCulture, out values[index])
                     || !double.IsFinite(values[index]))
                 {
