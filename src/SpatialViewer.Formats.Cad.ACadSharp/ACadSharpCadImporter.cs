@@ -42,6 +42,12 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
             var entities = source.Entities.Select(entity => MapEntity(entity, diagnostics, globalLineTypeScale)).ToArray();
             var blocks = MapBlocks(source, diagnostics, globalLineTypeScale);
             var layouts = MapLayouts(source, diagnostics, globalLineTypeScale);
+
+            var shxFonts = new ACadSharpShxFontLoading(request, diagnostics);
+            entities = entities.Select(shxFonts.Apply).ToArray();
+            blocks = blocks.Select(shxFonts.Apply).ToArray();
+            layouts = layouts.Select(shxFonts.Apply).ToArray();
+
             ValidateBlockReferences(entities.Concat(blocks.SelectMany(block => block.Entities)).Concat(layouts.SelectMany(layout => layout.Entities)), blocks, diagnostics);
             var metadata = new Dictionary<string, string>
             {
@@ -50,7 +56,10 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
                 ["EntityCount"] = entities.Length.ToString(CultureInfo.InvariantCulture),
                 ["BlockCount"] = blocks.Length.ToString(CultureInfo.InvariantCulture),
                 ["LayoutCount"] = layouts.Length.ToString(CultureInfo.InvariantCulture),
-                ["LineTypeScale"] = globalLineTypeScale.ToString(CultureInfo.InvariantCulture)
+                ["LineTypeScale"] = globalLineTypeScale.ToString(CultureInfo.InvariantCulture),
+                ["ShxSearchDirectoryCount"] = shxFonts.SearchDirectoryCount.ToString(CultureInfo.InvariantCulture),
+                ["ShxRequestedFontCount"] = shxFonts.RequestedFontCount.ToString(CultureInfo.InvariantCulture),
+                ["ShxLoadedFontCount"] = shxFonts.LoadedFontCount.ToString(CultureInfo.InvariantCulture)
             };
             if (entities.OfType<CadUnsupportedEntity>().Any()) diagnostics.Add(new Diagnostic(DiagnosticSeverity.Warning, "CAD_PARTIAL_IMPORT", $"Skipped {entities.OfType<CadUnsupportedEntity>().Count()} unsupported entity or entities."));
             var document = new SpatialViewer.Formats.Cad.CadDocument(Path.GetFileName(request.FilePath), extension.TrimStart('.').ToUpperInvariant(), source.Header.Version.ToString(), MapUnits(source.Header.InsUnits.ToString()), layers, blocks, entities, diagnostics, metadata, layouts);
