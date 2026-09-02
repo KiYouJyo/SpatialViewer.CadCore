@@ -126,7 +126,7 @@ internal static class ACadSharpDxfCustomPayloadReader
         }
     }
 
-    private static bool IsCandidateCustomEntity(string entityType, IReadOnlySet<string> knownClassNames)
+    private static bool IsCandidateCustomEntity(string entityType, HashSet<string> knownClassNames)
         => knownClassNames.Contains(entityType) || CadCustomObjectClassifier.IsTianzheng(entityType);
 
     private static bool IsEntitySection(string? section)
