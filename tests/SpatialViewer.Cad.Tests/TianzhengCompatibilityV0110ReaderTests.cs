@@ -53,7 +53,10 @@ public sealed class TianzhengCompatibilityV0110ReaderTests
             Assert.Equal(bool.TrueString, document.Metadata["TianzhengDetected"]);
             Assert.Equal("1", document.Metadata["TianzhengEntityCount"]);
             Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "CAD_CUSTOM_ENTITY_PRESERVED");
-            Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "CAD_UNSUPPORTED_ENTITY" && diagnostic.Data?["Handle"] == custom.Handle);
+            Assert.DoesNotContain(result.Diagnostics, diagnostic =>
+                diagnostic.Code == "CAD_UNSUPPORTED_ENTITY" &&
+                diagnostic.Context?.TryGetValue("Handle", out var handle) == true &&
+                handle == custom.Handle);
         }
         finally
         {
