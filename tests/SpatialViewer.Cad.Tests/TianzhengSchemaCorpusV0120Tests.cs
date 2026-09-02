@@ -8,6 +8,8 @@ public sealed class TianzhengSchemaCorpusV0120Tests
 {
     private static readonly CadCustomClassDefinition WallClass = new(
         "TCH_WALL", "TDbWall", "Tianzheng Architecture", 601, 1, true, "None", false);
+    private static readonly CadCustomClassDefinition OpeningClass = new(
+        "TCH_OPENING", "TDbOpening", "Tianzheng Architecture", 602, 1, true, "None", false);
 
     [Fact]
     public void BuildClustersSameSchemaWithoutExportingDrawingContents()
@@ -43,6 +45,7 @@ public sealed class TianzhengSchemaCorpusV0120Tests
         var report = CadTianzhengSchemaCorpus.Build(document);
         var json = CadTianzhengSchemaCorpus.ToJson(report);
 
+        Assert.Equal(2, report.SchemaVersion);
         Assert.Equal(1, report.SampleCount);
         Assert.Equal(2, report.EntityCount);
         var entry = Assert.Single(report.Entries);
@@ -53,6 +56,10 @@ public sealed class TianzhengSchemaCorpusV0120Tests
         Assert.Equal(1, entry.NativeSemanticEntityCount);
         Assert.Equal(1, entry.ProxyGraphicsEntityCount);
         Assert.Equal(1, entry.RawDwgEvidenceEntityCount);
+        Assert.Equal(0, entry.ResolvedRelationshipEntityCount);
+        Assert.Equal(0, entry.ResolvedRelationshipCount);
+        Assert.Equal(0, entry.OpeningHostWallEntityCount);
+        Assert.Equal(0, entry.OpeningHostWallRelationshipCount);
         Assert.Equal("330x1", entry.ReferenceCodeSignature);
         Assert.DoesNotContain("PRIVATE_ROOM_ALPHA", json, StringComparison.Ordinal);
         Assert.DoesNotContain("PRIVATE_ROOM_BETA", json, StringComparison.Ordinal);
@@ -104,24 +111,72 @@ public sealed class TianzhengSchemaCorpusV0120Tests
     }
 
     [Fact]
-    public void MergeTracksSampleCoverageAndEntityCounts()
+    public void RelationshipResolutionChangesCoverageWithoutSplittingOpeningSchema()
     {
-        var payload = Payload("sample-specific-value", false);
+        const string hostHandle = "ABC123";
+        const string missingHandle = "DEAD99";
+        var wall = Wall(hostHandle, Payload("host-wall", false), Array.Empty<CadCustomHandleReference>());
+        var resolved = Opening(
+            "200",
+            OpeningPayload("PRIVATE_OPENING_ALPHA"),
+            new CadCustomHandleReference[] { new(330, hostHandle) });
+        var unresolved = Opening(
+            "201",
+            OpeningPayload("PRIVATE_OPENING_BETA"),
+            new CadCustomHandleReference[] { new(330, missingHandle) });
+
+        var report = CadTianzhengSchemaCorpus.Build(Document("opening-coverage.dxf", wall, resolved, unresolved));
+        var openingEntry = Assert.Single(report.Entries, entry => entry.DxfName == "TCH_OPENING");
+        var json = CadTianzhengSchemaCorpus.ToJson(report);
+
+        Assert.Equal(2, openingEntry.EntityCount);
+        Assert.Equal("330x1", openingEntry.ReferenceCodeSignature);
+        Assert.Equal(1, openingEntry.ResolvedRelationshipEntityCount);
+        Assert.Equal(1, openingEntry.ResolvedRelationshipCount);
+        Assert.Equal(1, openingEntry.OpeningHostWallEntityCount);
+        Assert.Equal(1, openingEntry.OpeningHostWallRelationshipCount);
+        Assert.DoesNotContain(hostHandle, json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(missingHandle, json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("PRIVATE_OPENING_ALPHA", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("PRIVATE_OPENING_BETA", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MergeTracksSampleCoverageEntityCountsAndResolvedRelationships()
+    {
+        const string hostHandle = "700";
         var first = CadTianzhengSchemaCorpus.Build(Document(
             "sample-one.dxf",
-            Wall("100", payload, Array.Empty<CadCustomHandleReference>()),
-            Wall("101", payload, Array.Empty<CadCustomHandleReference>())));
+            Wall(hostHandle, Payload("host", false), Array.Empty<CadCustomHandleReference>()),
+            Opening("701", OpeningPayload("sample-one"), new CadCustomHandleReference[] { new(330, hostHandle) })));
         var second = CadTianzhengSchemaCorpus.Build(Document(
             "sample-two.dxf",
-            Wall("200", Payload("different-value-same-schema", false), Array.Empty<CadCustomHandleReference>())));
+            Opening("801", OpeningPayload("sample-two"), new CadCustomHandleReference[] { new(330, "missing") })));
 
         var merged = CadTianzhengSchemaCorpus.Merge(new[] { first, second });
+        var openingEntry = Assert.Single(merged.Entries, entry => entry.DxfName == "TCH_OPENING");
 
         Assert.Equal(2, merged.SampleCount);
         Assert.Equal(3, merged.EntityCount);
-        var entry = Assert.Single(merged.Entries);
-        Assert.Equal(3, entry.EntityCount);
-        Assert.Equal(2, entry.SamplesContainingProfile);
+        Assert.Equal(2, openingEntry.EntityCount);
+        Assert.Equal(2, openingEntry.SamplesContainingProfile);
+        Assert.Equal(1, openingEntry.ResolvedRelationshipEntityCount);
+        Assert.Equal(1, openingEntry.ResolvedRelationshipCount);
+        Assert.Equal(1, openingEntry.OpeningHostWallEntityCount);
+        Assert.Equal(1, openingEntry.OpeningHostWallRelationshipCount);
+    }
+
+    [Fact]
+    public void MergeRejectsOlderCorpusSchema()
+    {
+        var older = new CadTianzhengSchemaCorpusReport(
+            1,
+            1,
+            Array.Empty<CadTianzhengSchemaCorpusEntry>());
+
+        var exception = Assert.Throws<ArgumentException>(() => CadTianzhengSchemaCorpus.Merge(new[] { older }));
+
+        Assert.Contains("version: 1", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -169,6 +224,18 @@ public sealed class TianzhengSchemaCorpusV0120Tests
             HandleReferences = references
         };
 
+    private static CadCustomEntity Opening(
+        string handle,
+        CadDxfCustomPayload payload,
+        IReadOnlyList<CadCustomHandleReference> references)
+        => new(handle, "TCH_OPENING")
+        {
+            ClassDefinition = OpeningClass,
+            RawDxfPayload = payload,
+            RawDxfProfile = CadDxfCustomPayloadProfiler.Create(payload),
+            HandleReferences = references
+        };
+
     private static CadDxfCustomPayload Payload(string privateValue, bool truncated)
         => new(
             new CadRawDxfGroup[]
@@ -179,6 +246,15 @@ public sealed class TianzhengSchemaCorpusV0120Tests
                 new(40, "200")
             },
             truncated);
+
+    private static CadDxfCustomPayload OpeningPayload(string privateValue)
+        => new(
+            new CadRawDxfGroup[]
+            {
+                new(100, "TDbOpening"),
+                new(10, privateValue),
+                new(20, "654321.987")
+            });
 
     private static CadDocument Document(string displayName, params CadEntity[] entities)
         => new(
