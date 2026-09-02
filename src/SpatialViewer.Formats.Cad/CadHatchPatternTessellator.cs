@@ -130,16 +130,16 @@ public static class CadHatchPatternTessellator
         return unique;
     }
 
-    private static void AddPatternInterval(List<Geometry2D> output, Point2D origin, Vector2D direction, double start, double end, IReadOnlyList<double> dashes, ref bool truncated)
+    private static void AddPatternInterval(List<Geometry2D> output, Point2D origin, Vector2D direction, double start, double end, double[] dashes, ref bool truncated)
     {
         if (output.Count >= MaxOutputGeometries) { truncated = true; return; }
-        if (dashes.Count == 0)
+        if (dashes.Length == 0)
         {
             output.Add(new LineGeometry(PointAt(origin, direction, start), PointAt(origin, direction, end)));
             return;
         }
 
-        var cycle = dashes.Where(value => Math.Abs(value) > Epsilon).Sum(Math.Abs);
+        var cycle = dashes.Where(value => Math.Abs(value) > Epsilon).Sum(value => Math.Abs(value));
         if (!double.IsFinite(cycle) || cycle <= Epsilon)
         {
             output.Add(new PointGeometry(PointAt(origin, direction, (start + end) / 2)));
