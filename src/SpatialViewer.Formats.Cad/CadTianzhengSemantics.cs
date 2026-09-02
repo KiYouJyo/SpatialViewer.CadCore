@@ -27,6 +27,18 @@ public sealed record CadTianzhengWallSemantic(
 }
 
 /// <summary>
+/// Partial native evidence for a Tianzheng opening. Only the insertion anchor is decoded here because
+/// published evidence identifies DXF point 10 as the opening insertion point, while reliable group mappings
+/// for width, height, sill height, opening type, and label are not yet available. Host-wall identity remains
+/// a document-level relationship resolved by <see cref="CadCustomRelationshipResolver"/>.
+/// </summary>
+public sealed record CadTianzhengOpeningAnchorSemantic(
+    Point2D InsertionPoint,
+    double? Elevation,
+    string DecoderProfile)
+    : CadCustomSemantic(DecoderProfile);
+
+/// <summary>
 /// Evidence-gated Tianzheng native decoder. A profile succeeds only when the raw payload matches a
 /// known layout. Unknown or malformed payloads remain preserved without speculative semantics.
 /// </summary>
@@ -34,14 +46,19 @@ public static class CadTianzhengSemanticDecoder
 {
     public const string WallDirectProfile = "TCH_WALL_DIRECT_10_11";
     public const string WallPacked300Profile = "TCH_WALL_PACKED_300_UTF16LE";
+    public const string OpeningAnchorDirectProfile = "TCH_OPENING_ANCHOR_10";
 
     public static CadCustomSemantic? Decode(
         string sourceEntityType,
         CadCustomClassDefinition? classDefinition,
         CadDxfCustomPayload? payload)
     {
-        if (payload is null || payload.IsTruncated || !IsTianzhengWall(sourceEntityType, classDefinition, payload)) return null;
-        return TryDecodePackedWall(payload) ?? TryDecodeDirectWall(payload);
+        if (payload is null || payload.IsTruncated) return null;
+        if (IsTianzhengWall(sourceEntityType, classDefinition, payload))
+            return TryDecodePackedWall(payload) ?? TryDecodeDirectWall(payload);
+        if (IsTianzhengOpening(sourceEntityType, classDefinition, payload))
+            return TryDecodeOpeningAnchor(payload);
+        return null;
     }
 
     private static bool IsTianzhengWall(
@@ -57,6 +74,30 @@ public static class CadTianzhengSemanticDecoder
         // but a matching CLASSES-table C++ class is still acceptable evidence.
         return payload.Groups.Any(group => group.Code == 100 && string.Equals(group.RawValue.Trim(), "TDbWall", StringComparison.OrdinalIgnoreCase))
             || string.Equals(classDefinition?.CppClassName, "TDbWall", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsTianzhengOpening(
+        string sourceEntityType,
+        CadCustomClassDefinition? classDefinition,
+        CadDxfCustomPayload payload)
+    {
+        var isOpeningName = string.Equals(sourceEntityType, "TCH_OPENING", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(classDefinition?.DxfName, "TCH_OPENING", StringComparison.OrdinalIgnoreCase);
+        if (!isOpeningName) return false;
+
+        return payload.Groups.Any(group => group.Code == 100 && string.Equals(group.RawValue.Trim(), "TDbOpening", StringComparison.OrdinalIgnoreCase))
+            || string.Equals(classDefinition?.CppClassName, "TDbOpening", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static CadTianzhengOpeningAnchorSemantic? TryDecodeOpeningAnchor(CadDxfCustomPayload payload)
+    {
+        if (!TryNumber(payload, 10, out var x) || !TryNumber(payload, 20, out var y)) return null;
+        var insertionPoint = new Point2D(x, y);
+        if (!Finite(insertionPoint)) return null;
+        return new CadTianzhengOpeningAnchorSemantic(
+            insertionPoint,
+            OptionalNumber(payload, 30),
+            OpeningAnchorDirectProfile);
     }
 
     private static CadTianzhengWallSemantic? TryDecodeDirectWall(CadDxfCustomPayload payload)
