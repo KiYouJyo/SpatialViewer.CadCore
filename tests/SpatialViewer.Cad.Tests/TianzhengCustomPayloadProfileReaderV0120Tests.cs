@@ -1,6 +1,7 @@
 using System.Text;
 using ACadSharp.Classes;
 using ACadSharp.IO;
+using SpatialViewer.Core;
 using SpatialViewer.Formats.Cad;
 using SpatialViewer.Formats.Cad.ACadSharp;
 
@@ -69,7 +70,7 @@ public sealed class TianzhengCustomPayloadProfileReaderV0120Tests
             "  0", "TCH_WALL",
             "  5", "7FFF1201",
             "100", "AcDbEntity",
-            "  8", "PRIVATE-LAYER",
+            "  8", "0",
             "100", "TDbCurveEntity",
             "100", "TDbWall",
             " 90", "202612",
