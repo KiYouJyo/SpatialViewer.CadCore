@@ -36,14 +36,14 @@ public sealed class TianzhengCompatibilityV0110ReaderTests
     }
 
     [Fact]
-    public async Task RawAcadProxyEntityIsPreservedAsTianzhengCustomEntity()
+    public async Task RawTianzhengCustomDxfEntityIsPreservedAsOpaqueCustomEntity()
     {
         var root = TemporaryDirectory();
         try
         {
-            var path = Path.Combine(root, "tianzheng-proxy.dxf");
+            var path = Path.Combine(root, "tianzheng-custom-entity.dxf");
             WriteDxfWithTianzhengClass(path);
-            InjectProxyEntity(path, 501);
+            InjectCustomEntity(path, "TCH_WALL");
 
             var result = await new ACadSharpCadImporter().ImportAsync(new ImportRequest(path));
             var document = Assert.IsType<CadDocument>(result.Document);
@@ -89,7 +89,7 @@ public sealed class TianzhengCompatibilityV0110ReaderTests
         writer.Write();
     }
 
-    private static void InjectProxyEntity(string path, int classNumber)
+    private static void InjectCustomEntity(string path, string dxfName)
     {
         var source = File.ReadAllText(path, Encoding.ASCII).Replace("\r\n", "\n", StringComparison.Ordinal);
         var entitiesMarker = "\n  0\nSECTION\n  2\nENTITIES";
@@ -105,19 +105,14 @@ public sealed class TianzhengCompatibilityV0110ReaderTests
         if (endAt < 0) endAt = source.IndexOf("\n0\nENDSEC", entitiesAt, StringComparison.Ordinal);
         Assert.True(endAt >= 0, "Generated DXF did not contain the ENTITIES section terminator.");
 
-        var proxy = string.Join("\n",
+        var customEntity = string.Join("\n",
             string.Empty,
-            "  0", "ACAD_PROXY_ENTITY",
+            "  0", dxfName,
             "  5", "7FFFFFFE",
             "100", "AcDbEntity",
-            "  8", "0",
-            "100", "AcDbProxyEntity",
-            " 90", "498",
-            " 91", classNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            " 70", "1",
-            " 95", "0");
+            "  8", "0");
 
-        File.WriteAllText(path, source.Insert(endAt, proxy), Encoding.ASCII);
+        File.WriteAllText(path, source.Insert(endAt, customEntity), Encoding.ASCII);
     }
 
     private static string TemporaryDirectory()
