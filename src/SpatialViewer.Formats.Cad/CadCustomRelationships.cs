@@ -31,6 +31,12 @@ public sealed record CadCustomRelationship(
 /// </summary>
 public static class CadCustomRelationshipResolver
 {
+    public static IReadOnlyList<CadCustomRelationship> Resolve(CadDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        return Resolve(document.ModelSpace, document.Blocks, document.Layouts);
+    }
+
     public static IReadOnlyList<CadCustomRelationship> Resolve(
         IReadOnlyList<CadEntity> modelSpace,
         IReadOnlyList<CadBlockDefinition> blocks,
