@@ -50,11 +50,8 @@ public sealed class TianzhengProbeOutputV0120Tests
     [Fact]
     public void ConsensusKeepsOnlySlotsRepeatedAcrossIndependentExperiments()
     {
-        var signature = new CadTianzhengProbeSignature(
-            "TCH_DIMENSION2",
-            9,
-            2,
-            new[] { 0, 100, 8, 100, 40, 70, 40, 47, 90 });
+        int[] groupCodes = [0, 100, 8, 100, 40, 70, 40, 47, 90];
+        var signature = new CadTianzhengProbeSignature("TCH_DIMENSION2", 9, 2, groupCodes);
         var first = new CadTianzhengProbeDiff(
             "TCH_DIMENSION2",
             new CadDxfCustomPayloadValueChange[]
@@ -89,11 +86,8 @@ public sealed class TianzhengProbeOutputV0120Tests
         int code,
         int occurrence)
     {
-        var signature = new CadTianzhengProbeSignature(
-            "TCH_AXIS_LABEL",
-            6,
-            2,
-            new[] { 0, 100, 8, 100, 40, 1 });
+        int[] groupCodes = [0, 100, 8, 100, 40, 1];
+        var signature = new CadTianzhengProbeSignature("TCH_AXIS_LABEL", 6, 2, groupCodes);
         var invalid = new CadTianzhengProbeDiff(
             dxfName,
             new[] { new CadDxfCustomPayloadValueChange(slot, code, occurrence) });
@@ -121,11 +115,8 @@ public sealed class TianzhengProbeOutputV0120Tests
     [Fact]
     public void ConsensusRequiresAtLeastTwoIndependentObservations()
     {
-        var signature = new CadTianzhengProbeSignature(
-            "TCH_INDEXPOINTER",
-            5,
-            1,
-            new[] { 0, 100, 8, 1, 40 });
+        int[] groupCodes = [0, 100, 8, 1, 40];
+        var signature = new CadTianzhengProbeSignature("TCH_INDEXPOINTER", 5, 1, groupCodes);
         var observation = new CadTianzhengProbeDiff(
             "TCH_INDEXPOINTER",
             new[] { new CadDxfCustomPayloadValueChange(4, 40, 1) });
