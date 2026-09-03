@@ -96,9 +96,9 @@ public sealed partial class CadSceneTranslator
             ["NativeSemanticsDecoded"] = bool.FalseString
         };
         var children = custom.ProxyPrimitives
-            .Select(ProxyGeometry)
-            .Where(geometry => geometry is not null)
-            .Select(geometry => new SceneNode(custom.ObjectId, geometry!, style: style, metadata: enriched))
+            .Select(primitive => ProxyNode(custom.ObjectId, primitive, style, enriched))
+            .Where(node => node is not null)
+            .Cast<SceneNode>()
             .ToArray();
         return children.Length == 0
             ? null
@@ -139,16 +139,45 @@ public sealed partial class CadSceneTranslator
         return new SceneNode(custom.ObjectId, new PolygonGeometry(outline), style: style, metadata: enriched);
     }
 
-    private static Geometry2D? ProxyGeometry(CadProxyPrimitive primitive)
-        => primitive switch
+    private static SceneNode? ProxyNode(ObjectId id, CadProxyPrimitive primitive, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
+    {
+        var enriched = new Dictionary<string, string>(metadata, StringComparer.Ordinal)
         {
-            CadProxyPolyline polyline when polyline.Points.Count >= 2 => new PolylineGeometry(polyline.Points),
-            CadProxyPolygon polygon when polygon.Points.Count >= 3 => new PolygonGeometry(polygon.Points),
-            CadProxyCircle circle when double.IsFinite(circle.Radius) && circle.Radius > double.Epsilon => new CircleGeometry(circle.Center, circle.Radius),
+            ["ProxySourceKind"] = primitive.SourceKind
+        };
+        return primitive switch
+        {
+            CadProxyPolyline polyline when polyline.Points.Count >= 2 => new SceneNode(id, new PolylineGeometry(polyline.Points), style: style, metadata: enriched),
+            CadProxyPolygon polygon when polygon.Points.Count >= 3 => new SceneNode(id, new PolygonGeometry(polygon.Points), style: style, metadata: enriched),
+            CadProxyCircle circle when double.IsFinite(circle.Radius) && circle.Radius > double.Epsilon => new SceneNode(id, new CircleGeometry(circle.Center, circle.Radius), style: style, metadata: enriched),
             CadProxyArc arc when double.IsFinite(arc.Radius) && arc.Radius > double.Epsilon && double.IsFinite(arc.StartRadians) && double.IsFinite(arc.SweepRadians)
-                => new ArcGeometry(arc.Center, arc.Radius, arc.StartRadians, arc.SweepRadians),
+                => new SceneNode(id, new ArcGeometry(arc.Center, arc.Radius, arc.StartRadians, arc.SweepRadians), style: style, metadata: enriched),
+            CadProxyText text when !string.IsNullOrEmpty(text.Text)
+                && double.IsFinite(text.Height)
+                && text.Height > double.Epsilon
+                && double.IsFinite(text.RotationRadians)
+                && double.IsFinite(text.WidthFactor)
+                && text.WidthFactor > double.Epsilon
+                && double.IsFinite(text.ObliqueAngleRadians)
+                => ProxyTextNode(id, text, style, enriched),
             _ => null
         };
+    }
+
+    private static SceneNode ProxyTextNode(ObjectId id, CadProxyText text, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
+    {
+        var geometry = new TextGeometry(text.Origin, text.Text, text.Height)
+        {
+            WidthFactor = text.WidthFactor,
+            ObliqueAngleRadians = text.ObliqueAngleRadians,
+            HorizontalAlignment = TextHorizontalAlignment2D.Left,
+            VerticalAlignment = TextVerticalAlignment2D.Baseline
+        };
+        var transform = Transform2D.Translation(text.Origin.X, text.Origin.Y)
+            .Then(Transform2D.Rotation(text.RotationRadians))
+            .Then(Transform2D.Translation(-text.Origin.X, -text.Origin.Y));
+        return new SceneNode(id, geometry, transform, style, metadata: metadata);
+    }
 
     private static SceneNode? HatchNode(CadHatchEntity hatch, CadColor effectiveColor, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
     {
