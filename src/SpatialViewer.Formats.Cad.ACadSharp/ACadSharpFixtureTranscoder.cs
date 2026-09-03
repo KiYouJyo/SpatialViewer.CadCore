@@ -116,30 +116,6 @@ public static class ACadSharpFixtureTranscoder
         writer.Write();
     }
 
-    public static void WriteTableCacheDxf(string dxfPath)
-    {
-        var document = new global::ACadSharp.CadDocument();
-        document.CreateDefaults();
-
-        // AutoCAD TABLE entities use an anonymous block as their display cache. The fixture is
-        // deliberately minimal: fidelity is proven from that real cache relationship rather than
-        // from a second CadCore-specific table renderer.
-        var tableCache = new BlockRecord("*T901") { IsAnonymous = true };
-        tableCache.Entities.Add(new Line
-        {
-            StartPoint = new XYZ(0, 0, 0),
-            EndPoint = new XYZ(20, 0, 0)
-        });
-        document.BlockRecords.Add(tableCache);
-        document.Entities.Add(new TableEntity(tableCache)
-        {
-            InsertPoint = new XYZ(100, 50, 0)
-        });
-
-        using var writer = new DxfWriter(dxfPath, document, false);
-        writer.Write();
-    }
-
     public static void WriteTextFidelityDxf(string dxfPath)
     {
         var document = new global::ACadSharp.CadDocument();
