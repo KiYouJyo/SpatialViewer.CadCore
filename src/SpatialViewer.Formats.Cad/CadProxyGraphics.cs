@@ -19,3 +19,17 @@ public sealed record CadProxyCircle(Point2D Center, double Radius)
 
 public sealed record CadProxyArc(Point2D Center, double Radius, double StartRadians, double SweepRadians)
     : CadProxyPrimitive("CircularArc");
+
+/// <summary>
+/// Display-only text presentation supplied by a proxy-graphics stream. This retains only the
+/// presentation fields explicitly exposed by the reader and is not a native custom-object semantic.
+/// </summary>
+public sealed record CadProxyText(
+    Point2D Origin,
+    string Text,
+    double Height,
+    double RotationRadians,
+    double WidthFactor,
+    double ObliqueAngleRadians,
+    string ProxyTextKind)
+    : CadProxyPrimitive(ProxyTextKind);
