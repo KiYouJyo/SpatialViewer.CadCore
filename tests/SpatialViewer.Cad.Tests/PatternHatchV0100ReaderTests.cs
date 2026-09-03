@@ -23,8 +23,9 @@ public sealed class PatternHatchV0100ReaderTests
 
             Assert.False(hatch.IsSolid);
             Assert.Equal("CadCorePattern", hatch.PatternName);
+            Assert.Equal(Math.PI / 4, hatch.PatternAngleRadians, 10);
             var line = Assert.Single(hatch.PatternLines);
-            Assert.Equal(0, line.AngleRadians, 8);
+            Assert.Equal(Math.PI / 3, line.AngleRadians, 10);
             Assert.Equal(new Point2D(0, 1), line.BasePoint);
             Assert.Equal(new Vector2D(0, 2), line.Offset);
             Assert.Equal(new[] { 2d, -1d }, line.DashLengths);
@@ -48,12 +49,12 @@ public sealed class PatternHatchV0100ReaderTests
         {
             IsSolid = false,
             Pattern = new HatchPattern("CadCorePattern"),
-            PatternAngle = 0,
+            PatternAngle = Math.PI / 4,
             PatternScale = 1
         };
         hatch.Pattern.Lines.Add(new HatchPattern.Line
         {
-            Angle = 0,
+            Angle = Math.PI / 3,
             BasePoint = new XY(0, 1),
             Offset = new XY(0, 2),
             DashLengths = new List<double> { 2, -1 }
