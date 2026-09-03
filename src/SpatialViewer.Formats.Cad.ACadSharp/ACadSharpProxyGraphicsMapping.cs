@@ -53,6 +53,7 @@ public static class ACadSharpProxyGraphicsMapping
                 ? new CadProxyPolyline(points)
                 : null,
             ProxyPolyline polyline when TryPoints(polyline.Points, 2, out var points) => new CadProxyPolyline(points),
+            ProxyLwPolyine polyline when TryLwPolyline(polyline, out var mappedPolyline) => mappedPolyline,
             ProxyPolygon polygon when TryPoints(polygon.Points, 3, out var points) => new CadProxyPolygon(points),
             ProxyCircle circle when IsPlanar(circle.Normal) && IsPositiveFinite(circle.Radius) && TryPoint(circle.Center, out var center)
                 => new CadProxyCircle(center, circle.Radius),
@@ -100,6 +101,41 @@ public static class ACadSharpProxyGraphicsMapping
         => IsPlanar(normal) && normal.Z > 0;
 
     private static bool IsPositiveFinite(double value) => double.IsFinite(value) && value > Epsilon;
+
+    private static bool TryLwPolyline(ProxyLwPolyine proxy, out CadProxyLwPolyline mapped)
+    {
+        mapped = null!;
+        var entity = proxy.Entity;
+        if (entity is null
+            || !IsPositiveFacingPlanar(entity.Normal)
+            || entity.Vertices.Count < 2
+            || !double.IsFinite(entity.Elevation)
+            || !double.IsFinite(entity.ConstantWidth)
+            || Math.Abs(entity.ConstantWidth) > Epsilon
+            || !double.IsFinite(entity.Thickness)
+            || Math.Abs(entity.Thickness) > Epsilon)
+            return false;
+
+        var points = new List<Point2D>(entity.Vertices.Count);
+        var bulges = new List<double>(entity.Vertices.Count);
+        foreach (var vertex in entity.Vertices)
+        {
+            if (!double.IsFinite(vertex.Location.X)
+                || !double.IsFinite(vertex.Location.Y)
+                || !double.IsFinite(vertex.Bulge)
+                || !double.IsFinite(vertex.StartWidth)
+                || !double.IsFinite(vertex.EndWidth)
+                || Math.Abs(vertex.StartWidth) > Epsilon
+                || Math.Abs(vertex.EndWidth) > Epsilon)
+                return false;
+
+            points.Add(new Point2D(vertex.Location.X, vertex.Location.Y));
+            bulges.Add(vertex.Bulge);
+        }
+
+        mapped = new CadProxyLwPolyline(points, bulges, entity.IsClosed);
+        return true;
+    }
 
     private static bool TryProxyText(
         CSMath.XYZ normal,
