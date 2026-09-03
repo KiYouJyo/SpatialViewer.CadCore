@@ -11,10 +11,24 @@ public sealed class TianzhengProbeExperimentCasesV0120Tests
         var cases = CadTianzhengProbeExperimentCases.All.ToDictionary(item => item.Id, StringComparer.Ordinal);
 
         Assert.Equal(4, cases.Count);
+        Assert.All(cases.Values, item => Assert.True(item.CanClearReleaseGate));
         Assert.Equal("TCH_AXIS_LABEL", cases[CadTianzhengProbeExperimentCases.AxisLabelText].DxfName);
         Assert.Equal("TCH_DRAWINGINDEX", cases[CadTianzhengProbeExperimentCases.DrawingIndexText].DxfName);
         Assert.Equal("TCH_INDEXPOINTER", cases[CadTianzhengProbeExperimentCases.IndexPointerText].DxfName);
         Assert.Equal("TCH_DIMENSION2", cases[CadTianzhengProbeExperimentCases.DimensionPlotScale].DxfName);
+    }
+
+    [Fact]
+    public void ModernDimensionResearchCaseIsCanonicalButSeparatedFromReleaseGates()
+    {
+        var research = Assert.Single(CadTianzhengProbeExperimentCases.ResearchOnly);
+        var resolved = CadTianzhengProbeExperimentCases.Resolve(CadTianzhengProbeExperimentCases.ModernDimensionPlotScale);
+
+        Assert.Equal(CadTianzhengProbeExperimentCases.ModernDimensionPlotScale, research.Id);
+        Assert.Equal("TCH_DIMENSION", research.DxfName);
+        Assert.False(research.CanClearReleaseGate);
+        Assert.Equal(research, resolved);
+        Assert.DoesNotContain(CadTianzhengProbeExperimentCases.All, item => item.Id == research.Id);
     }
 
     [Fact]
@@ -95,11 +109,45 @@ public sealed class TianzhengProbeExperimentCasesV0120Tests
         var stable = Assert.Single(consensus.StructuralConsensus.StableValueChanges);
 
         Assert.Equal(CadTianzhengProbeExperimentCases.AxisLabelText, consensus.ExperimentCase.Id);
+        Assert.True(consensus.ExperimentCase.CanClearReleaseGate);
         Assert.Equal(2, consensus.StructuralConsensus.ObservationCount);
         Assert.Equal(2, stable.GroupIndex);
         Assert.Equal(40, stable.Code);
         Assert.Equal(1, stable.CodeOccurrence);
         Assert.True(consensus.HasStableCandidate);
+    }
+
+    [Fact]
+    public void ResearchOnlyModernDimensionCanBuildAnonymousConsensusWithoutBecomingGate()
+    {
+        var signature = CadTianzhengProbeOutputParser.ParseSignature("""
+            [TCHSIG] Object type=TCH_DIMENSION
+            [TCHSIG] Entry count=5
+            [TCHSIG] Subclass marker count=1
+            [TCHSIG] code-signature=0,100,47,40,47
+            """);
+        var first = CadTianzhengProbeExperimentParser.Parse("""
+            [TCHDIFF] Case=DIMENSION_PLOT_SCALE_MODERN
+            [TCHDIFF] Object type=TCH_DIMENSION
+            [TCHDIFF] changed slot=2 code=47 occurrence=1
+            [TCHDIFF] changed slot=3 code=40 occurrence=1
+            """);
+        var second = CadTianzhengProbeExperimentParser.Parse("""
+            [TCHDIFF] Case=DIMENSION_PLOT_SCALE_MODERN
+            [TCHDIFF] Object type=TCH_DIMENSION
+            [TCHDIFF] changed slot=2 code=47 occurrence=1
+            [TCHDIFF] changed slot=4 code=47 occurrence=2
+            """);
+
+        var consensus = CadTianzhengProbeExperimentParser.BuildConsensus(signature, new[] { first, second });
+        var stable = Assert.Single(consensus.StructuralConsensus.StableValueChanges);
+
+        Assert.Equal(CadTianzhengProbeExperimentCases.ModernDimensionPlotScale, consensus.ExperimentCase.Id);
+        Assert.False(consensus.ExperimentCase.CanClearReleaseGate);
+        Assert.Equal("TCH_DIMENSION", consensus.ExperimentCase.DxfName);
+        Assert.Equal(2, stable.GroupIndex);
+        Assert.Equal(47, stable.Code);
+        Assert.Equal(1, stable.CodeOccurrence);
     }
 
     [Fact]
