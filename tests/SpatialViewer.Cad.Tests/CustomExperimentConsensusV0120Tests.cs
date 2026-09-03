@@ -38,10 +38,17 @@ public sealed class CustomExperimentConsensusV0120Tests
         var layoutMismatch = CadCustomExperimentAnalyzer.ObserveDxf(
             DxfEntity("300", Payload(new(100, "TDbColumn"), new(40, "800"))),
             DxfEntity("301", Payload(new(100, "TDbColumn"), new(41, "900"))));
+        var weakIdentity = new CadDxfCustomExperimentObservation(
+            new CadCustomExperimentIdentity("TCH_COLUMN", string.Empty, string.Empty),
+            comparable.Status,
+            comparable.BeforeFingerprint,
+            comparable.AfterFingerprint,
+            comparable.ValueChanges);
 
         Assert.Throws<ArgumentException>(() => CadCustomExperimentAnalyzer.BuildDxfConsensus(new[] { comparable }));
         Assert.Throws<ArgumentException>(() => CadCustomExperimentAnalyzer.BuildDxfConsensus(new[] { comparable, otherIdentity }));
         Assert.Throws<ArgumentException>(() => CadCustomExperimentAnalyzer.BuildDxfConsensus(new[] { comparable, layoutMismatch }));
+        Assert.Throws<ArgumentException>(() => CadCustomExperimentAnalyzer.BuildDxfConsensus(new[] { comparable, weakIdentity }));
     }
 
     [Fact]
@@ -126,7 +133,7 @@ public sealed class CustomExperimentConsensusV0120Tests
         Assert.DoesNotContain(privateRawBefore, json, StringComparison.Ordinal);
         Assert.DoesNotContain(privateRawAfter, json, StringComparison.Ordinal);
         Assert.DoesNotContain(privateHandle, json, StringComparison.Ordinal);
-        Assert.DoesNotContain("222173190239", json, StringComparison.Ordinal);
+        Assert.DoesNotContain(Convert.ToHexString(privateBytes), json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("ObjectSectionOffset", json, StringComparison.Ordinal);
     }
 
