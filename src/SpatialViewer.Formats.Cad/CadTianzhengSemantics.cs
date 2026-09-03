@@ -55,6 +55,17 @@ public sealed record CadTianzhengOpeningAnchorSemantic(
 }
 
 /// <summary>
+/// Partial native evidence for a Tianzheng column. Published AutoLISP that rounds architectural object
+/// coordinates handles *_COLUMN specially and explicitly reads point group 11 as the column insertion point.
+/// Section shape/dimensions, rotation, height, material, and native column geometry remain undecoded.
+/// </summary>
+public sealed record CadTianzhengColumnAnchorSemantic(
+    Point2D InsertionPoint,
+    double? Elevation,
+    string DecoderProfile)
+    : CadCustomSemantic(DecoderProfile);
+
+/// <summary>
 /// Partial native evidence for a Tianzheng elevation symbol. Public Tianzheng-oriented AutoLISP examples
 /// identify point group 10 as the insertion point and group 1 as the elevation text. Group 47 is retained
 /// only as an optional plot-scale value because that mapping is explicitly documented by the same examples.
@@ -102,6 +113,7 @@ public static class CadTianzhengSemanticDecoder
     public const string WallDirectProfile = "TCH_WALL_DIRECT_10_11";
     public const string WallPacked300Profile = "TCH_WALL_PACKED_300_UTF16LE";
     public const string OpeningAnchorDirectProfile = "TCH_OPENING_ANCHOR_10";
+    public const string ColumnAnchorDirectProfile = "TCH_COLUMN_ANCHOR_11";
     public const string ElevationTextDirectProfile = "TCH_ELEVATION_TEXT_10_1";
     public const string SpaceNameNumberDirectProfile = "TCH_SPACE_NAME_NUMBER_10_1_2";
     public const string DrawingNameTextDirectProfile = "TCH_DRAWINGNAME_TEXT_1";
@@ -116,6 +128,8 @@ public static class CadTianzhengSemanticDecoder
             return TryDecodePackedWall(payload) ?? TryDecodeDirectWall(payload);
         if (IsTianzhengOpening(sourceEntityType, classDefinition, payload))
             return TryDecodeOpeningAnchor(payload);
+        if (IsTianzhengColumn(sourceEntityType, classDefinition))
+            return TryDecodeColumnAnchor(payload);
         if (IsTianzhengElevation(sourceEntityType, classDefinition, payload))
             return TryDecodeElevation(payload);
         if (IsTianzhengSpace(sourceEntityType, classDefinition, payload))
@@ -152,6 +166,12 @@ public static class CadTianzhengSemanticDecoder
         return payload.Groups.Any(group => group.Code == 100 && string.Equals(group.RawValue.Trim(), "TDbOpening", StringComparison.OrdinalIgnoreCase))
             || string.Equals(classDefinition?.CppClassName, "TDbOpening", StringComparison.OrdinalIgnoreCase);
     }
+
+    private static bool IsTianzhengColumn(
+        string sourceEntityType,
+        CadCustomClassDefinition? classDefinition)
+        => string.Equals(sourceEntityType, "TCH_COLUMN", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(classDefinition?.DxfName, "TCH_COLUMN", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsTianzhengElevation(
         string sourceEntityType,
@@ -198,6 +218,17 @@ public static class CadTianzhengSemanticDecoder
         {
             Number = string.IsNullOrWhiteSpace(rawNumber) ? null : rawNumber
         };
+    }
+
+    private static CadTianzhengColumnAnchorSemantic? TryDecodeColumnAnchor(CadDxfCustomPayload payload)
+    {
+        if (!TryNumber(payload, 11, out var x) || !TryNumber(payload, 21, out var y)) return null;
+        var insertionPoint = new Point2D(x, y);
+        if (!Finite(insertionPoint)) return null;
+        return new CadTianzhengColumnAnchorSemantic(
+            insertionPoint,
+            OptionalNumber(payload, 31),
+            ColumnAnchorDirectProfile);
     }
 
     private static CadTianzhengElevationSemantic? TryDecodeElevation(CadDxfCustomPayload payload)
