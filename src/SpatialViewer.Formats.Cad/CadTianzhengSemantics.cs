@@ -79,6 +79,17 @@ public sealed record CadTianzhengSpaceSemantic(
     : CadCustomSemantic(DecoderProfile);
 
 /// <summary>
+/// Partial native evidence for a Tianzheng drawing-name annotation. Multiple public AutoLISP examples read
+/// group 1 from TCH_DRAWINGNAME as the displayed drawing-name text and map the same value to the NameText
+/// ActiveX property. No public evidence used by this profile establishes insertion-point, scale, underline,
+/// index-pointer, or native symbol geometry fields, so only the text itself is promoted to semantics.
+/// </summary>
+public sealed record CadTianzhengDrawingNameSemantic(
+    string Text,
+    string DecoderProfile)
+    : CadCustomSemantic(DecoderProfile);
+
+/// <summary>
 /// Evidence-gated Tianzheng native decoder. A profile succeeds only when the raw payload matches a
 /// known layout. Unknown or malformed payloads remain preserved without speculative semantics.
 /// </summary>
@@ -89,6 +100,7 @@ public static class CadTianzhengSemanticDecoder
     public const string OpeningAnchorDirectProfile = "TCH_OPENING_ANCHOR_10";
     public const string ElevationTextDirectProfile = "TCH_ELEVATION_TEXT_10_1";
     public const string SpaceNameNumberDirectProfile = "TCH_SPACE_NAME_NUMBER_10_1_2";
+    public const string DrawingNameTextDirectProfile = "TCH_DRAWINGNAME_TEXT_1";
 
     public static CadCustomSemantic? Decode(
         string sourceEntityType,
@@ -104,6 +116,8 @@ public static class CadTianzhengSemanticDecoder
             return TryDecodeElevation(payload);
         if (IsTianzhengSpace(sourceEntityType, classDefinition, payload))
             return TryDecodeSpace(payload);
+        if (IsTianzhengDrawingName(sourceEntityType, classDefinition))
+            return TryDecodeDrawingName(payload);
         return null;
     }
 
@@ -161,6 +175,12 @@ public static class CadTianzhengSemanticDecoder
         return payload.Groups.Any(group => group.Code == 100 && string.Equals(group.RawValue.Trim(), "TDbSpace", StringComparison.OrdinalIgnoreCase));
     }
 
+    private static bool IsTianzhengDrawingName(
+        string sourceEntityType,
+        CadCustomClassDefinition? classDefinition)
+        => string.Equals(sourceEntityType, "TCH_DRAWINGNAME", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(classDefinition?.DxfName, "TCH_DRAWINGNAME", StringComparison.OrdinalIgnoreCase);
+
     private static CadTianzhengOpeningAnchorSemantic? TryDecodeOpeningAnchor(CadDxfCustomPayload payload)
     {
         if (!TryNumber(payload, 10, out var x) || !TryNumber(payload, 20, out var y)) return null;
@@ -201,6 +221,14 @@ public static class CadTianzhengSemanticDecoder
             nameGroup.RawValue,
             numberGroup.RawValue,
             SpaceNameNumberDirectProfile);
+    }
+
+    private static CadTianzhengDrawingNameSemantic? TryDecodeDrawingName(CadDxfCustomPayload payload)
+    {
+        var text = payload.Groups.FirstOrDefault(group => group.Code == 1)?.RawValue;
+        return string.IsNullOrWhiteSpace(text)
+            ? null
+            : new CadTianzhengDrawingNameSemantic(text, DrawingNameTextDirectProfile);
     }
 
     private static CadTianzhengWallSemantic? TryDecodeDirectWall(CadDxfCustomPayload payload)
