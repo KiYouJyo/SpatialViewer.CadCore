@@ -58,13 +58,18 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
             var tianzhengClasses = customClasses.Where(definition => definition.IsTianzheng).ToArray();
             var tianzhengEntities = customEntities.Where(entity => entity.IsTianzheng).ToArray();
             var rawScan = ACadSharpCustomPayloadContext.Snapshot() ?? DxfCustomPayloadScanResult.Empty;
+            var paperLayouts = layouts.Where(layout => layout.IsPaperSpace).ToArray();
             var metadata = new Dictionary<string, string>
             {
                 ["Reader"] = "ACadSharp",
                 ["ReaderVersion"] = typeof(CadDocument).Assembly.GetName().Version?.ToString() ?? "unknown",
                 ["EntityCount"] = entities.Length.ToString(CultureInfo.InvariantCulture),
                 ["BlockCount"] = blocks.Length.ToString(CultureInfo.InvariantCulture),
+                ["AnonymousBlockDefinitionCount"] = blocks.Count(block => block.Name.StartsWith('*')).ToString(CultureInfo.InvariantCulture),
                 ["LayoutCount"] = layouts.Length.ToString(CultureInfo.InvariantCulture),
+                ["PaperLayoutCount"] = paperLayouts.Length.ToString(CultureInfo.InvariantCulture),
+                ["PaperSpaceEntityCount"] = paperLayouts.Sum(layout => layout.Entities.Count).ToString(CultureInfo.InvariantCulture),
+                ["PaperViewportCount"] = paperLayouts.Sum(layout => layout.Viewports.Count).ToString(CultureInfo.InvariantCulture),
                 ["LineTypeScale"] = globalLineTypeScale.ToString(CultureInfo.InvariantCulture),
                 ["ShxSearchDirectoryCount"] = shxFonts.SearchDirectoryCount.ToString(CultureInfo.InvariantCulture),
                 ["ShxRequestedFontCount"] = shxFonts.RequestedFontCount.ToString(CultureInfo.InvariantCulture),
@@ -336,7 +341,7 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
         foreach (var record in EnumerableProperty(source, "BlockRecords"))
         {
             var name = StringProperty(record, "Name");
-            if (string.IsNullOrWhiteSpace(name) || name.StartsWith('*')) continue;
+            if (string.IsNullOrWhiteSpace(name) || IsSpaceBlockRecordName(name)) continue;
             var block = Property(record, "Block") ?? record;
             var basePoint = Point(Property(block, "BasePoint"));
             var entities = EnumerableProperty(record, "Entities").OfType<Entity>().Select(entity => MapEntity(entity, diagnostics, globalLineTypeScale)).ToArray();
@@ -404,6 +409,10 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
     }
 
     private static BoundingBox2D Bounds(Point2D first, Point2D second) => new(Math.Min(first.X, second.X), Math.Min(first.Y, second.Y), Math.Max(first.X, second.X), Math.Max(first.Y, second.Y));
+
+    private static bool IsSpaceBlockRecordName(string name)
+        => name.StartsWith("*Model_Space", StringComparison.OrdinalIgnoreCase)
+            || name.StartsWith("*Paper_Space", StringComparison.OrdinalIgnoreCase);
 
     private static void ValidateBlockReferences(IEnumerable<CadEntity> entities, IReadOnlyList<CadBlockDefinition> blocks, List<Diagnostic> diagnostics)
     {
