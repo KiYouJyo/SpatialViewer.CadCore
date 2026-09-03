@@ -1,6 +1,7 @@
 using System.Text;
 using ACadSharp.Classes;
 using ACadSharp.IO;
+using SpatialViewer.Core;
 using SpatialViewer.Formats.Cad;
 using SpatialViewer.Formats.Cad.ACadSharp;
 
