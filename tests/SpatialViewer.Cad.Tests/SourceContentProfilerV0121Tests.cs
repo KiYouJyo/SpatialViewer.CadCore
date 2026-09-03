@@ -42,10 +42,10 @@ public sealed class SourceContentProfilerV0121Tests
         Assert.Equal(3, profile.ModelSpaceEntityCount);
         Assert.Equal(1, profile.PaperSpaceEntityCount);
         Assert.True(profile.PaperViewportCount >= 1);
-        Assert.Equal(2, profile.ModelSpaceBlockReferenceCount + profile.TableEntityCount - 1);
+        Assert.Equal(3, profile.ModelSpaceBlockReferenceCount);
         Assert.Equal(1, profile.PaperSpaceBlockReferenceCount);
-        Assert.True(profile.AnonymousBlockDefinitionCount >= 2);
-        Assert.True(profile.AnonymousBlockReferenceCount >= 2);
+        Assert.Equal(2, profile.AnonymousBlockDefinitionCount);
+        Assert.Equal(3, profile.AnonymousBlockReferenceCount);
         Assert.Equal(1, profile.TableEntityCount);
         Assert.Equal(1, profile.TableCacheBlockDefinitionCount);
         Assert.Equal(1, profile.ExternalReferenceDefinitionCount);
