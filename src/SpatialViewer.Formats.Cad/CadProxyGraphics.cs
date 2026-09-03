@@ -5,10 +5,11 @@ namespace SpatialViewer.Formats.Cad;
 /// <summary>
 /// Display-only subentity trait overrides captured from an ObjectARX proxy-graphics stream.
 /// Null values inherit the containing CAD custom entity's already-resolved presentation.
+/// LayerIndex is retained as provenance until the source reader can prove an index-to-layer mapping.
 /// </summary>
-public readonly record struct CadProxyTraits(CadColor? Color = null, int? LineWeight = null)
+public readonly record struct CadProxyTraits(CadColor? Color = null, int? LineWeight = null, int? LayerIndex = null)
 {
-    public bool HasOverrides => Color is not null || LineWeight is not null;
+    public bool HasOverrides => Color is not null || LineWeight is not null || LayerIndex is not null;
 }
 
 /// <summary>
