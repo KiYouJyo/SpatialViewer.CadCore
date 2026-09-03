@@ -6,37 +6,49 @@
 
 ### 2026-09-03 当前增量
 
-在既有验收矩阵之后，主线又完成了以下增量：
+在既有验收矩阵之后，main 已合并以下能力：
 
-- **Corpus schema v3**：匿名 Tianzheng schema corpus 现在分别统计 `PartialSemanticEntityCount` 与 `Drawable2DSemanticEntityCount`，并要求二者之和严格等于 `NativeSemanticEntityCount`。旧 schema v2 JSON fail closed，不静默补零。
-- **`TCH_DRAWINGNAME` — Partial**：公开 AutoLISP 证据明确将 raw group 1 作为图名文字读取，并与 ActiveX `NameText` 对应。CadCore 仅恢复 `Text`；不声明插入点、比例、下划线、索引号、索引关系或 native 图名符号几何。
-- **Privacy-safe DXF A/B payload differ**：`CadDxfCustomPayloadDiffer` 对 group-code 布局完全一致的两份 raw DXF custom payload，仅报告发生变化的 group index / code / occurrence；不输出原始值。布局变化时只报告结构差异，不进行启发式对齐；truncated 输入拒绝逐值比较。
-- **Entity-level identity gate**：DXF A/B differ 新增 `Compare(CadCustomEntity before, CadCustomEntity after)` 作为推荐入口。比较前要求有效 DXF identity 一致；双方已知时 C++ class 与 application identity 也必须一致；两侧都必须存在 raw DXF evidence。身份不一致或 evidence 缺失会在产生候选差异前 fail closed，异常信息不包含 handle 或 raw value。
-- **Privacy-safe DWG A/B object-record differ**：`CadDwgCustomObjectRecordDiffer` 将同一研究流程扩展到现代 DWG retained object record。同长度记录仅报告相同 byte offset 上的连续变化区间；长度变化时仅报告长度差异与精确 common prefix，不执行 LCS/heuristic alignment；truncated 输入不做逐 byte 差分。实体级入口复用 DXF/C++/application identity gate，并要求两侧 raw DWG evidence；报告不包含 raw bytes、object-section offset、handle、路径或 source SHA。changed byte range 仍只是 evidence，不是 Tianzheng 参数映射。
+- **Corpus schema v3**：匿名 Tianzheng schema corpus 分别统计 `PartialSemanticEntityCount` 与 `Drawable2DSemanticEntityCount`，且二者之和必须严格等于 `NativeSemanticEntityCount`。旧 schema v2 JSON fail closed。
+- **`TCH_DRAWINGNAME` — Partial**：raw group 1 → 图名文字；仅恢复 `Text`，不声明插入点、比例、下划线、索引号、索引关系或 native 图名几何。
+- **`TCH_OPENING` — Partial 增强**：在既有 group 10/20 anchor、可选 Z 与 opening→wall relationship 之上，新增证据明确的 raw group 302 → 门窗编号 `Number`。编号缺失/空白不阻断 anchor semantic；宽、高、窗台高、类型和 native opening geometry 仍保持未知。
+- **`TCH_COLUMN` — Partial**：公开可运行 AutoLISP 明确将 `assoc 11` 标注为“柱插入点”并通过 `entmod/entupd` 修改它。CadCore 仅恢复 point 11/21 与可选 31 为 `CadTianzhengColumnAnchorSemantic`；截面宽高、形状、转角、柱高、材料和 native 柱轮廓均未声明支持。
+- **Privacy-safe DXF A/B differ**：只报告 changed group index / code / occurrence，不输出 before/after raw value；layout 改变时不做 heuristic alignment；truncated 输入 fail closed。
+- **Entity-level identity gate**：A/B 比较要求有效 DXF identity 一致；双方已知时 C++ class 与 application identity 也必须一致；缺 raw evidence 或身份不一致时在产生候选差异前拒绝。
+- **Privacy-safe DWG A/B differ**：同长度 retained object record 只报告连续 changed byte ranges；长度变化只报告长度差异与 exact common prefix；不输出 raw bytes、object-section offset、handle、路径或 SHA，也不把 byte range 直接解释成 Tianzheng Databits 字段。
+- **Repeatability consensus**：`CadCustomExperimentAnalyzer` 要求至少两组独立 A/B observation。DXF 只保留每组都稳定变化的 group slot；DWG 只保留每组 changed range 的严格区间交集。identity、schema、byte count 或 capture method 不一致均 fail closed。stable candidate 仍只是 evidence，不会自动命名为柱宽、梯高或尺寸比例。
 
 ### 轴网范围澄清
 
-公开天正手册说明，**轴网线本身不是天正自定义对象**：DOTE 图层上的普通 AutoCAD `LINE`、`ARC`、`CIRCLE` 可直接被天正识别为轴线。CadCore 已通过通用 CAD primitive 管线支持这些几何，因此 v0.12 不需要再为普通轴线复制一套 Tianzheng native decoder。
+公开天正手册说明，**轴网线本身不是 proprietary custom object**：DOTE 图层上的普通 AutoCAD `LINE`、`ARC`、`CIRCLE` 可作为轴线使用。CadCore 已通过通用 primitive 管线支持这些几何。
 
-真正仍需 proprietary semantic 的部分是**轴号 / axis-label 系统**以及相关的天正尺寸标注对象。这个澄清不是缩小 v0.11.0 已承诺的“轴网”范围，而是把 gate 精确定位到其中真正依赖天正自定义对象语义的部分。
+因此 v0.12 在“轴网”类别真正剩余的 proprietary gate 是 **轴号 / axis-label system** 及相关天正尺寸标注，而不是重新实现普通轴线几何。
 
-### 对验收矩阵的影响
+### 当前 gate 状态
 
-`TCH_DRAWINGNAME` 本身已从 Evidence-only 推进到 **Partial**，但这**不等于索引/图名类别整体通过 gate**。`TCH_INDEXPOINTER` / `TCH_DRAWINGINDEX` 尚未获得可靠的 raw group → 参数映射，因此索引/图名 family 继续阻塞 v0.12 正式升版。
+已满足至少 Partial semantic：
 
-DXF/DWG A/B differ 都属于研究工具，不计入 native semantic gate。它们为柱、轴号、楼梯、尺寸、索引等剩余 blocker 建立可重复的单变量实验流程：在天正中仅修改一个已知属性，比较前后 raw evidence 的结构槽位或 byte range，再用第二组独立样本和公开资料交叉验证后，才允许把候选位置命名为 semantic 字段。实体级 identity gate 阻止把不同 custom class 或不同已知应用误当成同一 A/B profile；DWG byte range 也不得直接解释为 proprietary Databits 字段。
+- `TCH_WALL` — **Drawable2D**；
+- `TCH_OPENING` — **Partial**；
+- `TCH_SPACE` — **Partial**；
+- `TCH_ELEVATION` — **Partial**；
+- `TCH_DRAWINGNAME` — **Partial**；
+- `TCH_COLUMN` — **Partial**。
 
-### 当前 release blocker
+仍阻塞 v0.12 正式升版的 4 类：
 
-仍需至少达到 Partial semantic：
+1. 自定义轴号 / `TCH_AXIS_LABEL` family；
+2. `TCH_LINESTAIR` / `TCH_RECTSTAIR` 楼梯；
+3. `TCH_INDEXPOINTER` / `TCH_DRAWINGINDEX` 等索引对象；
+4. `TCH_DIMENSION2` 等天正尺寸对象。
 
-- `TCH_COLUMN` 柱；
-- 自定义轴号 / axis-label family（普通 `LINE` / `ARC` / `CIRCLE` 轴线已由通用 CAD 管线覆盖）；
-- `TCH_LINESTAIR` / `TCH_RECTSTAIR` 楼梯；
-- `TCH_INDEXPOINTER` / `TCH_DRAWINGINDEX` 等索引对象；
-- `TCH_DIMENSION2` 等天正尺寸对象。
+这 4 类都必须至少取得一组**可明确命名、外部证据支持、真实 Reader 回归且 fail-closed** 的 raw field → semantic 映射，才能解除对应 gate。仅有类型登记、Proxy Graphics、raw payload、corpus 或 A/B candidate 不算完成。
 
-产品版本继续保持 `0.11.0`，CLR ABI 保持 `1.0.0.0`，Host Contract 保持 `SpatialViewer.CadHost >=1.0.0,<2.0.0`。
+### 当前发布结论
+
+- Product/File/Informational version 继续保持 `0.11.0`。
+- CLR ABI 继续保持 `1.0.0.0`。
+- Host Contract 继续保持 `SpatialViewer.CadHost >=1.0.0,<2.0.0`。
+- v0.12 **尚未达到正式发布条件**；剩余 4 个 semantic blocker 全部解除后才进入最终版本升档、三语 release notes、完整 CI、tag 与 publish 收尾。
 
 ---
 
@@ -44,37 +56,49 @@ DXF/DWG A/B differ 都属于研究工具，不计入 native semantic gate。它�
 
 ### Current delta — 2026-09-03
 
-The following work has landed after the acceptance baseline was written:
+The following work has landed on `main` after the original acceptance matrix:
 
-- **Corpus schema v3**: the anonymized Tianzheng schema corpus now records `PartialSemanticEntityCount` and `Drawable2DSemanticEntityCount` separately and requires their sum to equal `NativeSemanticEntityCount`. Older v2 JSON fails closed instead of silently defaulting the new fields.
-- **`TCH_DRAWINGNAME` — Partial**: public AutoLISP evidence reads raw group 1 as drawing-name text and maps the same value to the ActiveX `NameText` property. CadCore recovers only `Text`; insertion point, scale, underline, index number, index relationships, and native drawing-title geometry remain explicit non-claims.
-- **Privacy-safe DXF A/B payload differ**: `CadDxfCustomPayloadDiffer` compares two raw custom DXF payloads. For identical group-code layouts it reports only changed group index/code/occurrence, never the before/after raw values. Layout changes are reported structurally without heuristic alignment, and truncated inputs are not value-diffed.
-- **Entity-level identity gate**: the preferred DXF A/B entry point is `Compare(CadCustomEntity before, CadCustomEntity after)`. Effective DXF identity must match; known C++ class and application identities must also match when present on both sides; both entities must contain raw DXF evidence. Identity/evidence failures occur before any candidate diff is produced, and exceptions do not expose handles or raw values.
-- **Privacy-safe DWG A/B object-record differ**: `CadDwgCustomObjectRecordDiffer` extends the same workflow to retained modern-DWG object records. Equal-length records report only contiguous changed ranges at identical byte offsets. Length changes report only the length mismatch and exact common prefix; no LCS/heuristic alignment is attempted. Truncated inputs are not byte-diffed. The entity overload reuses the DXF/C++/application identity gate and requires raw DWG evidence on both sides. Reports exclude raw bytes, object-section offsets, handles, paths, and source SHA values. A changed byte range remains evidence, not a decoded Tianzheng field.
+- **Corpus schema v3**: `PartialSemanticEntityCount` and `Drawable2DSemanticEntityCount` are tracked separately and must sum exactly to `NativeSemanticEntityCount`; older v2 JSON fails closed.
+- **`TCH_DRAWINGNAME` — Partial**: raw group 1 is promoted only as drawing-name `Text`. Insertion point, scale, underline, index number/relationship and native drawing-title geometry remain non-claims.
+- **`TCH_OPENING` — stronger Partial coverage**: on top of the established point-10 anchor, optional Z and opening→wall relationship, raw group 302 is now retained as optional opening/door-window `Number`. Missing/blank 302 does not invalidate the anchor profile. Width, height, sill/clearance, type and native opening geometry remain unknown.
+- **`TCH_COLUMN` — Partial**: published operational AutoLISP explicitly identifies `assoc 11` as the column insertion point and edits that point through `entmod/entupd`. CadCore recovers point 11/21 plus optional 31 only. Section dimensions/shape, rotation, column height, material and native column outline remain explicit non-claims.
+- **Privacy-safe DXF A/B differ**: reports changed group index/code/occurrence without retaining before/after raw values; structural changes are not heuristically aligned; truncated inputs fail closed.
+- **Entity-level identity gate**: effective DXF identity must match; known C++ class/application identities must also match when present on both sides; missing evidence or identity mismatch is rejected before candidate diff output.
+- **Privacy-safe DWG A/B differ**: equal-length retained object records report contiguous changed byte ranges only. Length changes report only length mismatch and exact common prefix. Raw bytes, object-section offsets, handles, paths and SHA values are excluded, and byte ranges are not labeled as Tianzheng Databits fields.
+- **Repeatability consensus**: `CadCustomExperimentAnalyzer` requires at least two independent observations. DXF consensus keeps only group slots changed in every observation; DWG consensus keeps only the strict interval intersection of changed ranges. Identity/schema/byte-count/capture-method mismatches fail closed. A stable candidate remains evidence, not an automatically named semantic field.
 
 ### Axis-grid scope clarification
 
-Public Tianzheng manuals state that the **axis grid lines themselves are not custom objects**. Ordinary AutoCAD `LINE`, `ARC`, and `CIRCLE` geometry on the DOTE layer can be recognized as axes. CadCore already supports those primitives through the generic CAD pipeline, so v0.12 does not need a separate proprietary decoder for ordinary axis-line geometry.
+Public Tianzheng manuals describe ordinary AutoCAD `LINE`, `ARC` and `CIRCLE` geometry on the DOTE layer as axis geometry. CadCore already handles those primitives through the generic CAD pipeline.
 
-The remaining proprietary gate is the **axis-number / axis-label system** plus related Tianzheng dimension annotations. This does not shrink the axis-grid scope declared by v0.11.0; it identifies which part of that scope actually depends on Tianzheng custom-object semantics.
+The remaining proprietary part of the v0.12 grid gate is therefore the **axis-number / axis-label system** and related Tianzheng dimension annotations, not ordinary axis-line geometry.
 
-### Effect on the acceptance matrix
+### Current gate state
 
-`TCH_DRAWINGNAME` itself has advanced from Evidence-only to **Partial**, but the **index/drawing-title category is still blocked**. Reliable raw group → parameter mappings are still missing for `TCH_INDEXPOINTER` / `TCH_DRAWINGINDEX`.
+At least Partial semantics are already satisfied for:
 
-Both DXF and DWG A/B differs are research tooling and do not count toward a native-semantic gate. Their purpose is to make controlled single-variable experiments repeatable for the remaining blockers: change exactly one known Tianzheng property, identify which structural raw slots or byte ranges changed, then require a second independent sample and external evidence before promoting any candidate location to a named semantic field. The entity-level identity gate prevents unrelated custom classes or known applications from being treated as one A/B profile, and DWG byte ranges must not be mislabeled as proprietary Databits fields.
+- `TCH_WALL` — **Drawable2D**;
+- `TCH_OPENING` — **Partial**;
+- `TCH_SPACE` — **Partial**;
+- `TCH_ELEVATION` — **Partial**;
+- `TCH_DRAWINGNAME` — **Partial**;
+- `TCH_COLUMN` — **Partial**.
 
-### Current release blockers
+Four categories still block v0.12 release:
 
-The following categories still need at least Partial semantics:
+1. custom axis-number / `TCH_AXIS_LABEL` family;
+2. `TCH_LINESTAIR` / `TCH_RECTSTAIR` stairs;
+3. `TCH_INDEXPOINTER` / `TCH_DRAWINGINDEX` index objects;
+4. `TCH_DIMENSION2` and related Tianzheng dimensions.
 
-- `TCH_COLUMN` columns;
-- custom axis-number / axis-label objects (ordinary `LINE` / `ARC` / `CIRCLE` axis geometry is already covered by the generic CAD pipeline);
-- `TCH_LINESTAIR` / `TCH_RECTSTAIR` stairs;
-- `TCH_INDEXPOINTER` / `TCH_DRAWINGINDEX` index objects;
-- `TCH_DIMENSION2` and related Tianzheng dimension objects.
+Each category must reach at least one **clearly named, externally evidenced raw-field → semantic mapping with a real Reader regression and fail-closed behavior**. Type registration, Proxy Graphics, raw capture, corpus data or A/B candidates alone do not clear a gate.
 
-Product version remains `0.11.0`, CLR ABI remains `1.0.0.0`, and Host Contract remains `SpatialViewer.CadHost >=1.0.0,<2.0.0`.
+### Release conclusion
+
+- Product/File/Informational version remains `0.11.0`.
+- CLR ABI remains `1.0.0.0`.
+- Host Contract remains `SpatialViewer.CadHost >=1.0.0,<2.0.0`.
+- v0.12 is **not release-ready**. Final version bump, trilingual release notes, full CI, tag and publish work happen only after all four remaining semantic blockers are cleared.
 
 ---
 
@@ -82,34 +106,46 @@ Product version remains `0.11.0`, CLR ABI remains `1.0.0.0`, and Host Contract r
 
 ### 2026-09-03 現在の追加進捗
 
-acceptance baseline 作成後、main には次の内容が追加されています。
+元の acceptance matrix 作成後、`main` には次の内容が追加されています。
 
-- **Corpus schema v3**：匿名 Tianzheng schema corpus は `PartialSemanticEntityCount` と `Drawable2DSemanticEntityCount` を分離して集計し、その合計が `NativeSemanticEntityCount` と完全一致することを検証します。旧 v2 JSON は新フィールドを暗黙にゼロ補完せず fail closed します。
-- **`TCH_DRAWINGNAME` — Partial**：公開 AutoLISP では raw group 1 が図名文字列として取得され、ActiveX `NameText` と対応しています。CadCore が semantic に昇格するのは `Text` のみです。挿入点、scale、下線、索引番号、索引 relationship、native 図名 geometry は未対応として明示します。
-- **Privacy-safe DXF A/B payload differ**：`CadDxfCustomPayloadDiffer` は同一 group-code layout の payload 同士で、変化した group index / code / occurrence だけを返し、前後の raw value は返しません。layout が異なる場合は heuristic alignment を行わず構造差分だけを返し、truncated input は value diff しません。
-- **Entity-level identity gate**：推奨 DXF A/B entry point として `Compare(CadCustomEntity before, CadCustomEntity after)` を追加しました。effective DXF identity は一致必須で、双方に既知 C++ class / application identity がある場合はそれらも一致必須です。両 entity に raw DXF evidence が必要で、不一致や evidence 欠落は candidate diff 生成前に fail closed します。例外 message に handle / raw value は含めません。
-- **Privacy-safe DWG A/B object-record differ**：`CadDwgCustomObjectRecordDiffer` により、modern DWG retained object record でも同じ A/B workflow を使用できます。同一長 record では同一 byte offset 上の連続 changed range だけを返します。長さが異なる場合は length mismatch と正確な common prefix のみを返し、LCS/heuristic alignment は行いません。truncated input は byte diff せず、entity overload は DXF/C++/application identity gate を再利用して両側の raw DWG evidence を要求します。report には raw bytes、object-section offset、handle、path、source SHA を含めません。changed byte range は evidence であり Tianzheng parameter mapping ではありません。
+- **Corpus schema v3**：`PartialSemanticEntityCount` と `Drawable2DSemanticEntityCount` を分離し、その合計が `NativeSemanticEntityCount` と完全一致することを必須化。旧 v2 JSON は fail closed。
+- **`TCH_DRAWINGNAME` — Partial**：raw group 1 のみを図名 `Text` として semantic に昇格。挿入点、scale、下線、索引番号/relationship、native 図名 geometry は未対応。
+- **`TCH_OPENING` — Partial 強化**：既存の point-10 anchor、optional Z、opening→wall relationship に加え、raw group 302 を optional `Number` として保持。302 が欠落/空白でも anchor semantic は成立し、幅、高さ、窓台高、type、native geometry は未解読のまま。
+- **`TCH_COLUMN` — Partial**：公開された実運用 AutoLISP が `assoc 11` を「柱挿入点」と明示し、`entmod/entupd` でその point を更新しています。CadCore は point 11/21 と optional 31 のみを `CadTianzhengColumnAnchorSemantic` に昇格。断面寸法/形状、回転角、柱高、material、native 柱輪郭は non-claim。
+- **Privacy-safe DXF A/B differ**：changed group index/code/occurrence のみを返し、raw before/after value は保持しません。structure change に heuristic alignment を行わず、truncated input は fail closed。
+- **Entity-level identity gate**：effective DXF identity 一致を必須化し、双方で既知の C++ class/application identity も一致必須。evidence 欠落/identity mismatch は candidate diff 生成前に拒否。
+- **Privacy-safe DWG A/B differ**：同一長 object record は連続 changed byte range のみを返し、長さ違いは length mismatch と exact common prefix のみ。raw bytes、object-section offset、handle、path、SHA を出力せず、range を Tianzheng Databits field と自動解釈しません。
+- **Repeatability consensus**：`CadCustomExperimentAnalyzer` は最低 2 組の独立 observation を要求。DXF は全 observation で安定して変化した group slot のみ、DWG は changed range の厳密な区間交差のみを candidate とします。identity/schema/byte-count/capture-method mismatch は fail closed。stable candidate は evidence であり semantic field 名ではありません。
 
 ### 軸網 scope の明確化
 
-公開 Tianzheng manual では、**軸線そのものは custom object ではありません**。DOTE layer 上の通常 AutoCAD `LINE` / `ARC` / `CIRCLE` は軸線として認識されます。これらは CadCore の generic CAD primitive pipeline ですでに対応しているため、通常の軸線 geometry 用に別 Tianzheng decoder を作る必要はありません。
+公開 Tianzheng manual では DOTE layer 上の通常 AutoCAD `LINE` / `ARC` / `CIRCLE` が軸線として扱われます。これらは CadCore の generic CAD primitive pipeline ですでに対応済みです。
 
-引き続き proprietary semantic が必要なのは **軸番号 / axis-label system** と関連する Tianzheng dimension annotation です。この整理は v0.11.0 で示した軸網 scope を縮小するものではなく、その中で実際に Tianzheng custom-object semantics に依存する部分を明確化するものです。
+したがって v0.12 の軸網カテゴリで残る proprietary gate は **軸番号 / axis-label system** と関連する Tianzheng dimension annotation です。
 
-### acceptance matrix への影響
+### 現在の gate 状態
 
-`TCH_DRAWINGNAME` 単体は Evidence-only から **Partial** へ進みましたが、**索引 / drawing-title category 全体はまだ gate 未達**です。`TCH_INDEXPOINTER` / `TCH_DRAWINGINDEX` の信頼できる raw group → parameter mapping が未確立だからです。
+最低 Partial semantic を満たしているもの：
 
-DXF / DWG A/B differ はどちらも研究 tool であり native-semantic gate には算入しません。柱・軸号・階段・寸法・索引など残る blocker について、Tianzheng 上で既知 property を 1 個だけ変更し、前後 raw evidence の structural slot または byte range を抽出し、さらに独立 sample と外部 evidence で交差検証してから semantic field 名を確定するために使用します。entity-level identity gate は異なる custom class / known application を同一 A/B profile と誤認することを防ぎ、DWG byte range を proprietary Databits field と直接みなすことも禁止します。
+- `TCH_WALL` — **Drawable2D**；
+- `TCH_OPENING` — **Partial**；
+- `TCH_SPACE` — **Partial**；
+- `TCH_ELEVATION` — **Partial**；
+- `TCH_DRAWINGNAME` — **Partial**；
+- `TCH_COLUMN` — **Partial**。
 
-### 現在の release blocker
+v0.12 正式版を引き続き阻害している 4 カテゴリ：
 
-最低 Partial semantic が必要なカテゴリ：
+1. custom 軸番号 / `TCH_AXIS_LABEL` family；
+2. `TCH_LINESTAIR` / `TCH_RECTSTAIR` 階段；
+3. `TCH_INDEXPOINTER` / `TCH_DRAWINGINDEX` 索引 object；
+4. `TCH_DIMENSION2` 等の Tianzheng dimension。
 
-- `TCH_COLUMN` 柱；
-- custom 軸番号 / axis-label object（通常 `LINE` / `ARC` / `CIRCLE` 軸線 geometry は generic CAD pipeline で対応済み）；
-- `TCH_LINESTAIR` / `TCH_RECTSTAIR` 階段；
-- `TCH_INDEXPOINTER` / `TCH_DRAWINGINDEX` 索引；
-- `TCH_DIMENSION2` 等の天正寸法。
+各カテゴリは、少なくとも 1 組の**明確に命名でき、外部 evidence があり、real Reader regression と fail-closed behavior を備えた raw field → semantic mapping**を取得する必要があります。type 登録、Proxy Graphics、raw evidence、corpus、A/B candidate だけでは gate を通過しません。
 
-Product version は `0.11.0`、CLR ABI は `1.0.0.0`、Host Contract は `SpatialViewer.CadHost >=1.0.0,<2.0.0` のままです。
+### release 結論
+
+- Product/File/Informational version は `0.11.0` のまま。
+- CLR ABI は `1.0.0.0` のまま。
+- Host Contract は `SpatialViewer.CadHost >=1.0.0,<2.0.0` のまま。
+- v0.12 は **まだ release-ready ではありません**。残る 4 semantic blocker をすべて解除した後にのみ、最終 version bump、三言語 release note、full CI、tag、publish を実施します。
