@@ -8,6 +8,9 @@ public sealed partial class CadSceneTranslator
     private static SceneNode DimensionNode(CadDimensionEntity dimension, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
     {
         var presentation = dimension.Presentation;
+        var dimensionLineStyle = DimensionComponentStyle(dimension.DimensionLineColor, style);
+        var extensionLineStyle = DimensionComponentStyle(dimension.ExtensionLineColor, style);
+        var textStyle = DimensionComponentStyle(dimension.TextColor, style);
         var enriched = new Dictionary<string, string>(metadata, StringComparer.Ordinal)
         {
             ["DimensionKind"] = dimension.Kind.ToString(),
@@ -42,7 +45,10 @@ public sealed partial class CadSceneTranslator
             ["DimensionAlternateUnitDecimalPlaces"] = presentation.AlternateUnitDecimalPlaces.ToString(CultureInfo.InvariantCulture),
             ["DimensionAlternateUnitSuffix"] = presentation.AlternateUnitSuffix,
             ["DimensionLinearUnitFormat"] = presentation.LinearUnitFormat,
-            ["DimensionAngularUnitFormat"] = presentation.AngularUnitFormat
+            ["DimensionAngularUnitFormat"] = presentation.AngularUnitFormat,
+            ["DimensionLineResolvedStroke"] = dimensionLineStyle.Stroke,
+            ["DimensionExtensionLineResolvedStroke"] = extensionLineStyle.Stroke,
+            ["DimensionTextResolvedStroke"] = textStyle.Stroke
         };
         var customArrowRequested = presentation.SeparateArrowBlocks
             ? !string.IsNullOrWhiteSpace(presentation.FirstArrowBlockName) || !string.IsNullOrWhiteSpace(presentation.SecondArrowBlockName) || !string.IsNullOrWhiteSpace(presentation.ArrowBlockName)
@@ -55,35 +61,41 @@ public sealed partial class CadSceneTranslator
         {
             case CadDimensionKind.Linear:
             case CadDimensionKind.Aligned:
-                AddLinearDimension(dimension, style, enriched, children);
+                AddLinearDimension(dimension, dimensionLineStyle, extensionLineStyle, enriched, children);
                 break;
             case CadDimensionKind.Radius:
             case CadDimensionKind.Diameter:
-                AddRadialDimension(dimension, style, enriched, children);
+                AddRadialDimension(dimension, dimensionLineStyle, enriched, children);
                 break;
             case CadDimensionKind.Angular2Line:
             case CadDimensionKind.Angular3Point:
-                AddAngularDimension(dimension, style, enriched, children);
+                AddAngularDimension(dimension, dimensionLineStyle, extensionLineStyle, enriched, children);
                 break;
             case CadDimensionKind.Ordinate:
-                AddOrdinateDimension(dimension, style, enriched, children);
+                AddOrdinateDimension(dimension, dimensionLineStyle, enriched, children);
                 break;
             default:
-                AddReferencePath(dimension, style, enriched, children);
+                AddReferencePath(dimension, dimensionLineStyle, enriched, children);
                 break;
         }
         if (!string.IsNullOrWhiteSpace(dimension.Text) && dimension.TextHeight > double.Epsilon)
         {
-            children.Add(TextNode(dimension.ObjectId, dimension.TextPosition, dimension.Text, dimension.TextHeight, dimension.RotationRadians, style, enriched));
+            children.Add(TextNode(dimension.ObjectId, dimension.TextPosition, dimension.Text, dimension.TextHeight, dimension.RotationRadians, textStyle, enriched));
         }
-        return new SceneNode(dimension.ObjectId, style: style, children: children, metadata: enriched);
+        return new SceneNode(dimension.ObjectId, style: dimensionLineStyle, children: children, metadata: enriched);
     }
 
-    private static void AddLinearDimension(CadDimensionEntity dimension, SceneStyle style, IReadOnlyDictionary<string, string> metadata, List<SceneNode> children)
+    private static SceneStyle DimensionComponentStyle(CadColor? componentColor, SceneStyle inherited)
+    {
+        if (componentColor is not { } color || color.Kind is CadColorKind.ByLayer or CadColorKind.ByBlock) return inherited;
+        return inherited with { Stroke = ToHex(color) };
+    }
+
+    private static void AddLinearDimension(CadDimensionEntity dimension, SceneStyle dimensionLineStyle, SceneStyle extensionLineStyle, IReadOnlyDictionary<string, string> metadata, List<SceneNode> children)
     {
         if (!TryReference(dimension, "FirstPoint", out var first) || !TryReference(dimension, "SecondPoint", out var second))
         {
-            AddReferencePath(dimension, style, metadata, children);
+            AddReferencePath(dimension, dimensionLineStyle, metadata, children);
             return;
         }
 
@@ -107,18 +119,18 @@ public sealed partial class CadSceneTranslator
         }
 
         var presentation = dimension.Presentation;
-        AddExtensionLine(children, dimension.ObjectId, first, dimFirst, presentation.ExtensionLineOffset, presentation.ExtensionLineExtension, presentation.SuppressFirstExtensionLine, style, metadata);
-        AddExtensionLine(children, dimension.ObjectId, second, dimSecond, presentation.ExtensionLineOffset, presentation.ExtensionLineExtension, presentation.SuppressSecondExtensionLine, style, metadata);
+        AddExtensionLine(children, dimension.ObjectId, first, dimFirst, presentation.ExtensionLineOffset, presentation.ExtensionLineExtension, presentation.SuppressFirstExtensionLine, extensionLineStyle, metadata);
+        AddExtensionLine(children, dimension.ObjectId, second, dimSecond, presentation.ExtensionLineOffset, presentation.ExtensionLineExtension, presentation.SuppressSecondExtensionLine, extensionLineStyle, metadata);
 
         var dimensionDirection = Normalize(new Point2D(dimSecond.X - dimFirst.X, dimSecond.Y - dimFirst.Y));
         var lineStart = new Point2D(dimFirst.X - (dimensionDirection.X * presentation.DimensionLineExtension), dimFirst.Y - (dimensionDirection.Y * presentation.DimensionLineExtension));
         var lineEnd = new Point2D(dimSecond.X + (dimensionDirection.X * presentation.DimensionLineExtension), dimSecond.Y + (dimensionDirection.Y * presentation.DimensionLineExtension));
-        AddDimensionLine(children, dimension.ObjectId, lineStart, lineEnd, dimension.TextPosition, presentation.SuppressFirstDimensionLine, presentation.SuppressSecondDimensionLine, style, metadata);
+        AddDimensionLine(children, dimension.ObjectId, lineStart, lineEnd, dimension.TextPosition, presentation.SuppressFirstDimensionLine, presentation.SuppressSecondDimensionLine, dimensionLineStyle, metadata);
 
         var firstArrowMetadata = ArrowMetadata(metadata, presentation, first: true);
         var secondArrowMetadata = ArrowMetadata(metadata, presentation, first: false);
-        AddArrow(children, dimension.ObjectId, dimFirst, dimSecond, dimension.ArrowSize, style, firstArrowMetadata);
-        AddArrow(children, dimension.ObjectId, dimSecond, dimFirst, dimension.ArrowSize, style, secondArrowMetadata);
+        AddArrow(children, dimension.ObjectId, dimFirst, dimSecond, dimension.ArrowSize, dimensionLineStyle, firstArrowMetadata);
+        AddArrow(children, dimension.ObjectId, dimSecond, dimFirst, dimension.ArrowSize, dimensionLineStyle, secondArrowMetadata);
     }
 
     private static void AddExtensionLine(List<SceneNode> children, ObjectId id, Point2D origin, Point2D dimensionPoint, double offset, double extension, bool suppressed, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
@@ -198,7 +210,7 @@ public sealed partial class CadSceneTranslator
         }
     }
 
-    private static void AddAngularDimension(CadDimensionEntity dimension, SceneStyle style, IReadOnlyDictionary<string, string> metadata, List<SceneNode> children)
+    private static void AddAngularDimension(CadDimensionEntity dimension, SceneStyle dimensionLineStyle, SceneStyle extensionLineStyle, IReadOnlyDictionary<string, string> metadata, List<SceneNode> children)
     {
         Point2D center;
         Point2D first;
@@ -208,7 +220,7 @@ public sealed partial class CadSceneTranslator
         {
             if (!TryReference(dimension, "AngleVertex", out center) || !TryReference(dimension, "FirstPoint", out first) || !TryReference(dimension, "SecondPoint", out second))
             {
-                AddReferencePath(dimension, style, metadata, children);
+                AddReferencePath(dimension, dimensionLineStyle, metadata, children);
                 return;
             }
             arcPoint = dimension.DefinitionPoint;
@@ -217,15 +229,15 @@ public sealed partial class CadSceneTranslator
         {
             if (!TryReference(dimension, "Center", out center) || !TryReference(dimension, "SecondPoint", out second))
             {
-                AddReferencePath(dimension, style, metadata, children);
+                AddReferencePath(dimension, dimensionLineStyle, metadata, children);
                 return;
             }
             first = dimension.DefinitionPoint;
             arcPoint = TryReference(dimension, "DimensionArc", out var candidate) ? candidate : dimension.DefinitionPoint;
         }
 
-        if (!dimension.Presentation.SuppressFirstExtensionLine) children.Add(LineNode(dimension.ObjectId, center, first, style, metadata));
-        if (!dimension.Presentation.SuppressSecondExtensionLine) children.Add(LineNode(dimension.ObjectId, center, second, style, metadata));
+        if (!dimension.Presentation.SuppressFirstExtensionLine) children.Add(LineNode(dimension.ObjectId, center, first, extensionLineStyle, metadata));
+        if (!dimension.Presentation.SuppressSecondExtensionLine) children.Add(LineNode(dimension.ObjectId, center, second, extensionLineStyle, metadata));
         if (dimension.Presentation.SuppressFirstDimensionLine && dimension.Presentation.SuppressSecondDimensionLine) return;
         var radius = center.DistanceTo(arcPoint);
         if (radius <= double.Epsilon) return;
@@ -233,7 +245,7 @@ public sealed partial class CadSceneTranslator
         var end = Math.Atan2(second.Y - center.Y, second.X - center.X);
         var through = Math.Atan2(arcPoint.Y - center.Y, arcPoint.X - center.X);
         var sweep = SweepContaining(start, end, through);
-        children.Add(new SceneNode(dimension.ObjectId, new ArcGeometry(center, radius, start, sweep), style: style, metadata: metadata));
+        children.Add(new SceneNode(dimension.ObjectId, new ArcGeometry(center, radius, start, sweep), style: dimensionLineStyle, metadata: metadata));
     }
 
     private static void AddOrdinateDimension(CadDimensionEntity dimension, SceneStyle style, IReadOnlyDictionary<string, string> metadata, List<SceneNode> children)
