@@ -37,7 +37,8 @@ public sealed partial class ACadSharpCadImporter
         var rawDwgObjectRecord = ACadSharpCustomPayloadContext.FindDwgObjectRecord(common.Handle);
         var rawScan = ACadSharpCustomPayloadContext.Snapshot();
         var rawDwgCapture = ACadSharpCustomPayloadContext.SnapshotDwg();
-        var nativeSemantics = CadTianzhengSemanticDecoder.Decode(entity.ObjectName, definition, rawDxfPayload);
+        var nativeSemantics = CadTianzhengSemanticDecoder.Decode(entity.ObjectName, definition, rawDxfPayload)
+            ?? CadTianzhengStairSemanticDecoder.Decode(entity.ObjectName, definition, rawDxfPayload);
         var metadata = new Dictionary<string, string>(common.Metadata, StringComparer.Ordinal)
         {
             ["CustomEntity"] = bool.TrueString,
