@@ -13,7 +13,9 @@
 (vl-load-com)
 
 (defun tchdiff:_code (entry)
-  (if (and (listp entry) (numberp (car entry)))
+  ;; entget entries are cons/dotted-pair values. Do not require a proper list;
+  ;; the only contract needed here is a numeric DXF group code in car.
+  (if (and entry (numberp (car entry)))
     (car entry)
     nil
   )
@@ -194,7 +196,7 @@
                  (not (tchdiff:_tch-type-p type-b)))
              (princ "\n[TCHDIFF] Refused: both selections must be TCH_* custom objects."))
 
-            ((/= (strcase type-a) (strcase type-b))
+            ((not (equal (strcase type-a) (strcase type-b)))
              (princ "\n[TCHDIFF] Refused: DXF object identities differ."))
 
             ((not (equal (tchdiff:_subclasses data-a)
