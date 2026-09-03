@@ -54,7 +54,7 @@ public sealed partial class CadSceneTranslator
             CadLineEntity line => new SceneNode(entity.ObjectId, new LineGeometry(line.Start, line.End), style: style, metadata: metadata),
             CadCircleEntity circle => new SceneNode(entity.ObjectId, new CircleGeometry(circle.Center, circle.Radius), style: style, metadata: metadata),
             CadArcEntity arc => new SceneNode(entity.ObjectId, new ArcGeometry(arc.Center, arc.Radius, arc.StartRadians, arc.SweepRadians), style: style, metadata: metadata),
-            CadEllipseEntity ellipse => new SceneNode(entity.ObjectId, new EllipseGeometry(ellipse.Center, ellipse.RadiusX, ellipse.RadiusY), Transform2D.Translation(ellipse.Center.X, ellipse.Center.Y).Then(Transform2D.Rotation(ellipse.RotationRadians)).Then(Transform2D.Translation(-ellipse.Center.X, -ellipse.Center.Y)), style, metadata: metadata),
+            CadEllipseEntity ellipse => new SceneNode(entity.ObjectId, new EllipseGeometry(ellipse.Center, ellipse.RadiusX, ellipse.RadiusY), Transform2D.Translation(-ellipse.Center.X, -ellipse.Center.Y).Then(Transform2D.Rotation(ellipse.RotationRadians)).Then(Transform2D.Translation(ellipse.Center.X, ellipse.Center.Y)), style, metadata: metadata),
             CadPolylineEntity polyline => PolylineNode(polyline, style, metadata),
             CadSplineEntity spline => SplineNode(spline, style, metadata),
             CadHatchEntity hatch => HatchNode(hatch, effectiveColor, style, metadata),
@@ -243,7 +243,7 @@ public sealed partial class CadSceneTranslator
     }
 
     private static SceneNode TextNode(ObjectId id, Point2D insertionPoint, string text, double height, double rotationRadians, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
-        => new(id, new TextGeometry(insertionPoint, text, height), Transform2D.Translation(insertionPoint.X, insertionPoint.Y).Then(Transform2D.Rotation(rotationRadians)).Then(Transform2D.Translation(-insertionPoint.X, -insertionPoint.Y)), style, metadata: metadata);
+        => new(id, new TextGeometry(insertionPoint, text, height), Transform2D.Translation(-insertionPoint.X, -insertionPoint.Y).Then(Transform2D.Rotation(rotationRadians)).Then(Transform2D.Translation(insertionPoint.X, insertionPoint.Y)), style, metadata: metadata);
 
     private static SceneNode PolylineNode(CadPolylineEntity polyline, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
     {
