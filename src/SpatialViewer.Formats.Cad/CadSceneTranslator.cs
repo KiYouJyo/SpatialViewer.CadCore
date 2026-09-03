@@ -148,6 +148,7 @@ public sealed partial class CadSceneTranslator
         return primitive switch
         {
             CadProxyPolyline polyline when polyline.Points.Count >= 2 => new SceneNode(id, new PolylineGeometry(polyline.Points), style: style, metadata: enriched),
+            CadProxyLwPolyline polyline when polyline.Points.Count >= 2 => ProxyLwPolylineNode(id, polyline, style, enriched),
             CadProxyPolygon polygon when polygon.Points.Count >= 3 => new SceneNode(id, new PolygonGeometry(polygon.Points), style: style, metadata: enriched),
             CadProxyCircle circle when double.IsFinite(circle.Radius) && circle.Radius > double.Epsilon => new SceneNode(id, new CircleGeometry(circle.Center, circle.Radius), style: style, metadata: enriched),
             CadProxyArc arc when double.IsFinite(arc.Radius) && arc.Radius > double.Epsilon && double.IsFinite(arc.StartRadians) && double.IsFinite(arc.SweepRadians)
@@ -164,6 +165,24 @@ public sealed partial class CadSceneTranslator
         };
     }
 
+    private static SceneNode ProxyLwPolylineNode(ObjectId id, CadProxyLwPolyline polyline, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
+    {
+        var hasBulges = polyline.Bulges.Any(value => Math.Abs(value) > 1e-12);
+        if (!hasBulges)
+            return new SceneNode(id, polyline.IsClosed ? new PolygonGeometry(polyline.Points) : new PolylineGeometry(polyline.Points), style: style, metadata: metadata);
+
+        var children = new List<SceneNode>();
+        var segmentCount = polyline.IsClosed ? polyline.Points.Count : Math.Max(0, polyline.Points.Count - 1);
+        for (var index = 0; index < segmentCount; index++)
+        {
+            var start = polyline.Points[index];
+            var end = polyline.Points[(index + 1) % polyline.Points.Count];
+            var bulge = index < polyline.Bulges.Count ? polyline.Bulges[index] : 0;
+            children.Add(new SceneNode(id, BulgeSegment(start, end, bulge), style: style, metadata: metadata));
+        }
+        return new SceneNode(id, children: children, style: style, metadata: metadata);
+    }
+
     private static SceneNode ProxyTextNode(ObjectId id, CadProxyText text, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
     {
         var geometry = new TextGeometry(text.Origin, text.Text, text.Height)
@@ -173,9 +192,9 @@ public sealed partial class CadSceneTranslator
             HorizontalAlignment = TextHorizontalAlignment2D.Left,
             VerticalAlignment = TextVerticalAlignment2D.Baseline
         };
-        var transform = Transform2D.Translation(text.Origin.X, text.Origin.Y)
+        var transform = Transform2D.Translation(-text.Origin.X, -text.Origin.Y)
             .Then(Transform2D.Rotation(text.RotationRadians))
-            .Then(Transform2D.Translation(-text.Origin.X, -text.Origin.Y));
+            .Then(Transform2D.Translation(text.Origin.X, text.Origin.Y));
         return new SceneNode(id, geometry, transform, style, metadata: metadata);
     }
 
