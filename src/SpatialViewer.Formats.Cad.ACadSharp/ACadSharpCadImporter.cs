@@ -454,7 +454,9 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
 
     private static string NormalizeText(string? value) => CadTextNormalizer.Normalize(value);
     private static double Positive(double value) => double.IsFinite(value) && value > double.Epsilon ? value : 1;
-    private static double Degrees(double value) => value * Math.PI / 180d;
+    // ACadSharp converts every DXF/DWG IsAngle field to radians at the reader boundary.
+    // Keep this adapter helper as an identity function so legacy call sites cannot apply a second deg->rad conversion.
+    private static double Degrees(double value) => value;
     private static double NormalizeSweep(double sweep) => sweep <= 0 ? sweep + (Math.PI * 2) : sweep;
     private static Point2D Point(object? point) => point is null ? Point2D.Origin : new(DoubleProperty(point, "X"), DoubleProperty(point, "Y"));
     private static object? Property(object? source, string name) => source?.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.Public)?.GetValue(source);
