@@ -11,6 +11,8 @@ Commands:
 
 No command prints raw DXF values.
 
+`TianzhengExportProbe.ps1` is a separate host-only helper. It never opens a drawing and never loads or executes the target ARX. It reads only the PE export directory of a local module, filters native symbol names relevant to the remaining axis/dimension/index research, and emits a path-free module fingerprint plus matching decorated symbols.
+
 ## 中文
 
 ### 当前范围
@@ -54,11 +56,26 @@ No command prints raw DXF values.
 
 如果 identity、subclass 或 group layout 不一致，`TCHRUN` 只输出拒绝原因，**不会输出半份可解析 bundle**。`TCHSIG` / `TCHDIFF` 仍保留，便于单独诊断结构或进行 `Adhoc` 非 gate 研究。
 
+### 本地 native export 探针
+
+如果本机安装的天正包含 `tch_kernal.arx`，可在普通 PowerShell 7 中运行：
+
+```powershell
+pwsh -NoProfile -File .\tools\tianzheng-probe\TianzhengExportProbe.ps1 `
+  -ModulePath 'C:\path\to\tch_kernal.arx'
+```
+
+默认只筛选包含 `TDb...Axis/Dimension/Dim/Index/Pointer...` 的 native export 名称。输出协议为 `[TCHSYM]`，只包含：schema、模块**文件名**、SHA-256、PE machine/timestamp、export/match 数量以及匹配的 decorated symbol。它不会输出输入路径、ARX 二进制内容、DWG/DXF 内容，也不会 `LoadLibrary` / 执行目标模块。
+
+可把匿名 `[TCHSYM]` 输出与 `TCHRUN` bundle 一并提供。若某版本导出例如 `Get...@TDb...Dimension...` 一类符号，它只能证明该 native class/method identity 在该模块版本中存在；**不能**据此推导 DXF group、occurrence 或字段编码，也不能单独解除 release gate。
+
+`-MatchPattern` 可用于研究其他明确的 export 名称；`-RequireMatch` 会在零匹配时 fail closed。CI 使用 Windows 自带 `kernel32.dll` 的真实 export table 验证 PE parser，并同时检查输出不泄露源路径。
+
 ### 隐私与证据边界
 
-脚本不会输出 raw DXF value、entity name、object handle、subclass 名称、文件名/路径、项目文字、坐标或尺寸值。`-1` entity name 与 group 5 handle 会在比较前排除。
+AutoLISP 脚本不会输出 raw DXF value、entity name、object handle、subclass 名称、文件名/路径、项目文字、坐标或尺寸值。`-1` entity name 与 group 5 handle 会在比较前排除。PE export 探针不读取图纸，只读取模块的 export directory，并只输出模块文件名和指纹，不输出安装路径。
 
-Case ID 只记录“实验者主动修改了哪个已知属性”，**不是 raw-field 证据**。即使两组 `DIMENSION_PLOT_SCALE` 实验稳定命中 group 47，也必须再有独立 `RawFieldMapping` 外部证据，之后才允许编写 named semantic、real Reader regression 与 fail-closed decoder。ResearchOnly case 还多一层硬限制：它只能用于比较和决定是否需要重定义 gate，不能直接 semantic-ready。
+Case ID 只记录“实验者主动修改了哪个已知属性”，**不是 raw-field 证据**。Native export symbol 同样只属于 identity/API evidence，**不是 raw-field 证据**。即使两组 `DIMENSION_PLOT_SCALE` 实验稳定命中 group 47，同时又发现一个名称包含 `Scale` 的 `TDb...Dimension...` export，也必须再有独立 `RawFieldMapping` 外部证据，之后才允许编写 named semantic、real Reader regression 与 fail-closed decoder。ResearchOnly case 还多一层硬限制：它只能用于比较和决定是否需要重定义 gate，不能直接 semantic-ready。
 
 ## English
 
@@ -78,7 +95,13 @@ Use `DimScale` when the actual object type is `TCH_DIMENSION2`; use `DimScaleMod
 
 Only after all checks pass does the command print one atomic transcript containing both the baseline `TCHSIG` and the case-bound `TCHDIFF` from that same A/B pair. Repeat with at least one independent pair. On structural mismatch it emits a refusal and no partial bundle.
 
-The probe never prints raw DXF values, entity names, handles, subclass strings, file paths, project text, coordinates or dimension values. A case tag records experimental intent only. Release-gate semantic promotion still requires matching independent RawFieldMapping evidence, a real Reader regression and a fail-closed decoder; ResearchOnly evidence can only inform whether the gate definition must later be revised.
+### Native export probe
+
+`TianzhengExportProbe.ps1 -ModulePath <tch_kernal.arx>` parses the module's PE export directory without loading or executing the ARX. By default it emits only matching `TDb` axis/dimension/index/pointer decorated symbols plus a path-free `[TCHSYM]` module fingerprint. It does not open a drawing, print the installation path or copy any module bytes.
+
+Export symbols are identity/API evidence only. A method name that appears to contain `Scale`, `Text` or a related semantic does not identify a DXF group or occurrence and cannot clear a semantic gate. Use symbol output only as independent context alongside repeatable `TCHRUN` evidence and an exact RawFieldMapping source. `-RequireMatch` fails closed on zero matches. CI exercises the parser against the real `kernel32.dll` export table and asserts that the source path is not emitted.
+
+The AutoLISP probe never prints raw DXF values, entity names, handles, subclass strings, file paths, project text, coordinates or dimension values. A case tag records experimental intent only. Release-gate semantic promotion still requires matching independent RawFieldMapping evidence, a real Reader regression and a fail-closed decoder; ResearchOnly evidence can only inform whether the gate definition must later be revised.
 
 ## 日本語
 
@@ -96,4 +119,10 @@ The probe never prints raw DXF values, entity names, handles, subclass strings, 
 
 `TCHRUN` は TCH identity、case/object binding、subclass profile、ordered group-code layout を確認し、すべて一致した場合だけ同じ A/B pair の baseline `TCHSIG` と case-bound `TCHDIFF` を atomic transcript として出力します。構造 mismatch の場合は拒否理由だけを出し、半端な bundle は出力しません。
 
-probe は raw DXF value、entity name、handle、subclass string、file path、project text、coordinate、dimension value を出力しません。release-gate semantic には matching RawFieldMapping evidence、real Reader regression、fail-closed decoder が必要です。ResearchOnly evidence は gate 定義を再検討する材料にのみ使用できます。
+### native export probe
+
+`TianzhengExportProbe.ps1 -ModulePath <tch_kernal.arx>` は ARX を load/execute せず、PE export directory だけを読み取ります。既定では `TDb` の axis/dimension/index/pointer 関連 decorated symbol と、path を含まない `[TCHSYM]` module fingerprint のみを出力します。drawing、install path、module binary content は出力しません。
+
+export symbol は identity/API evidence に限定されます。`Scale` や `Text` を含む method 名が存在しても DXF group + occurrence の mapping にはなりません。repeatable `TCHRUN` と exact RawFieldMapping evidence が揃うまで release gate は解除しません。`-RequireMatch` は zero match で fail closed します。CI では実際の `kernel32.dll` export table を使って parser と path-redaction contract を検証します。
+
+AutoLISP probe は raw DXF value、entity name、handle、subclass string、file path、project text、coordinate、dimension value を出力しません。ResearchOnly evidence は gate 定義を再検討する材料にのみ使用できます。
