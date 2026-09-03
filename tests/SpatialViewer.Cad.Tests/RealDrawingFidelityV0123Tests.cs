@@ -89,6 +89,30 @@ public sealed class RealDrawingFidelityV0123Tests
     }
 
     [Fact]
+    public void DimStyleComponentColorsRemainIndependent()
+    {
+        var dimension = LinearDimension() with
+        {
+            DimensionLineColor = CadColor.FromAci(8),
+            ExtensionLineColor = CadColor.FromAci(2),
+            TextColor = CadColor.FromAci(1)
+        };
+
+        var items = Document(dimension).Scene.GetItems()
+            .Where(item => item.Id == dimension.ObjectId)
+            .ToArray();
+        var lines = items.Where(item => item.Geometry is LineGeometry).ToArray();
+        var text = Assert.Single(items.Where(item => item.Geometry is TextGeometry));
+
+        Assert.Contains(lines, item => item.Style.Stroke == "#808080");
+        Assert.Contains(lines, item => item.Style.Stroke == "#FFFF00");
+        Assert.Equal("#FF0000", text.Style.Stroke);
+        Assert.Equal("#808080", text.Metadata["DimensionLineResolvedStroke"]);
+        Assert.Equal("#FFFF00", text.Metadata["DimensionExtensionLineResolvedStroke"]);
+        Assert.Equal("#FF0000", text.Metadata["DimensionTextResolvedStroke"]);
+    }
+
+    [Fact]
     public void LegacyShxCjkFallbackUsesPrintOrientedCadMetrics()
     {
         var resolution = CadFontResolver.Resolve("hztxt.shx", "北京意铭创设咨询有限公司");
