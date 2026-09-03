@@ -46,21 +46,30 @@ public sealed class Win2DSceneRenderer : ISceneRenderer
     }
     private void DrawCommand(CanvasDrawingSession session, RenderCommand command, Camera2D camera, Size2D viewport, bool selected)
     {
-        CanvasActiveLayer? clipLayer = null;
-        if (command.ClipBounds is { } clip && !clip.IsEmpty)
-        {
-            var first = camera.WorldToScreen(new Point2D(clip.MinX, clip.MinY), viewport);
-            var second = camera.WorldToScreen(new Point2D(clip.MaxX, clip.MaxY), viewport);
-            var left = Math.Min(first.X, second.X);
-            var top = Math.Min(first.Y, second.Y);
-            var widthPixels = Math.Abs(second.X - first.X);
-            var heightPixels = Math.Abs(second.Y - first.Y);
-            if (widthPixels <= double.Epsilon || heightPixels <= double.Epsilon) return;
-            clipLayer = session.CreateLayer(1f, new Rect(left, top, widthPixels, heightPixels));
-        }
-
+        var clipLayers = new List<CanvasActiveLayer>();
+        var clipGeometries = new List<CanvasGeometry>();
         try
         {
+            if (command.ClipBounds is { } clip && !clip.IsEmpty)
+            {
+                var first = camera.WorldToScreen(new Point2D(clip.MinX, clip.MinY), viewport);
+                var second = camera.WorldToScreen(new Point2D(clip.MaxX, clip.MaxY), viewport);
+                var left = Math.Min(first.X, second.X);
+                var top = Math.Min(first.Y, second.Y);
+                var widthPixels = Math.Abs(second.X - first.X);
+                var heightPixels = Math.Abs(second.Y - first.Y);
+                if (widthPixels <= double.Epsilon || heightPixels <= double.Epsilon) return;
+                clipLayers.Add(session.CreateLayer(1f, new Rect(left, top, widthPixels, heightPixels)));
+            }
+
+            foreach (var polygon in command.ClipPolygons)
+            {
+                var geometry = CreateClipGeometry(session, polygon, camera, viewport);
+                if (geometry is null) return;
+                clipGeometries.Add(geometry);
+                clipLayers.Add(session.CreateLayer(1f, geometry));
+            }
+
             var stroke = Parse(RenderColorPolicy.ResolveStroke(command.Style, command.Metadata, CanvasColor), command.Style.Opacity);
             var fill = command.Style.Fill is null ? (Color?)null : Parse(command.Style.Fill, command.Style.Opacity);
             var width = (float)Math.Max(.5, command.Style.StrokeWidth);
@@ -86,8 +95,29 @@ public sealed class Win2DSceneRenderer : ISceneRenderer
         }
         finally
         {
-            clipLayer?.Dispose();
+            for (var index = clipLayers.Count - 1; index >= 0; index--) clipLayers[index].Dispose();
+            for (var index = clipGeometries.Count - 1; index >= 0; index--) clipGeometries[index].Dispose();
         }
+    }
+    private static CanvasGeometry? CreateClipGeometry(CanvasDrawingSession session, IReadOnlyList<Point2D> polygon, Camera2D camera, Size2D viewport)
+    {
+        if (polygon.Count < 3) return null;
+        var points = new Vector2[polygon.Count];
+        for (var index = 0; index < polygon.Count; index++)
+        {
+            var point = polygon[index];
+            if (!double.IsFinite(point.X) || !double.IsFinite(point.Y)) return null;
+            var mapped = camera.WorldToScreen(point, viewport);
+            if (!double.IsFinite(mapped.X) || !double.IsFinite(mapped.Y)) return null;
+            points[index] = new Vector2((float)mapped.X, (float)mapped.Y);
+        }
+
+        using var path = new CanvasPathBuilder(session);
+        path.SetFilledRegionDetermination(CanvasFilledRegionDetermination.Alternate);
+        path.BeginFigure(points[0]);
+        for (var index = 1; index < points.Length; index++) path.AddLine(points[index]);
+        path.EndFigure(CanvasFigureLoop.Closed);
+        return CanvasGeometry.CreatePath(path);
     }
     private void DrawSelectionRectangle(CanvasDrawingSession session, BoundingBox2D bounds, Camera2D camera, Size2D viewport)
     {

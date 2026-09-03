@@ -24,7 +24,7 @@ public sealed partial class ACadSharpCadImporter
             .Select(graphic => graphic.GraphicsType.ToString())
             .Distinct(StringComparer.Ordinal)
             .ToArray();
-        var proxyPrimitives = ACadSharpProxyGraphicsMapping.Map(
+        var proxyPrimitives = ACadSharpProxyGraphicsClipMapping.Map(
             entity.ProxyGeometries,
             out var unsupportedProxyGraphicCount,
             out var statefulGeometryCommandsPresent);

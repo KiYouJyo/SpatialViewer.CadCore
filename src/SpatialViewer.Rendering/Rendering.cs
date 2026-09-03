@@ -3,7 +3,11 @@ using SpatialViewer.Core;
 namespace SpatialViewer.Rendering;
 
 /// <summary>Backend-neutral prepared drawing command. Coordinates remain doubles until a backend deliberately localizes them.</summary>
-public readonly record struct RenderCommand(ObjectId ObjectId, Geometry2D Geometry, Transform2D WorldTransform, SceneStyle Style, BoundingBox2D Bounds, IReadOnlyDictionary<string, string>? Metadata = null, BoundingBox2D? ClipBounds = null);
+public readonly record struct RenderCommand(ObjectId ObjectId, Geometry2D Geometry, Transform2D WorldTransform, SceneStyle Style, BoundingBox2D Bounds, IReadOnlyDictionary<string, string>? Metadata = null, BoundingBox2D? ClipBounds = null)
+{
+    /// <summary>Final-world polygon clips inherited from transform-aware scene nodes.</summary>
+    public IReadOnlyList<IReadOnlyList<Point2D>> ClipPolygons { get; init; } = Array.Empty<IReadOnlyList<Point2D>>();
+}
 public sealed class RenderFrame
 {
     public RenderFrame(IReadOnlyList<RenderCommand> commands, Point2D localOrigin) { Commands = commands; LocalOrigin = localOrigin; }
@@ -35,6 +39,9 @@ public static class RenderPreparation
     }
 
     private static RenderFrame CreateFrame(IEnumerable<SceneItem> items, Point2D localOrigin) => new(
-        items.Select(item => new RenderCommand(item.Id, item.Geometry, item.Transform, item.Style, item.Bounds, item.Metadata, item.ClipBounds)).ToArray(),
+        items.Select(item => new RenderCommand(item.Id, item.Geometry, item.Transform, item.Style, item.Bounds, item.Metadata, item.ClipBounds)
+        {
+            ClipPolygons = item.ClipPolygons
+        }).ToArray(),
         localOrigin);
 }

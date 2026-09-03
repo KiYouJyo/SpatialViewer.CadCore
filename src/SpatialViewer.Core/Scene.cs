@@ -165,14 +165,23 @@ public sealed class SceneNode
     public IReadOnlyDictionary<string, string> Metadata { get; }
     /// <summary>Optional axis-aligned clip rectangle in final scene/world coordinates. Parent clip rectangles are inherited by children.</summary>
     public BoundingBox2D? ClipBounds { get; }
-    public BoundingBox2D GetBounds() => GetBounds(Transform2D.Identity, null);
+    /// <summary>
+    /// Optional polygon clip expressed in this node's local coordinates. Unlike <see cref="ClipBounds"/>,
+    /// this polygon follows the node and all parent transforms. Nested polygons are retained as a clip
+    /// stack so renderers can apply exact intersection semantics without approximating them as bounds.
+    /// </summary>
+    public IReadOnlyList<Point2D> LocalClipPolygon { get; init; } = Array.Empty<Point2D>();
+    public BoundingBox2D GetBounds() => GetBounds(Transform2D.Identity, null, Array.Empty<IReadOnlyList<Point2D>>());
     internal BoundingBox2D GetBounds(Transform2D parent, BoundingBox2D? parentClip)
+        => GetBounds(parent, parentClip, Array.Empty<IReadOnlyList<Point2D>>());
+    private BoundingBox2D GetBounds(Transform2D parent, BoundingBox2D? parentClip, IReadOnlyList<IReadOnlyList<Point2D>> parentClipPolygons)
     {
         var world = Transform.Then(parent);
         var clip = IntersectClips(parentClip, ClipBounds);
+        if (!TryAppendLocalClip(parentClipPolygons, LocalClipPolygon, world, out var clipPolygons)) return BoundingBox2D.Empty;
         var bounds = Geometry?.GetBounds().Transform(world) ?? BoundingBox2D.Empty;
-        if (clip is { } rectangle) bounds = bounds.Intersection(rectangle);
-        foreach (var child in Children) bounds = bounds.Union(child.GetBounds(world, clip));
+        bounds = ApplyClipBounds(bounds, clip, clipPolygons);
+        foreach (var child in Children) bounds = bounds.Union(child.GetBounds(world, clip, clipPolygons));
         return bounds;
     }
     internal static BoundingBox2D? IntersectClips(BoundingBox2D? first, BoundingBox2D? second)
@@ -180,6 +189,41 @@ public sealed class SceneNode
         if (first is null) return second;
         if (second is null) return first;
         return first.Value.Intersection(second.Value);
+    }
+    internal static BoundingBox2D ApplyClipBounds(BoundingBox2D bounds, BoundingBox2D? rectangle, IReadOnlyList<IReadOnlyList<Point2D>> polygons)
+    {
+        if (bounds.IsEmpty) return bounds;
+        if (rectangle is { } clip) bounds = bounds.Intersection(clip);
+        foreach (var polygon in polygons)
+        {
+            if (polygon.Count < 3) return BoundingBox2D.Empty;
+            bounds = bounds.Intersection(BoundingBox2D.FromPoints(polygon));
+            if (bounds.IsEmpty) break;
+        }
+        return bounds;
+    }
+    internal static bool TryAppendLocalClip(
+        IReadOnlyList<IReadOnlyList<Point2D>> parent,
+        IReadOnlyList<Point2D> local,
+        Transform2D world,
+        out IReadOnlyList<IReadOnlyList<Point2D>> result)
+    {
+        result = parent;
+        if (local.Count == 0) return true;
+        if (local.Count < 3) return false;
+        var transformed = new Point2D[local.Count];
+        for (var index = 0; index < local.Count; index++)
+        {
+            var point = local[index];
+            if (!double.IsFinite(point.X) || !double.IsFinite(point.Y)) return false;
+            transformed[index] = world.Apply(point);
+            if (!double.IsFinite(transformed[index].X) || !double.IsFinite(transformed[index].Y)) return false;
+        }
+        var combined = new IReadOnlyList<Point2D>[parent.Count + 1];
+        for (var index = 0; index < parent.Count; index++) combined[index] = parent[index];
+        combined[^1] = transformed;
+        result = combined;
+        return true;
     }
 }
 
@@ -190,7 +234,11 @@ public sealed class SceneLayer
     public IReadOnlyList<SceneNode> Nodes { get; }
 }
 
-public readonly record struct SceneItem(ObjectId Id, Geometry2D Geometry, Transform2D Transform, SceneStyle Style, Layer Layer, BoundingBox2D Bounds, IReadOnlyDictionary<string, string> Metadata, BoundingBox2D? ClipBounds = null);
+public readonly record struct SceneItem(ObjectId Id, Geometry2D Geometry, Transform2D Transform, SceneStyle Style, Layer Layer, BoundingBox2D Bounds, IReadOnlyDictionary<string, string> Metadata, BoundingBox2D? ClipBounds = null)
+{
+    /// <summary>Final-world polygon clips inherited from transform-aware local clip nodes.</summary>
+    public IReadOnlyList<IReadOnlyList<Point2D>> ClipPolygons { get; init; } = Array.Empty<IReadOnlyList<Point2D>>();
+}
 
 public sealed class Scene2D
 {
@@ -200,7 +248,7 @@ public sealed class Scene2D
     {
         Layers = layers.OrderBy(layer => layer.Layer.Order).ToArray();
         _items = Layers
-            .SelectMany(layer => layer.Nodes.SelectMany(node => Flatten(node, Transform2D.Identity, layer.Layer, null)))
+            .SelectMany(layer => layer.Nodes.SelectMany(node => Flatten(node, Transform2D.Identity, layer.Layer, null, Array.Empty<IReadOnlyList<Point2D>>())))
             .ToArray();
     }
 
@@ -227,19 +275,30 @@ public sealed class Scene2D
         return bounds;
     }
 
-    private static IEnumerable<SceneItem> Flatten(SceneNode node, Transform2D parent, Layer layer, BoundingBox2D? parentClip)
+    private static IEnumerable<SceneItem> Flatten(
+        SceneNode node,
+        Transform2D parent,
+        Layer layer,
+        BoundingBox2D? parentClip,
+        IReadOnlyList<IReadOnlyList<Point2D>> parentClipPolygons)
     {
         var transform = node.Transform.Then(parent);
         var clip = SceneNode.IntersectClips(parentClip, node.ClipBounds);
+        if (!SceneNode.TryAppendLocalClip(parentClipPolygons, node.LocalClipPolygon, transform, out var clipPolygons)) yield break;
         if (node.Geometry is { } geometry)
         {
-            var bounds = geometry.GetBounds().Transform(transform);
-            if (clip is { } rectangle) bounds = bounds.Intersection(rectangle);
-            if (!bounds.IsEmpty) yield return new(node.Id, geometry, transform, node.Style, layer, bounds, node.Metadata, clip);
+            var bounds = SceneNode.ApplyClipBounds(geometry.GetBounds().Transform(transform), clip, clipPolygons);
+            if (!bounds.IsEmpty)
+            {
+                yield return new SceneItem(node.Id, geometry, transform, node.Style, layer, bounds, node.Metadata, clip)
+                {
+                    ClipPolygons = clipPolygons
+                };
+            }
         }
         foreach (var child in node.Children)
         {
-            foreach (var item in Flatten(child, transform, layer, clip)) yield return item;
+            foreach (var item in Flatten(child, transform, layer, clip, clipPolygons)) yield return item;
         }
     }
 }
