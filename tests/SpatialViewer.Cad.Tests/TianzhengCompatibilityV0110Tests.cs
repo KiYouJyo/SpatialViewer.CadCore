@@ -7,6 +7,7 @@ public sealed class TianzhengCompatibilityV0110Tests
 {
     [Theory]
     [InlineData("TCH_WALL", null, null)]
+    [InlineData("TCH_DIMENSION", null, null)]
     [InlineData("CUSTOM", "TDbWall", "Tianzheng Architecture")]
     [InlineData("CUSTOM", "SomeClass", "TArch")]
     [InlineData("CUSTOM", "SomeClass", "Beijing Tangent Technology")]
