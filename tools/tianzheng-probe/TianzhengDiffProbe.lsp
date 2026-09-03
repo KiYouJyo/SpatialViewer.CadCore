@@ -1,5 +1,5 @@
 ;;; SpatialViewer.CadCore — Tianzheng structural research probe
-;;; Commands: TCHDIFF, TCHSIG, TCHPLAN
+;;; Commands: TCHDIFF, TCHSIG, TCHPLAN, TCHRUN
 ;;;
 ;;; TCHDIFF compares two controlled Tianzheng custom objects without printing
 ;;; raw DXF values, handles, entity names, or file paths. For the unresolved
@@ -7,6 +7,10 @@
 ;;;
 ;;; TCHSIG prints only one object's TCH_* type, structural counts, and ordered
 ;;; DXF group-code signature. It never prints group values or subclass names.
+;;;
+;;; TCHRUN performs one atomic canonical experiment: it validates the baseline
+;;; and modified objects first, then emits a TCHSIG + case-bound TCHDIFF bundle
+;;; from that same A/B pair. No protocol bundle is emitted on structural mismatch.
 ;;;
 ;;; This tool is research evidence only. A changed slot is not automatically a
 ;;; dimension scale, axis number, drawing-index number, or index-pointer field.
@@ -118,6 +122,14 @@
   )
 )
 
+(defun tchdiff:_emit-signature-data (data type / codes)
+  (setq codes (tchdiff:_codes data))
+  (princ (strcat "\n[TCHSIG] Object type=" type))
+  (princ (strcat "\n[TCHSIG] Entry count=" (itoa (length data))))
+  (princ (strcat "\n[TCHSIG] Subclass marker count=" (itoa (length (tchdiff:_subclasses data)))))
+  (tchdiff:_print-code-signature codes)
+)
+
 (defun tchdiff:_print-layout-mismatch (left-codes right-codes / mismatch)
   (setq mismatch (tchdiff:_first-code-mismatch left-codes right-codes))
   (princ
@@ -174,10 +186,11 @@
   (princ "\n  DimScale -> DIMENSION_PLOT_SCALE / TCH_DIMENSION2")
   (princ "\nFor each gate case, change exactly the named UI property and nothing else.")
   (princ "\nRun at least two independent A/B pairs before CadCore consensus.")
+  (princ "\nUse TCHRUN for an atomic signature + diff transcript from one validated pair.")
   (princ)
 )
 
-(defun c:TCHSIG (/ pick data type codes)
+(defun c:TCHSIG (/ pick data type)
   (princ "\nTCHSIG — privacy-safe Tianzheng structural signature")
   (setq pick (car (entsel "\nSelect Tianzheng object: ")))
   (if (not pick)
@@ -187,13 +200,7 @@
             type (tchdiff:_type data))
       (if (not (tchdiff:_tch-type-p type))
         (princ "\n[TCHSIG] Refused: selection must be a TCH_* custom object.")
-        (progn
-          (setq codes (tchdiff:_codes data))
-          (princ (strcat "\n[TCHSIG] Object type=" type))
-          (princ (strcat "\n[TCHSIG] Entry count=" (itoa (length data))))
-          (princ (strcat "\n[TCHSIG] Subclass marker count=" (itoa (length (tchdiff:_subclasses data)))))
-          (tchdiff:_print-code-signature codes)
-        )
+        (tchdiff:_emit-signature-data data type)
       )
     )
   )
@@ -259,5 +266,64 @@
   (princ)
 )
 
-(princ "\nSpatialViewer Tianzheng probe loaded. Run TCHPLAN, TCHDIFF or TCHSIG.")
+(defun c:TCHRUN (/ case-key case-info expected-type pick-a pick-b data-a data-b type-a type-b codes-a codes-b)
+  (princ "\nTCHRUN — atomic v0.12 Tianzheng controlled experiment")
+  (initget 1 "Axis Index Pointer DimScale")
+  (setq case-key (getkword "\nExperiment case [Axis/Index/Pointer/DimScale]: ")
+        case-info (tchdiff:_case-info case-key)
+        expected-type (cadr case-info))
+
+  (setq pick-a (car (entsel "\nSelect BASELINE Tianzheng object: ")))
+  (if (not pick-a)
+    (princ "\n[TCHRUN] Cancelled.")
+    (progn
+      (setq pick-b (car (entsel "\nSelect MODIFIED Tianzheng object: ")))
+      (if (not pick-b)
+        (princ "\n[TCHRUN] Cancelled.")
+        (progn
+          (setq data-a (tchdiff:_filtered pick-a)
+                data-b (tchdiff:_filtered pick-b)
+                type-a (tchdiff:_type data-a)
+                type-b (tchdiff:_type data-b))
+
+          ;; TCHRUN emits no parsable TCHSIG/TCHDIFF bundle until every identity
+          ;; and structural check succeeds. This keeps a copied transcript atomic.
+          (cond
+            ((or (not (tchdiff:_tch-type-p type-a))
+                 (not (tchdiff:_tch-type-p type-b)))
+             (princ "\n[TCHRUN] Refused: both selections must be TCH_* custom objects."))
+
+            ((not (equal (strcase type-a) (strcase type-b)))
+             (princ "\n[TCHRUN] Refused: DXF object identities differ."))
+
+            ((not (equal (strcase type-a) expected-type))
+             (princ (strcat "\n[TCHRUN] Refused: experiment case expects object type=" expected-type)))
+
+            ((not (equal (tchdiff:_subclasses data-a)
+                         (tchdiff:_subclasses data-b)))
+             (princ "\n[TCHRUN] Refused: subclass identity/profile differs."))
+
+            (T
+             (setq codes-a (tchdiff:_codes data-a)
+                   codes-b (tchdiff:_codes data-b))
+             (if (not (equal codes-a codes-b))
+               (princ "\n[TCHRUN] Refused: group-code layout differs; no atomic bundle emitted.")
+               (progn
+                 (princ (strcat "\n[TCHDIFF] Case=" (car case-info)))
+                 (princ (strcat "\n[TCHDIFF] Object type=" type-a))
+                 (tchdiff:_emit-signature-data data-a type-a)
+                 (tchdiff:_compare-values data-a data-b)
+                 (princ "\n[TCHRUN] Bundle complete. Copy this command output as one experiment transcript.")
+               )
+             )
+            )
+          )
+        )
+      )
+    )
+  )
+  (princ)
+)
+
+(princ "\nSpatialViewer Tianzheng probe loaded. Run TCHPLAN, TCHRUN, TCHDIFF or TCHSIG.")
 (princ)
