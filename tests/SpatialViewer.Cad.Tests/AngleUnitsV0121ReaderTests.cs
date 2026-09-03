@@ -2,6 +2,7 @@ using ACadSharp.Entities;
 using ACadSharp.IO;
 using ACadSharp.Objects;
 using CSMath;
+using SpatialViewer.Core;
 using SpatialViewer.Formats.Cad;
 using SpatialViewer.Formats.Cad.ACadSharp;
 
