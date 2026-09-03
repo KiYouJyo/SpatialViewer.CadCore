@@ -52,20 +52,44 @@ public sealed partial class ACadSharpCadImporter
         var textHeight = DoubleProperty(style, "TextHeight", 2.5) * Math.Max(styleScale, double.Epsilon);
         var arrowSize = DoubleProperty(style, "ArrowSize", 2.5) * Math.Max(styleScale, double.Epsilon);
         var rotation = DoubleProperty(dimension, "Rotation", dimension.TextRotation);
+        var dimensionLineColor = Property(style, "DimensionLineColor") is global::ACadSharp.Color dimSource ? MapColor(dimSource) : (CadColor?)null;
+        var extensionLineColor = Property(style, "ExtensionLineColor") is global::ACadSharp.Color extSource ? MapColor(extSource) : (CadColor?)null;
+        var textColor = Property(style, "TextColor") is global::ACadSharp.Color textSource ? MapColor(textSource) : (CadColor?)null;
         var metadata = new Dictionary<string, string>(common.Metadata, StringComparer.Ordinal)
         {
             ["DimensionKind"] = kind.ToString(),
             ["DimensionStyle"] = styleName,
             ["DimensionMeasurement"] = measurement.ToString("R", CultureInfo.InvariantCulture),
             ["DimensionFlags"] = dimension.Flags.ToString(),
-            ["DimensionReferencePointCount"] = references.Count.ToString(CultureInfo.InvariantCulture)
+            ["DimensionReferencePointCount"] = references.Count.ToString(CultureInfo.InvariantCulture),
+            ["DimensionHorizontalDirection"] = DoubleProperty(dimension, "HorizontalDirection").ToString("R", CultureInfo.InvariantCulture),
+            ["DimensionOrdinateTypeX"] = BoolProperty(dimension, "IsOrdinateTypeX").ToString(),
+            ["DimensionTextHorizontalAlignment"] = StringProperty(style, "TextHorizontalAlignment"),
+            ["DimensionTextVerticalAlignment"] = StringProperty(style, "TextVerticalAlignment"),
+            ["DimensionTextInsideHorizontal"] = BoolProperty(style, "TextInsideHorizontal").ToString(),
+            ["DimensionTextOutsideHorizontal"] = BoolProperty(style, "TextOutsideHorizontal").ToString(),
+            ["DimensionTextMovement"] = StringProperty(style, "TextMovement")
         };
+        if (dimensionLineColor is { } dimColor) metadata["DimensionLineColor"] = DescribeColor(dimColor);
+        if (extensionLineColor is { } extColor) metadata["DimensionExtensionLineColor"] = DescribeColor(extColor);
+        if (textColor is { } resolvedTextColor) metadata["DimensionTextColor"] = DescribeColor(resolvedTextColor);
 
         return new CadDimensionEntity(common.Handle, kind, Point(dimension.DefinitionPoint), Point(dimension.TextMiddlePoint), text, measurement, rotation, textHeight, arrowSize, styleName, references, common.Layer, common.Color, common.Visible, common.LineType, common.LineWeight, metadata)
         {
-            Presentation = MapDimensionPresentation(style)
+            Presentation = MapDimensionPresentation(style),
+            DimensionLineColor = dimensionLineColor,
+            ExtensionLineColor = extensionLineColor,
+            TextColor = textColor
         };
     }
+
+    private static string DescribeColor(CadColor color) => color.Kind switch
+    {
+        CadColorKind.Aci => $"Aci:{color.Index}",
+        CadColorKind.TrueColor => $"Rgb:{color.Red:X2}{color.Green:X2}{color.Blue:X2}",
+        CadColorKind.ByBlock => "ByBlock",
+        _ => "ByLayer"
+    };
 
     private static CadDimensionKind DimensionKind(string typeName) => typeName switch
     {

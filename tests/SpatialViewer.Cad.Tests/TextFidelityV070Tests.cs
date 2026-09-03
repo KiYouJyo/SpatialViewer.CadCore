@@ -20,7 +20,8 @@ public sealed class TextFidelityV070Tests
         Assert.Equal(CadFontKind.Shx, latin.Kind);
         Assert.Equal("Segoe UI", latin.Family);
         Assert.True(latin.UsesFallback);
-        Assert.Equal("Microsoft YaHei UI", chinese.Family);
+        Assert.Equal("SimSun", chinese.Family);
+        Assert.True(chinese.UsesFallback);
     }
 
     [Fact]

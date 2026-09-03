@@ -74,6 +74,15 @@ public sealed record CadDimensionEntity(
     : CadEntity(Handle, LayerName, Color == default ? CadColor.ByLayer : Color, IsVisible, LineTypeName, LineWeight, Metadata ?? EmptyMetadata.Value)
 {
     public CadDimensionPresentation Presentation { get; init; } = new();
+
+    /// <summary>Explicit DIMCLRD component color. Null means the reader did not expose a separate DIMSTYLE color.</summary>
+    public CadColor? DimensionLineColor { get; init; }
+
+    /// <summary>Explicit DIMCLRE component color. Null means extension lines inherit the semantic entity style.</summary>
+    public CadColor? ExtensionLineColor { get; init; }
+
+    /// <summary>Explicit DIMCLRT component color. Null means dimension text inherits the semantic entity style.</summary>
+    public CadColor? TextColor { get; init; }
 }
 
 /// <summary>One semantic leader path, used by both MLEADER and future compound annotation entities.</summary>

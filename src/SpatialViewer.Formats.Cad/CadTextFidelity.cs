@@ -33,7 +33,10 @@ public static class CadFontResolver
         var extension = Path.GetExtension(source);
         if (isShapeFile || extension.Equals(".shx", StringComparison.OrdinalIgnoreCase))
         {
-            return new CadFontResolution(CadFontKind.Shx, FallbackFamily(text), true);
+            // When the actual SHX glyph stream cannot be used (most commonly a legacy paired
+            // BigFont for CJK text), prefer print-oriented CJK families whose full-em metrics are
+            // much closer to AutoCAD's legacy architectural text than UI sans-serif fallbacks.
+            return new CadFontResolution(CadFontKind.Shx, ShxFallbackFamily(text), true);
         }
         if (extension.Equals(".ttf", StringComparison.OrdinalIgnoreCase) || extension.Equals(".otf", StringComparison.OrdinalIgnoreCase) || extension.Equals(".ttc", StringComparison.OrdinalIgnoreCase))
         {
@@ -55,6 +58,17 @@ public static class CadFontResolver
         "yugothic" => "Yu Gothic",
         _ => value
     };
+
+    private static string ShxFallbackFamily(string text)
+    {
+        foreach (var rune in text.EnumerateRunes())
+        {
+            var value = rune.Value;
+            if (value is >= 0x3040 and <= 0x30FF or >= 0x31F0 and <= 0x31FF) return "MS Gothic";
+            if (value is >= 0x3400 and <= 0x9FFF or >= 0xF900 and <= 0xFAFF) return "SimSun";
+        }
+        return "Segoe UI";
+    }
 
     private static string FallbackFamily(string text)
     {
