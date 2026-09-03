@@ -6,8 +6,9 @@ namespace SpatialViewer.Formats.Cad.ACadSharp;
 
 /// <summary>
 /// Converts the safe 2D subset of ACadSharp proxy graphics into reader-independent CadCore primitives.
-/// Geometry is deliberately withheld when model transforms or clipping commands are present until those
-/// stateful commands are implemented, preventing a fallback from being drawn at a plausible-but-wrong location.
+/// Balanced planar model-transform stacks are applied for translation, rotation and uniform scaling.
+/// Clip commands, malformed stacks and non-planar/non-similarity transforms remain fail-closed so a
+/// fallback is never drawn at a plausible-but-wrong location.
 /// </summary>
 public static class ACadSharpProxyGraphicsMapping
 {
@@ -21,16 +22,36 @@ public static class ACadSharpProxyGraphicsMapping
         ArgumentNullException.ThrowIfNull(graphics);
         var source = graphics.ToArray();
         statefulGeometryCommandsPresent = source.Any(graphic => IsStatefulGeometryCommand(graphic.GraphicsType));
-        if (statefulGeometryCommandsPresent)
-        {
-            unsupportedCount = source.Length;
-            return Array.Empty<CadProxyPrimitive>();
-        }
+
+        // Clip state changes visibility rather than just coordinates. Until clip boundaries are represented
+        // in the reader-independent proxy model, withholding the whole stream is safer than drawing through it.
+        if (source.Any(graphic => graphic.GraphicsType is GraphicsType.PushClip or GraphicsType.PopClip))
+            return FailClosed(source, out unsupportedCount);
 
         var result = new List<CadProxyPrimitive>();
+        var stack = new Stack<ProxyTransformState>();
+        var current = ProxyTransformState.Identity;
         unsupportedCount = 0;
+
         foreach (var graphic in source)
         {
+            switch (graphic)
+            {
+                case ProxyPushModelTransform push:
+                    if (!TryPushTransform(push.TransformationMatrix, stack, ref current))
+                        return FailClosed(source, out unsupportedCount);
+                    continue;
+                case ProxyPushModelTransform2 push:
+                    if (!TryPushTransform(push.TransformationMatrix, stack, ref current))
+                        return FailClosed(source, out unsupportedCount);
+                    continue;
+                case ProxyPopModelTransform:
+                    if (stack.Count == 0)
+                        return FailClosed(source, out unsupportedCount);
+                    current = stack.Pop();
+                    continue;
+            }
+
             var mapped = MapOne(graphic);
             if (mapped is null)
             {
@@ -38,11 +59,109 @@ public static class ACadSharpProxyGraphicsMapping
                 continue;
             }
 
-            result.Add(mapped);
+            result.Add(current.IsIdentity ? mapped : ApplyTransform(mapped, current));
         }
+
+        if (stack.Count != 0)
+            return FailClosed(source, out unsupportedCount);
 
         return result;
     }
+
+    private static IReadOnlyList<CadProxyPrimitive> FailClosed(IReadOnlyCollection<IProxyGeometry> source, out int unsupportedCount)
+    {
+        unsupportedCount = source.Count;
+        return Array.Empty<CadProxyPrimitive>();
+    }
+
+    private static bool TryPushTransform(CSMath.Matrix4 matrix, Stack<ProxyTransformState> stack, ref ProxyTransformState current)
+    {
+        if (!TryPlanarSimilarity(matrix, out var pushed)) return false;
+        stack.Push(current);
+        // ObjectARX model-transform stack semantics are previous * matrix. With Transform2D's
+        // first.Then(second) convention, that is pushed.Then(previous): local geometry sees the
+        // newly pushed transform first, then the transform that was already active.
+        current = new ProxyTransformState(
+            pushed.Transform.Then(current.Transform),
+            pushed.Scale * current.Scale,
+            NormalizeAngle(pushed.RotationRadians + current.RotationRadians));
+        return true;
+    }
+
+    private static bool TryPlanarSimilarity(CSMath.Matrix4 matrix, out ProxyTransformState state)
+    {
+        state = ProxyTransformState.Identity;
+        var values = new[]
+        {
+            matrix.M00, matrix.M01, matrix.M02, matrix.M03,
+            matrix.M10, matrix.M11, matrix.M12, matrix.M13,
+            matrix.M20, matrix.M21, matrix.M22, matrix.M23,
+            matrix.M30, matrix.M31, matrix.M32, matrix.M33
+        };
+        if (values.Any(value => !double.IsFinite(value))) return false;
+
+        // Reject perspective and XY/Z coupling. Z-only scale/translation is harmless to the projected
+        // plan geometry, but XY must remain a strict affine 2D transform.
+        if (Math.Abs(matrix.M03) > Epsilon
+            || Math.Abs(matrix.M13) > Epsilon
+            || Math.Abs(matrix.M23) > Epsilon
+            || Math.Abs(matrix.M33 - 1d) > Epsilon
+            || Math.Abs(matrix.M02) > Epsilon
+            || Math.Abs(matrix.M12) > Epsilon
+            || Math.Abs(matrix.M20) > Epsilon
+            || Math.Abs(matrix.M21) > Epsilon)
+            return false;
+
+        var xLength = Math.Sqrt((matrix.M00 * matrix.M00) + (matrix.M01 * matrix.M01));
+        var yLength = Math.Sqrt((matrix.M10 * matrix.M10) + (matrix.M11 * matrix.M11));
+        if (xLength <= Epsilon || yLength <= Epsilon) return false;
+        var tolerance = Epsilon * Math.Max(1d, Math.Max(xLength, yLength));
+        if (Math.Abs(xLength - yLength) > tolerance) return false;
+
+        var dot = (matrix.M00 * matrix.M10) + (matrix.M01 * matrix.M11);
+        if (Math.Abs(dot) > tolerance * Math.Max(xLength, yLength)) return false;
+
+        var determinant = (matrix.M00 * matrix.M11) - (matrix.M10 * matrix.M01);
+        // Reflection changes text handedness and bulge orientation. Keep the first implementation to
+        // proper rotations only rather than silently approximating mirrored custom graphics.
+        if (determinant <= Epsilon) return false;
+
+        var transform = new Transform2D(
+            matrix.M00,
+            matrix.M01,
+            matrix.M10,
+            matrix.M11,
+            matrix.M30,
+            matrix.M31);
+        state = new ProxyTransformState(transform, xLength, Math.Atan2(matrix.M01, matrix.M00));
+        return true;
+    }
+
+    private static CadProxyPrimitive ApplyTransform(CadProxyPrimitive primitive, ProxyTransformState state)
+        => primitive switch
+        {
+            CadProxyPolyline polyline => new CadProxyPolyline(polyline.Points.Select(state.Transform.Apply).ToArray()),
+            CadProxyLwPolyline polyline => new CadProxyLwPolyline(
+                polyline.Points.Select(state.Transform.Apply).ToArray(),
+                polyline.Bulges.ToArray(),
+                polyline.IsClosed),
+            CadProxyPolygon polygon => new CadProxyPolygon(polygon.Points.Select(state.Transform.Apply).ToArray()),
+            CadProxyCircle circle => new CadProxyCircle(state.Transform.Apply(circle.Center), circle.Radius * state.Scale),
+            CadProxyArc arc => new CadProxyArc(
+                state.Transform.Apply(arc.Center),
+                arc.Radius * state.Scale,
+                NormalizeAngle(arc.StartRadians + state.RotationRadians),
+                arc.SweepRadians),
+            CadProxyText text => new CadProxyText(
+                state.Transform.Apply(text.Origin),
+                text.Text,
+                text.Height * state.Scale,
+                NormalizeAngle(text.RotationRadians + state.RotationRadians),
+                text.WidthFactor,
+                text.ObliqueAngleRadians,
+                text.ProxyTextKind),
+            _ => primitive
+        };
 
     private static CadProxyPrimitive? MapOne(IProxyGeometry graphic)
         => graphic switch
@@ -203,5 +322,25 @@ public static class ACadSharpProxyGraphicsMapping
         if (result.Count < minimumCount) return false;
         mapped = result;
         return true;
+    }
+
+    private static double NormalizeAngle(double radians)
+    {
+        var twoPi = Math.PI * 2;
+        var normalized = radians % twoPi;
+        return normalized < 0 ? normalized + twoPi : normalized;
+    }
+
+    private readonly record struct ProxyTransformState(Transform2D Transform, double Scale, double RotationRadians)
+    {
+        public static ProxyTransformState Identity => new(Transform2D.Identity, 1d, 0d);
+
+        public bool IsIdentity
+            => Math.Abs(Transform.M11 - 1d) <= Epsilon
+                && Math.Abs(Transform.M12) <= Epsilon
+                && Math.Abs(Transform.M21) <= Epsilon
+                && Math.Abs(Transform.M22 - 1d) <= Epsilon
+                && Math.Abs(Transform.Dx) <= Epsilon
+                && Math.Abs(Transform.Dy) <= Epsilon;
     }
 }
