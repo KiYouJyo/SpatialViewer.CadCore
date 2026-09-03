@@ -24,10 +24,19 @@ public sealed partial class ACadSharpCadImporter
             .Select(graphic => graphic.GraphicsType.ToString())
             .Distinct(StringComparer.Ordinal)
             .ToArray();
-        var proxyPrimitives = ACadSharpProxyGraphicsClipMapping.Map(
+        var mappedProxyPrimitives = ACadSharpProxyGraphicsClipMapping.Map(
             entity.ProxyGeometries,
             out var unsupportedProxyGraphicCount,
             out var statefulGeometryCommandsPresent);
+        var proxyPrimitives = ACadSharpProxyLayerProvenance.Apply(
+            entity.ProxyGeometries,
+            mappedProxyPrimitives,
+            out var handledProxyLayerCommandCount);
+        unsupportedProxyGraphicCount = Math.Max(0, unsupportedProxyGraphicCount - handledProxyLayerCommandCount);
+        var proxyLayerIndices = ACadSharpProxyLayerProvenance.CollectLayerIndices(proxyPrimitives)
+            .Distinct()
+            .OrderBy(index => index)
+            .ToArray();
         var proxyGraphicTraitsApplied = CadProxyTraitInspector.HasOverrides(proxyPrimitives);
         var representation = proxyPrimitives.Count > 0
             ? CadCustomEntityRepresentation.ProxyGraphics
@@ -51,6 +60,9 @@ public sealed partial class ACadSharpCadImporter
             ["ProxyGraphicUnsupportedCount"] = unsupportedProxyGraphicCount.ToString(CultureInfo.InvariantCulture),
             ["ProxyGraphicStatefulGeometryCommandsPresent"] = statefulGeometryCommandsPresent.ToString(),
             ["ProxyGraphicTraitsApplied"] = proxyGraphicTraitsApplied.ToString(),
+            ["ProxyGraphicLayerCommandCount"] = handledProxyLayerCommandCount.ToString(CultureInfo.InvariantCulture),
+            ["ProxyGraphicLayerProvenanceApplied"] = (handledProxyLayerCommandCount > 0).ToString(),
+            ["ProxyGraphicLayerIndices"] = string.Join(';', proxyLayerIndices.Select(index => index.ToString(CultureInfo.InvariantCulture))),
             ["RawDxfPayloadAvailable"] = (rawDxfPayload is not null).ToString(),
             ["RawDxfScanBinary"] = (rawScan?.IsBinaryDxf == true).ToString(),
             ["RawDxfScanFailed"] = (rawScan?.ScanFailed == true).ToString(),
