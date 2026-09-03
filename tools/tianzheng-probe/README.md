@@ -5,6 +5,7 @@
 Commands:
 
 - `TCHPLAN`: list the canonical single-variable experiments for the unresolved gates;
+- `TCHRUN`: preferred gate workflow; atomically validate one A/B pair and emit its matching `TCHSIG + TCHDIFF` transcript;
 - `TCHDIFF`: compare two otherwise-equivalent `TCH_*` objects and report only changed DXF group slots;
 - `TCHSIG`: print one object's ordered group-code signature and structural counts.
 
@@ -24,56 +25,68 @@ No command prints raw DXF values.
 
 运行 `TCHPLAN` 可查看固定 case：
 
-| TCHDIFF 选项 | Case ID | 目标对象 | 唯一允许主动修改的属性 |
+| 选项 | Case ID | 目标对象 | 唯一允许主动修改的属性 |
 | --- | --- | --- | --- |
 | `Axis` | `AXIS_LABEL_TEXT` | `TCH_AXIS_LABEL` | 显示的轴号文字/编号 |
 | `Index` | `DRAWING_INDEX_TEXT` | `TCH_DRAWINGINDEX` | 显示的图纸索引文字/编号 |
 | `Pointer` | `INDEX_POINTER_TEXT` | `TCH_INDEXPOINTER` | 显示的索引指向编号/文字 |
 | `DimScale` | `DIMENSION_PLOT_SCALE` | `TCH_DIMENSION2` | 出图比例 |
 
-`TCHDIFF` 会把 case ID 写入匿名输出，并检查所选对象类型是否与 case 匹配。选择错误对象时直接 fail closed。`Adhoc` 保留原有未标记模式，用于非 gate 研究。
+### 推荐：`TCHRUN`
 
-推荐流程：
+`TCHRUN` 把原来分开的 `TCHSIG` 与 case-bound `TCHDIFF` 合并成一次原子实验：
 
-1. 复制同一个目标对象得到 baseline 与 modified。
-2. modified 只改表中指定的一个属性；不要同时移动对象、改图层、样式、文字高度或其他参数。
+1. 复制同一个目标对象，得到 baseline 与 modified。
+2. modified **只改表中指定的一项属性**；不要同时移动对象、改图层、样式、字高或其他参数。
 3. `APPLOAD` 加载 `TianzhengDiffProbe.lsp`。
-4. 运行 `TCHSIG` 获取结构签名。
-5. 运行 `TCHDIFF` 并选择正确的标准 case，随后选择 baseline → modified。
-6. 对同一 case 再独立制作至少一组 A/B。
-7. 将两组以上输出交给 CadCore 的 case-bound consensus。只有每组都稳定变化的 slot 才保留为 candidate。
-8. candidate 仍不能直接命名为 semantic；还必须有公开 AutoLISP/entget、可验证样本或其他独立证据，并最终加入真实 Reader regression 与 fail-closed 测试。
+4. 运行 `TCHRUN`，选择正确 case，再依次选择 baseline → modified。
+5. 脚本先检查：两对象都是 `TCH_*`、DXF identity 相同、与 case 目标类型一致、subclass profile 一致、ordered group-code layout 完全一致。
+6. **只有全部检查通过后**才输出一份可复制的 bundle，其中同时包含该 baseline 的 `[TCHSIG]` 与同一 A/B pair 的 `[TCHDIFF]`。
+7. 对同一 case 独立制作至少第二组 A/B，再运行一次 `TCHRUN`。
+8. 两份 bundle 可直接交给 CadCore bundle parser 与 case-bound consensus；只有各组都稳定变化的 slot 才成为 candidate。
 
-### 隐私与安全边界
+如果 identity、subclass 或 group layout 不一致，`TCHRUN` 只输出拒绝原因，**不会输出半份可解析 bundle**。这样可以避免把一个对象的 signature 与另一组 diff 错配。
 
-脚本不会输出 raw DXF value、entity name、object handle、subclass 名称、文件名/路径、项目文字、坐标或尺寸值。`-1` entity name 与 group 5 handle 会在比较前排除。DXF identity、subclass profile、group-code layout 或标准 case 的目标对象类型不一致时，`TCHDIFF` 都拒绝继续，不做启发式对齐。
+`TCHSIG` / `TCHDIFF` 仍保留，便于单独诊断结构或进行 `Adhoc` 非 gate 研究。
 
-Case ID 只记录“实验者主动修改了哪个已知属性”。它**不是字段证据**。例如 `DIMENSION_PLOT_SCALE` 实验稳定命中某个 group 47，也不能只凭 case 名称就宣布 group 47 = 出图比例。
+### 隐私与证据边界
+
+脚本不会输出 raw DXF value、entity name、object handle、subclass 名称、文件名/路径、项目文字、坐标或尺寸值。`-1` entity name 与 group 5 handle 会在比较前排除。
+
+Case ID 只记录“实验者主动修改了哪个已知属性”，**不是 raw-field 证据**。即使两组 `DIMENSION_PLOT_SCALE` 实验稳定命中 group 47，也必须再有独立 `RawFieldMapping` 外部证据，之后才允许编写 named semantic、real Reader regression 与 fail-closed decoder。
 
 ## English
 
 ### Current scope
 
-Evidence-backed Partial stair semantics are now complete for the v0.12 gate. The remaining formal blockers are axis labels, index objects and Tianzheng dimensions.
+Evidence-backed Partial stair semantics are complete. The remaining formal blockers are axis labels, index objects and Tianzheng dimensions.
 
 `TCHPLAN` lists four canonical experiment cases: `AXIS_LABEL_TEXT` → `TCH_AXIS_LABEL`, `DRAWING_INDEX_TEXT` → `TCH_DRAWINGINDEX`, `INDEX_POINTER_TEXT` → `TCH_INDEXPOINTER`, and `DIMENSION_PLOT_SCALE` → `TCH_DIMENSION2`.
 
-For a gate experiment, duplicate one object, change exactly the named UI property on the modified copy, capture a `TCHSIG`, then run `TCHDIFF` with the matching case. Repeat with at least one independent pair. CadCore's case-bound consensus refuses mixed experiment intents and retains only slots stable across all observations.
+### Preferred workflow: `TCHRUN`
 
-The case tag records experimental intent only. It does not assign semantic meaning to any DXF group. A stable candidate still requires independent external evidence plus a real Reader regression and fail-closed decoder before it can enter native semantics.
+Duplicate one target object and change exactly the named UI property on the modified copy. Run `TCHRUN`, select the canonical case, then baseline → modified. The command validates TCH identity, case/object binding, subclass profile and the complete ordered group-code layout before emitting any parsable protocol.
 
-The probe never prints raw DXF values, entity names, handles, subclass strings, file paths, project text, coordinates or dimension values. Identity/profile/layout/case-object mismatches fail closed. `Adhoc` preserves the original untagged mode for non-gate research.
+Only after all checks pass does it print one atomic transcript containing both the baseline `TCHSIG` and the case-bound `TCHDIFF` from that same A/B pair. Repeat with at least one independent pair. CadCore's bundle parser validates signature/diff agreement, and the existing case-bound consensus retains only slots stable across the independent bundles.
+
+On a structural mismatch, `TCHRUN` emits a refusal message and no partial protocol bundle. `TCHSIG` and `TCHDIFF` remain available for standalone diagnostics and `Adhoc` research.
+
+The probe never prints raw DXF values, entity names, handles, subclass strings, file paths, project text, coordinates or dimension values. A case tag records experimental intent only; stable slots still require matching independent RawFieldMapping evidence plus a real Reader regression and fail-closed decoder before semantic promotion.
 
 ## 日本語
 
 ### 現在の範囲
 
-階段は evidence-backed Partial semantic に到達したため、v0.12 probe blocker から外れました。残る正式 gate は軸番号、索引 object、Tianzheng 寸法です。
+階段は evidence-backed Partial semantic に到達済みです。残る正式 gate は軸番号、索引 object、Tianzheng 寸法です。
 
-`TCHPLAN` は 4 つの canonical case を表示します：`AXIS_LABEL_TEXT` → `TCH_AXIS_LABEL`、`DRAWING_INDEX_TEXT` → `TCH_DRAWINGINDEX`、`INDEX_POINTER_TEXT` → `TCH_INDEXPOINTER`、`DIMENSION_PLOT_SCALE` → `TCH_DIMENSION2`。
+`TCHPLAN` は `AXIS_LABEL_TEXT` → `TCH_AXIS_LABEL`、`DRAWING_INDEX_TEXT` → `TCH_DRAWINGINDEX`、`INDEX_POINTER_TEXT` → `TCH_INDEXPOINTER`、`DIMENSION_PLOT_SCALE` → `TCH_DIMENSION2` の canonical case を表示します。
 
-同一 object を複製し、modified 側では case が指定する既知 property だけを変更します。`TCHSIG` を取得してから matching case で `TCHDIFF` を実行し、最低もう 1 組の独立 A/B を作成します。CadCore の case-bound consensus は異なる experiment intent の混在を拒否し、全 observation で安定する slot だけを candidate として残します。
+### 推奨 workflow: `TCHRUN`
 
-Case ID は experimental intent の記録であり、DXF group の semantic mapping ではありません。stable candidate を native semantic に昇格するには、独立した外部 evidence、real Reader regression、fail-closed decoder が引き続き必要です。
+同一 object を複製し、modified 側では case が指定する property だけを変更します。`TCHRUN` で case を選択し、baseline → modified の順に指定します。command は TCH identity、case/object binding、subclass profile、ordered group-code layout をすべて確認してから protocol を出力します。
 
-probe は raw DXF value、entity name、handle、subclass string、file path、project text、coordinate、dimension value を出力しません。identity/profile/layout/case-object mismatch は fail closed です。`Adhoc` は非 gate 研究向けの従来 untagged mode として残ります。
+すべて一致した場合だけ、同じ A/B pair に属する baseline `TCHSIG` と case-bound `TCHDIFF` を 1 つの atomic transcript として出力します。同じ case でもう 1 組以上の独立 A/B を作り、CadCore bundle parser + case-bound consensus に渡します。
+
+構造 mismatch の場合、`TCHRUN` は拒否理由だけを出し、解析可能な半端な bundle を出力しません。`TCHSIG` / `TCHDIFF` は standalone 診断と `Adhoc` 研究用に残ります。
+
+probe は raw DXF value、entity name、handle、subclass string、file path、project text、coordinate、dimension value を出力しません。Case tag は experimental intent のみであり、named semantic には matching RawFieldMapping evidence、real Reader regression、fail-closed decoder が引き続き必要です。
