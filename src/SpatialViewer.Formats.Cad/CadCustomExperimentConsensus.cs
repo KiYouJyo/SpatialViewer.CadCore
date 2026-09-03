@@ -67,7 +67,7 @@ public static class CadCustomExperimentAnalyzer
         ArgumentNullException.ThrowIfNull(after);
         var report = CadDxfCustomPayloadDiffer.Compare(before, after);
         return new CadDxfCustomExperimentObservation(
-            Identity(before),
+            Identity(before, after),
             report.Status,
             report.BeforeFingerprint,
             report.AfterFingerprint,
@@ -83,7 +83,7 @@ public static class CadCustomExperimentAnalyzer
         var report = CadDwgCustomObjectRecordDiffer.Compare(before, after);
         var record = before.RawDwgObjectRecord!;
         return new CadDwgCustomExperimentObservation(
-            Identity(before),
+            Identity(before, after),
             record.CaptureMethod,
             report.Status,
             report.BeforeByteCount,
@@ -170,21 +170,24 @@ public static class CadCustomExperimentAnalyzer
         return items;
     }
 
-    private static CadCustomExperimentIdentity Identity(CadCustomEntity entity)
-        => new(
-            string.IsNullOrWhiteSpace(entity.ClassDefinition?.DxfName) ? entity.SourceEntityType : entity.ClassDefinition.DxfName,
-            entity.ClassDefinition?.CppClassName ?? string.Empty,
-            entity.ClassDefinition?.ApplicationName ?? string.Empty);
+    private static CadCustomExperimentIdentity Identity(CadCustomEntity before, CadCustomEntity after)
+    {
+        static string Known(string? primary, string? fallback)
+            => string.IsNullOrWhiteSpace(primary) ? fallback ?? string.Empty : primary;
+
+        var dxfName = string.IsNullOrWhiteSpace(before.ClassDefinition?.DxfName)
+            ? before.SourceEntityType
+            : before.ClassDefinition.DxfName;
+        return new CadCustomExperimentIdentity(
+            dxfName,
+            Known(before.ClassDefinition?.CppClassName, after.ClassDefinition?.CppClassName),
+            Known(before.ClassDefinition?.ApplicationName, after.ClassDefinition?.ApplicationName));
+    }
 
     private static bool SameIdentity(CadCustomExperimentIdentity left, CadCustomExperimentIdentity right)
         => string.Equals(left.DxfName, right.DxfName, StringComparison.OrdinalIgnoreCase)
-            && CompatibleKnownIdentity(left.CppClassName, right.CppClassName)
-            && CompatibleKnownIdentity(left.ApplicationName, right.ApplicationName);
-
-    private static bool CompatibleKnownIdentity(string left, string right)
-        => string.IsNullOrWhiteSpace(left)
-            || string.IsNullOrWhiteSpace(right)
-            || string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+            && string.Equals(left.CppClassName, right.CppClassName, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(left.ApplicationName, right.ApplicationName, StringComparison.OrdinalIgnoreCase);
 
     private static CadDwgCustomObjectChangedByteRange[] IntersectRanges(
         IReadOnlyList<CadDwgCustomObjectChangedByteRange> left,
