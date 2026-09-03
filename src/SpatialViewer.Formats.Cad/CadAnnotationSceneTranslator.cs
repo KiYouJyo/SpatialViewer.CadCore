@@ -45,7 +45,7 @@ public sealed partial class CadSceneTranslator
             ["DimensionAngularUnitFormat"] = presentation.AngularUnitFormat
         };
         var customArrowRequested = presentation.SeparateArrowBlocks
-            ? !string.IsNullOrWhiteSpace(presentation.FirstArrowBlockName) || !string.IsNullOrWhiteSpace(presentation.SecondArrowBlockName)
+            ? !string.IsNullOrWhiteSpace(presentation.FirstArrowBlockName) || !string.IsNullOrWhiteSpace(presentation.SecondArrowBlockName) || !string.IsNullOrWhiteSpace(presentation.ArrowBlockName)
             : !string.IsNullOrWhiteSpace(presentation.ArrowBlockName);
         enriched["DimensionCustomArrowRequested"] = customArrowRequested.ToString();
         enriched["DimensionCustomArrowFallbackApplied"] = customArrowRequested.ToString();
@@ -167,6 +167,7 @@ public sealed partial class CadSceneTranslator
         var requested = presentation.SeparateArrowBlocks
             ? first ? presentation.FirstArrowBlockName : presentation.SecondArrowBlockName
             : presentation.ArrowBlockName;
+        if (string.IsNullOrWhiteSpace(requested)) requested = presentation.ArrowBlockName;
         result["DimensionArrowRequestedBlock"] = requested;
         result["DimensionArrowFallbackApplied"] = (!string.IsNullOrWhiteSpace(requested)).ToString();
         return result;
@@ -237,16 +238,61 @@ public sealed partial class CadSceneTranslator
 
     private static void AddOrdinateDimension(CadDimensionEntity dimension, SceneStyle style, IReadOnlyDictionary<string, string> metadata, List<SceneNode> children)
     {
-        if (!TryReference(dimension, "FeatureLocation", out var feature))
+        if (!TryReference(dimension, "FeatureLocation", out var feature) || !TryReference(dimension, "LeaderEndpoint", out var endpoint))
         {
             AddReferencePath(dimension, style, metadata, children);
             return;
         }
-        var endpoint = TryReference(dimension, "LeaderEndpoint", out var leaderEndpoint)
-            ? leaderEndpoint
-            : TryReference(dimension, "LeaderEndPoint", out leaderEndpoint) ? leaderEndpoint : dimension.DefinitionPoint;
-        children.Add(LineNode(dimension.ObjectId, feature, endpoint, style, metadata));
-        if (endpoint.DistanceTo(dimension.DefinitionPoint) > 1e-9) children.Add(LineNode(dimension.ObjectId, endpoint, dimension.DefinitionPoint, style, metadata));
+
+        var horizontalDirection = MetadataDouble(metadata, "DimensionHorizontalDirection", 0);
+        var isOrdinateTypeX = MetadataBool(metadata, "DimensionOrdinateTypeX");
+        var rotation = horizontalDirection + (isOrdinateTypeX ? Math.PI / 2 : 0);
+        var refDelta = new Point2D(endpoint.X - feature.X, endpoint.Y - feature.Y);
+        var local = Rotate(refDelta, -rotation);
+        var minimumOffset = 2 * Math.Max(dimension.ArrowSize, double.Epsilon);
+
+        Point2D localJog1;
+        Point2D localJog2;
+        if (local.X >= 0)
+        {
+            if (local.X >= 2 * minimumOffset)
+            {
+                localJog1 = new Point2D(local.X - minimumOffset, 0);
+                localJog2 = new Point2D(local.X - minimumOffset, local.Y);
+            }
+            else
+            {
+                localJog1 = new Point2D(minimumOffset, 0);
+                localJog2 = new Point2D(local.X - minimumOffset, local.Y);
+            }
+        }
+        else if (local.X <= -2 * minimumOffset)
+        {
+            localJog1 = new Point2D(local.X + minimumOffset, 0);
+            localJog2 = new Point2D(local.X + minimumOffset, local.Y);
+        }
+        else
+        {
+            localJog1 = new Point2D(-minimumOffset, 0);
+            localJog2 = new Point2D(local.X + minimumOffset, local.Y);
+        }
+
+        var jog1Delta = Rotate(localJog1, rotation);
+        var jog2Delta = Rotate(localJog2, rotation);
+        var jog1 = new Point2D(feature.X + jog1Delta.X, feature.Y + jog1Delta.Y);
+        var jog2 = new Point2D(feature.X + jog2Delta.X, feature.Y + jog2Delta.Y);
+        var axis = new Point2D(Math.Cos(rotation), Math.Sin(rotation));
+        var extensionOffset = Math.Max(0, double.IsFinite(dimension.Presentation.ExtensionLineOffset) ? dimension.Presentation.ExtensionLineOffset : 0);
+        var start = new Point2D(feature.X + (axis.X * extensionOffset), feature.Y + (axis.Y * extensionOffset));
+        var ordinateMetadata = new Dictionary<string, string>(metadata, StringComparer.Ordinal)
+        {
+            ["DimensionOrdinateJogReconstructed"] = bool.TrueString,
+            ["DimensionOrdinateResolvedRotation"] = rotation.ToString("R", CultureInfo.InvariantCulture)
+        };
+
+        if (start.DistanceTo(jog1) > 1e-9) children.Add(LineNode(dimension.ObjectId, start, jog1, style, ordinateMetadata));
+        if (jog1.DistanceTo(jog2) > 1e-9) children.Add(LineNode(dimension.ObjectId, jog1, jog2, style, ordinateMetadata));
+        if (jog2.DistanceTo(endpoint) > 1e-9) children.Add(LineNode(dimension.ObjectId, jog2, endpoint, style, ordinateMetadata));
     }
 
     private static void AddReferencePath(CadDimensionEntity dimension, SceneStyle style, IReadOnlyDictionary<string, string> metadata, List<SceneNode> children)
@@ -352,4 +398,8 @@ public sealed partial class CadSceneTranslator
         var value = angle % (Math.PI * 2);
         return value < 0 ? value + (Math.PI * 2) : value;
     }
+    private static double MetadataDouble(IReadOnlyDictionary<string, string> metadata, string key, double fallback)
+        => metadata.TryGetValue(key, out var value) && double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) && double.IsFinite(parsed) ? parsed : fallback;
+    private static bool MetadataBool(IReadOnlyDictionary<string, string> metadata, string key)
+        => metadata.TryGetValue(key, out var value) && bool.TryParse(value, out var parsed) && parsed;
 }
