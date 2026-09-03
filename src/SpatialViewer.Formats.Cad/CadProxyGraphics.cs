@@ -5,10 +5,11 @@ namespace SpatialViewer.Formats.Cad;
 /// <summary>
 /// Display-only subentity trait overrides captured from an ObjectARX proxy-graphics stream.
 /// Null values inherit the containing CAD custom entity's already-resolved presentation.
+/// LayerIndex is retained as provenance until the source reader can prove an index-to-layer mapping.
 /// </summary>
-public readonly record struct CadProxyTraits(CadColor? Color = null, int? LineWeight = null)
+public readonly record struct CadProxyTraits(CadColor? Color = null, int? LineWeight = null, int? LayerIndex = null)
 {
-    public bool HasOverrides => Color is not null || LineWeight is not null;
+    public bool HasOverrides => Color is not null || LineWeight is not null || LayerIndex is not null;
 }
 
 /// <summary>
@@ -54,8 +55,9 @@ public sealed record CadProxyClipGroup(
     : CadProxyPrimitive("ClipGroup");
 
 /// <summary>
-/// Display-only text presentation supplied by a proxy-graphics stream. This retains only the
-/// presentation fields explicitly exposed by the reader and is not a native custom-object semantic.
+/// Display-only text presentation supplied by a proxy-graphics stream. Text2/UnicodeText2 carry
+/// explicit font and layout evidence; retain it here rather than flattening every custom-object label
+/// to the same default UI font before scene translation.
 /// </summary>
 public sealed record CadProxyText(
     Point2D Origin,
@@ -64,7 +66,17 @@ public sealed record CadProxyText(
     double RotationRadians,
     double WidthFactor,
     double ObliqueAngleRadians,
-    string ProxyTextKind)
+    string ProxyTextKind,
+    string FontFileName = "",
+    string BigFontFileName = "",
+    string Typeface = "",
+    double TrackingPercentage = 100,
+    bool IsBackward = false,
+    bool IsUpsideDown = false,
+    bool IsVertical = false,
+    bool IsRaw = false,
+    bool IsUnderlined = false,
+    bool IsOverlined = false)
     : CadProxyPrimitive(ProxyTextKind);
 
 /// <summary>Helpers for reporting whether a proxy tree actually carries supported trait overrides.</summary>

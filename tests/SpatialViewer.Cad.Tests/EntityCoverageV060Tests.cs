@@ -51,7 +51,11 @@ public sealed class EntityCoverageV060Tests
         Assert.Equal(new BoundingBox2D(50, 50, 150, 50), projected.Bounds);
         Assert.DoesNotContain(scene.GetItems(), item => item.Layer.Name == "FROZEN" && item.Metadata.TryGetValue("Space", out var space) && space == "ModelThroughViewport");
         Assert.Contains(scene.GetItems(), item => item.Metadata.TryGetValue("Space", out var space) && space == "Paper");
-        Assert.Contains(scene.GetItems(), item => item.Metadata.TryGetValue("Space", out var space) && space == "ViewportBoundary");
+        Assert.DoesNotContain(scene.GetItems(), item => item.Metadata.TryGetValue("Space", out var space) && space == "ViewportBoundary");
+        var viewportBoundary = Assert.Single(scene.GetItems(false), item => item.Metadata.TryGetValue("Space", out var space) && space == "ViewportBoundary");
+        Assert.False(viewportBoundary.Layer.IsVisible);
+        Assert.Equal(bool.TrueString, viewportBoundary.Metadata["SyntheticViewportOverlay"]);
+        Assert.Equal(bool.TrueString, viewportBoundary.Metadata["ExcludedFromVisibleExtents"]);
 
         var inside = HitTesting.HitTest(scene, new Point2D(100, 50), .5);
         Assert.NotNull(inside);

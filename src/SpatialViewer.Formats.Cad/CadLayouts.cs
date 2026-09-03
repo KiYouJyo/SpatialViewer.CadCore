@@ -133,6 +133,11 @@ public static class CadLayoutSceneTranslator
         if (!document.CadLayers.Any(layer => string.Equals(layer.Name, "0", StringComparison.OrdinalIgnoreCase)))
             sceneLayers.Add(new SceneLayer(new Layer("0", "0", order++), GetLayer(nodesByLayer, "0").ToArray()));
 
+        // Viewport rectangles are scene/debug overlays synthesized by CadCore; they are not authored
+        // paper-space drawing primitives. Keeping this overlay visible made its paper bounds participate
+        // in normal Scene2D.GetBounds()/Fit Extents. A malformed or very large viewport could therefore
+        // appear as two enormous perpendicular lines and push the actual sheet into a corner. Preserve
+        // the overlay for diagnostics/GetItems(false), but keep it hidden from normal rendering/extents.
         var viewportNodes = layout.Viewports
             .Where(viewport => viewport.IsOn && !viewport.RepresentsPaper && !viewport.PaperBounds.IsEmpty)
             .Select(viewport =>
@@ -143,14 +148,29 @@ public static class CadLayoutSceneTranslator
                     ["Space"] = "ViewportBoundary",
                     ["ViewportHandle"] = viewport.Handle,
                     ["ViewportScale"] = viewport.ScaleFactor.ToString("R", CultureInfo.InvariantCulture),
-                    ["ViewportFrozenLayerCount"] = viewport.FrozenLayerNames.Count.ToString(CultureInfo.InvariantCulture)
+                    ["ViewportFrozenLayerCount"] = viewport.FrozenLayerNames.Count.ToString(CultureInfo.InvariantCulture),
+                    ["SyntheticViewportOverlay"] = bool.TrueString,
+                    ["ExcludedFromVisibleExtents"] = bool.TrueString
                 };
                 if (!string.IsNullOrWhiteSpace(viewport.BoundaryHandle)) metadata["ViewportBoundaryHandle"] = viewport.BoundaryHandle!;
                 if (viewport.BoundaryPoints.Count > 0) metadata["ViewportNonRectangularBoundaryPreserved"] = bool.TrueString;
                 return new SceneNode(CadIds.ToObjectId($"viewport:{layout.Name}:{viewport.Handle}"), new RectangleGeometry(viewport.PaperBounds), style: new SceneStyle("#808080", 1), metadata: metadata);
             })
             .ToArray();
-        sceneLayers.Add(new SceneLayer(new Layer(ViewportLayerName, "Viewports", -1, true, false, new Dictionary<string, string> { ["Layout"] = layout.Name }), viewportNodes));
+        sceneLayers.Add(new SceneLayer(
+            new Layer(
+                ViewportLayerName,
+                "Viewports",
+                -1,
+                false,
+                false,
+                new Dictionary<string, string>
+                {
+                    ["Layout"] = layout.Name,
+                    ["SyntheticViewportOverlay"] = bool.TrueString,
+                    ["ExcludedFromVisibleExtents"] = bool.TrueString
+                }),
+            viewportNodes));
         return new Scene2D(sceneLayers);
     }
 

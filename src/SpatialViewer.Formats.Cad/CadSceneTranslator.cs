@@ -245,17 +245,50 @@ public sealed partial class CadSceneTranslator
 
     private static SceneNode ProxyTextNode(ObjectId id, CadProxyText text, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
     {
+        var enriched = new Dictionary<string, string>(metadata, StringComparer.Ordinal)
+        {
+            ["ProxyTextKind"] = text.ProxyTextKind,
+            ["ProxyTextTrackingPercentage"] = text.TrackingPercentage.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
+            ["ProxyTextBackward"] = text.IsBackward.ToString(),
+            ["ProxyTextUpsideDown"] = text.IsUpsideDown.ToString(),
+            ["ProxyTextVertical"] = text.IsVertical.ToString(),
+            ["ProxyTextRaw"] = text.IsRaw.ToString(),
+            ["ProxyTextUnderlined"] = text.IsUnderlined.ToString(),
+            ["ProxyTextOverlined"] = text.IsOverlined.ToString()
+        };
+        if (!string.IsNullOrWhiteSpace(text.FontFileName)) enriched["ProxyTextFontFile"] = text.FontFileName;
+        if (!string.IsNullOrWhiteSpace(text.BigFontFileName)) enriched["ProxyTextBigFontFile"] = text.BigFontFileName;
+        if (!string.IsNullOrWhiteSpace(text.Typeface)) enriched["ProxyTextTypeface"] = text.Typeface;
+
+        var fontFamily = string.Empty;
+        if (!string.IsNullOrWhiteSpace(text.Typeface))
+        {
+            fontFamily = text.Typeface.Trim();
+            enriched["ProxyTextFontResolution"] = "Typeface";
+        }
+        else if (!string.IsNullOrWhiteSpace(text.FontFileName))
+        {
+            var resolved = CadFontResolver.Resolve(text.FontFileName, text.Text);
+            fontFamily = resolved.Family;
+            enriched["ProxyTextFontResolution"] = resolved.Kind.ToString();
+            enriched["ProxyTextFontFallbackApplied"] = resolved.UsesFallback.ToString();
+        }
+        if (!string.IsNullOrWhiteSpace(fontFamily)) enriched["ProxyTextResolvedFontFamily"] = fontFamily;
+
         var geometry = new TextGeometry(text.Origin, text.Text, text.Height)
         {
+            FontFamily = fontFamily,
             WidthFactor = text.WidthFactor,
             ObliqueAngleRadians = text.ObliqueAngleRadians,
             HorizontalAlignment = TextHorizontalAlignment2D.Left,
-            VerticalAlignment = TextVerticalAlignment2D.Baseline
+            VerticalAlignment = TextVerticalAlignment2D.Baseline,
+            IsBackward = text.IsBackward,
+            IsUpsideDown = text.IsUpsideDown
         };
         var transform = Transform2D.Translation(-text.Origin.X, -text.Origin.Y)
             .Then(Transform2D.Rotation(text.RotationRadians))
             .Then(Transform2D.Translation(text.Origin.X, text.Origin.Y));
-        return new SceneNode(id, geometry, transform, style, metadata: metadata);
+        return new SceneNode(id, geometry, transform, style, metadata: enriched);
     }
 
     private static SceneNode? HatchNode(CadHatchEntity hatch, CadColor effectiveColor, SceneStyle style, IReadOnlyDictionary<string, string> metadata)

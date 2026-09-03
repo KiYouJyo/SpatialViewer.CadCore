@@ -237,7 +237,17 @@ public static class ACadSharpProxyGraphicsMapping
                 NormalizeAngle(text.RotationRadians + state.RotationRadians),
                 text.WidthFactor,
                 text.ObliqueAngleRadians,
-                text.ProxyTextKind),
+                text.ProxyTextKind,
+                text.FontFileName,
+                text.BigFontFileName,
+                text.Typeface,
+                text.TrackingPercentage,
+                text.IsBackward,
+                text.IsUpsideDown,
+                text.IsVertical,
+                text.IsRaw,
+                text.IsUnderlined,
+                text.IsOverlined),
             _ => primitive
         };
         return transformed with { Traits = primitive.Traits };
@@ -282,6 +292,27 @@ public static class ACadSharpProxyGraphicsMapping
                 text.ObliqueAngle,
                 nameof(GraphicsType.Text),
                 out var mappedText) => mappedText,
+            ProxyText2 text when TryProxyText(
+                text.Normal,
+                text.StartPoint,
+                text.TextDirection,
+                text.Text,
+                text.Height,
+                text.WidthFactor,
+                text.ObliqueAngle,
+                nameof(GraphicsType.Text2),
+                out var mappedText) => mappedText with
+                {
+                    FontFileName = text.FontFilename ?? string.Empty,
+                    BigFontFileName = text.BigFontFilename ?? string.Empty,
+                    TrackingPercentage = text.TrackingPercentage,
+                    IsBackward = text.IsBackwards,
+                    IsUpsideDown = text.IsUpsideDown,
+                    IsVertical = text.IsVertical,
+                    IsRaw = text.IsRaw,
+                    IsUnderlined = text.IsUnderlined,
+                    IsOverlined = text.IsOverlined
+                },
             ProxyUnicodeText text when TryProxyText(
                 text.Normal,
                 text.StartPoint,
@@ -292,6 +323,28 @@ public static class ACadSharpProxyGraphicsMapping
                 text.ObliqueAngle,
                 nameof(GraphicsType.UnicodeText),
                 out var mappedText) => mappedText,
+            ProxyUnicodeText2 text when TryProxyText(
+                text.Normal,
+                text.StartPoint,
+                text.TextDirection,
+                text.Text,
+                text.Height,
+                text.WidthFactor,
+                text.ObliqueAngle,
+                nameof(GraphicsType.UnicodeText2),
+                out var mappedText) => mappedText with
+                {
+                    FontFileName = text.FontDescriptor?.FontFilename ?? string.Empty,
+                    BigFontFileName = text.BigFontFilename ?? string.Empty,
+                    Typeface = text.FontDescriptor?.Typeface ?? string.Empty,
+                    TrackingPercentage = text.TrackingPercentage,
+                    IsBackward = text.IsBackwards,
+                    IsUpsideDown = text.IsUpsideDown,
+                    IsVertical = text.IsVertical,
+                    IsRaw = text.IsRaw,
+                    IsUnderlined = text.IsUnderlined,
+                    IsOverlined = text.IsOverlined
+                },
             _ => null
         };
 
