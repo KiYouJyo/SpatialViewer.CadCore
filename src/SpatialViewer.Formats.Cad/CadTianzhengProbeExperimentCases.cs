@@ -110,21 +110,41 @@ public static class CadTianzhengProbeExperimentParser
         if (items.Count > MaxObservations)
             throw new ArgumentException($"At most {MaxObservations} case-bound observations are supported.", nameof(observations));
 
-        var firstCase = items[0].ExperimentCase;
-        if (!string.Equals(firstCase.DxfName, signature.DxfName, StringComparison.OrdinalIgnoreCase))
+        var firstObservation = items[0]
+            ?? throw new ArgumentException("Case-bound observation cannot be null.", nameof(observations));
+        var firstDeclaredCase = firstObservation.ExperimentCase
+            ?? throw new ArgumentException("Experiment case cannot be null.", nameof(observations));
+        CadTianzhengProbeExperimentCase canonicalCase;
+        try
+        {
+            canonicalCase = CadTianzhengProbeExperimentCases.Resolve(firstDeclaredCase.Id);
+        }
+        catch (Exception exception) when (exception is ArgumentException or FormatException)
+        {
+            throw new ArgumentException("Experiment case is not a canonical v0.12 gate case.", nameof(observations), exception);
+        }
+
+        if (!string.Equals(canonicalCase.DxfName, firstDeclaredCase.DxfName, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Declared experiment case object identity is not canonical.", nameof(observations));
+        if (!string.Equals(canonicalCase.DxfName, signature.DxfName, StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Experiment case object type does not match the TCHSIG signature.", nameof(signature));
 
         foreach (var observation in items)
         {
-            ArgumentNullException.ThrowIfNull(observation);
-            if (!string.Equals(firstCase.Id, observation.ExperimentCase.Id, StringComparison.Ordinal))
+            if (observation is null)
+                throw new ArgumentException("Case-bound observation cannot be null.", nameof(observations));
+            if (observation.ExperimentCase is null)
+                throw new ArgumentException("Experiment case cannot be null.", nameof(observations));
+            if (observation.Diff is null)
+                throw new ArgumentException("Case-bound TCHDIFF observation cannot be null.", nameof(observations));
+            if (!string.Equals(canonicalCase.Id, observation.ExperimentCase.Id, StringComparison.Ordinal))
                 throw new ArgumentException("Cannot mix different Tianzheng experiment cases in one consensus.", nameof(observations));
-            if (!string.Equals(firstCase.DxfName, observation.ExperimentCase.DxfName, StringComparison.OrdinalIgnoreCase))
-                throw new ArgumentException("Experiment case object identities differ.", nameof(observations));
+            if (!string.Equals(canonicalCase.DxfName, observation.ExperimentCase.DxfName, StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("Experiment case object identity is not canonical.", nameof(observations));
         }
 
         var structural = CadTianzhengProbeOutputParser.BuildConsensus(signature, items.Select(item => item.Diff));
-        return new CadTianzhengProbeExperimentConsensus(firstCase, structural);
+        return new CadTianzhengProbeExperimentConsensus(canonicalCase, structural);
     }
 
     private static string[] Lines(string text)
