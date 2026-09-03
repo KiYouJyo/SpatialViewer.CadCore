@@ -147,6 +147,7 @@ public sealed partial class CadSceneTranslator
         };
         return primitive switch
         {
+            CadProxyClipGroup clip when clip.ClipPolygon.Count >= 3 => ProxyClipGroupNode(id, clip, style, enriched),
             CadProxyPolyline polyline when polyline.Points.Count >= 2 => new SceneNode(id, new PolylineGeometry(polyline.Points), style: style, metadata: enriched),
             CadProxyLwPolyline polyline when polyline.Points.Count >= 2 => ProxyLwPolylineNode(id, polyline, style, enriched),
             CadProxyPolygon polygon when polygon.Points.Count >= 3 => new SceneNode(id, new PolygonGeometry(polygon.Points), style: style, metadata: enriched),
@@ -162,6 +163,38 @@ public sealed partial class CadSceneTranslator
                 && double.IsFinite(text.ObliqueAngleRadians)
                 => ProxyTextNode(id, text, style, enriched),
             _ => null
+        };
+    }
+
+    private static SceneNode? ProxyClipGroupNode(ObjectId id, CadProxyClipGroup clip, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
+    {
+        if (clip.ClipPolygon.Count < 3 || clip.ClipPolygon.Any(point => !double.IsFinite(point.X) || !double.IsFinite(point.Y))) return null;
+        var enriched = new Dictionary<string, string>(metadata, StringComparer.Ordinal)
+        {
+            ["ProxyClipChildCount"] = clip.Children.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["ProxyClipDrawBoundary"] = clip.DrawBoundary.ToString()
+        };
+        var children = clip.Children
+            .Select(child => ProxyNode(id, child, style, enriched))
+            .Where(node => node is not null)
+            .Cast<SceneNode>()
+            .ToList();
+        if (clip.DrawBoundary)
+        {
+            var boundary = new Point2D[clip.ClipPolygon.Count + 1];
+            for (var index = 0; index < clip.ClipPolygon.Count; index++) boundary[index] = clip.ClipPolygon[index];
+            boundary[^1] = clip.ClipPolygon[0];
+            var boundaryMetadata = new Dictionary<string, string>(enriched, StringComparer.Ordinal)
+            {
+                ["ProxySourceKind"] = "ClipBoundary",
+                ["ProxyClipBoundary"] = bool.TrueString
+            };
+            children.Add(new SceneNode(id, new PolylineGeometry(boundary), style: style, metadata: boundaryMetadata));
+        }
+        if (children.Count == 0) return null;
+        return new SceneNode(id, style: style, children: children, metadata: enriched)
+        {
+            LocalClipPolygon = clip.ClipPolygon
         };
     }
 
