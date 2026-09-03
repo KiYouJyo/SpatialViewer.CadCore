@@ -318,7 +318,17 @@ public static class ACadSharpProxyGraphicsClipMapping
                 NormalizeAngle(text.RotationRadians + state.RotationRadians),
                 text.WidthFactor,
                 text.ObliqueAngleRadians,
-                text.ProxyTextKind),
+                text.ProxyTextKind,
+                text.FontFileName,
+                text.BigFontFileName,
+                text.Typeface,
+                text.TrackingPercentage,
+                text.IsBackward,
+                text.IsUpsideDown,
+                text.IsVertical,
+                text.IsRaw,
+                text.IsUnderlined,
+                text.IsOverlined),
             _ => primitive
         };
         return transformed with { Traits = primitive.Traits };
