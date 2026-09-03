@@ -42,9 +42,9 @@ internal static class ACadSharpProxyLayerProvenance
             return mapped;
 
         var stateIndex = 0;
-        var rewritten = mapped
-            .Select(primitive => Rewrite(primitive, layerStates, ref stateIndex))
-            .ToArray();
+        var rewritten = new CadProxyPrimitive[mapped.Count];
+        for (var i = 0; i < mapped.Count; i++)
+            rewritten[i] = Rewrite(mapped[i], layerStates, ref stateIndex);
         if (stateIndex != layerStates.Count)
             return mapped;
 
@@ -67,9 +67,9 @@ internal static class ACadSharpProxyLayerProvenance
     {
         if (primitive is CadProxyClipGroup group)
         {
-            var children = group.Children
-                .Select(child => Rewrite(child, layerStates, ref stateIndex))
-                .ToArray();
+            var children = new CadProxyPrimitive[group.Children.Count];
+            for (var i = 0; i < group.Children.Count; i++)
+                children[i] = Rewrite(group.Children[i], layerStates, ref stateIndex);
             return group with { Children = children };
         }
 
