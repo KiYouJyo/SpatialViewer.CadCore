@@ -176,8 +176,22 @@ public static class ACadSharpProxyGraphicsMapping
             ProxyPolygon polygon when TryPoints(polygon.Points, 3, out var points) => new CadProxyPolygon(points),
             ProxyCircle circle when IsPlanar(circle.Normal) && IsPositiveFinite(circle.Radius) && TryPoint(circle.Center, out var center)
                 => new CadProxyCircle(center, circle.Radius),
+            ProxyCirclePt3 circle when TryThreePointCircle(circle.Point1, circle.Point2, circle.Point3, out var center, out var radius)
+                => new CadProxyCircle(center, radius),
             ProxyCircularArc arc when IsPlanar(arc.Normal) && IsPositiveFinite(arc.Radius) && TryPoint(arc.Center, out var center) && TryDirection(arc.StartVectorDirection, out var startRadians) && double.IsFinite(arc.SweepAngle)
                 => new CadProxyArc(center, arc.Radius, startRadians, arc.Normal.Z < 0 ? -arc.SweepAngle : arc.SweepAngle),
+            // Autodesk's 3-point primitive is start / point-on-arc / end. ArcType controls whether the
+            // primitive is a simple arc, sector or chord. CadCore can losslessly represent only the
+            // simple arc today, so sector/chord remain unsupported rather than silently losing fill.
+            ProxyCircularArc3Pt arc when arc.ArcType == 0 && TryThreePointArc(
+                arc.Point1,
+                arc.Point2,
+                arc.Point3,
+                out var center,
+                out var radius,
+                out var startRadians,
+                out var sweepRadians)
+                => new CadProxyArc(center, radius, startRadians, sweepRadians),
             ProxyText text when TryProxyText(
                 text.Normal,
                 text.StartPoint,
@@ -291,6 +305,112 @@ public static class ACadSharpProxyGraphicsMapping
         return true;
     }
 
+    private static bool TryThreePointCircle(
+        CSMath.XYZ first,
+        CSMath.XYZ second,
+        CSMath.XYZ third,
+        out Point2D center,
+        out double radius)
+    {
+        center = Point2D.Origin;
+        radius = 0;
+        if (!TryHorizontalTriple(first, second, third, out var a, out var b, out var c)) return false;
+
+        // Work in coordinates relative to the first point to reduce cancellation for large drawing
+        // coordinates. Reject a scale-relative near-collinear triple instead of producing an unstable
+        // huge-radius fallback.
+        var ux = b.X - a.X;
+        var uy = b.Y - a.Y;
+        var vx = c.X - a.X;
+        var vy = c.Y - a.Y;
+        var u2 = (ux * ux) + (uy * uy);
+        var v2 = (vx * vx) + (vy * vy);
+        var cross = (ux * vy) - (uy * vx);
+        if (!double.IsFinite(u2) || !double.IsFinite(v2) || !double.IsFinite(cross)) return false;
+
+        var scale = Math.Sqrt(u2 * v2);
+        if (!double.IsFinite(scale) || scale <= Epsilon || Math.Abs(cross) <= Epsilon * Math.Max(1d, scale)) return false;
+
+        var denominator = 2d * cross;
+        var offsetX = ((vy * u2) - (uy * v2)) / denominator;
+        var offsetY = ((ux * v2) - (vx * u2)) / denominator;
+        var centerX = a.X + offsetX;
+        var centerY = a.Y + offsetY;
+        if (!double.IsFinite(centerX) || !double.IsFinite(centerY)) return false;
+
+        var computedRadius = Math.Sqrt((offsetX * offsetX) + (offsetY * offsetY));
+        if (!IsPositiveFinite(computedRadius)) return false;
+
+        center = new Point2D(centerX, centerY);
+        radius = computedRadius;
+        return true;
+    }
+
+    private static bool TryThreePointArc(
+        CSMath.XYZ start,
+        CSMath.XYZ pointOnArc,
+        CSMath.XYZ end,
+        out Point2D center,
+        out double radius,
+        out double startRadians,
+        out double sweepRadians)
+    {
+        center = Point2D.Origin;
+        radius = 0;
+        startRadians = 0;
+        sweepRadians = 0;
+        if (!TryThreePointCircle(start, pointOnArc, end, out center, out radius)) return false;
+
+        var startAngle = Math.Atan2(start.Y - center.Y, start.X - center.X);
+        var middleAngle = Math.Atan2(pointOnArc.Y - center.Y, pointOnArc.X - center.X);
+        var endAngle = Math.Atan2(end.Y - center.Y, end.X - center.X);
+        if (!double.IsFinite(startAngle) || !double.IsFinite(middleAngle) || !double.IsFinite(endAngle)) return false;
+
+        var ccwToEnd = PositiveAngleDelta(startAngle, endAngle);
+        var ccwToMiddle = PositiveAngleDelta(startAngle, middleAngle);
+        var twoPi = Math.PI * 2d;
+        if (ccwToEnd <= Epsilon
+            || twoPi - ccwToEnd <= Epsilon
+            || ccwToMiddle <= Epsilon
+            || Math.Abs(ccwToMiddle - ccwToEnd) <= Epsilon)
+            return false;
+
+        // Exactly one directed arc from start to end contains the middle point. Select that sweep;
+        // this preserves the ordering explicitly defined by Autodesk's 3-point circularArc contract.
+        var sweep = ccwToMiddle < ccwToEnd ? ccwToEnd : -(twoPi - ccwToEnd);
+        if (!double.IsFinite(sweep) || Math.Abs(sweep) <= Epsilon || Math.Abs(sweep) >= twoPi - Epsilon) return false;
+
+        startRadians = NormalizeAngle(startAngle);
+        sweepRadians = sweep;
+        return true;
+    }
+
+    private static bool TryHorizontalTriple(
+        CSMath.XYZ first,
+        CSMath.XYZ second,
+        CSMath.XYZ third,
+        out Point2D a,
+        out Point2D b,
+        out Point2D c)
+    {
+        a = Point2D.Origin;
+        b = Point2D.Origin;
+        c = Point2D.Origin;
+        if (!TryFinitePoint(first) || !TryFinitePoint(second) || !TryFinitePoint(third)) return false;
+
+        var zScale = Math.Max(1d, Math.Max(Math.Abs(first.Z), Math.Max(Math.Abs(second.Z), Math.Abs(third.Z))));
+        var zTolerance = Epsilon * zScale;
+        if (Math.Abs(first.Z - second.Z) > zTolerance || Math.Abs(first.Z - third.Z) > zTolerance) return false;
+
+        a = new Point2D(first.X, first.Y);
+        b = new Point2D(second.X, second.Y);
+        c = new Point2D(third.X, third.Y);
+        return true;
+    }
+
+    private static bool TryFinitePoint(CSMath.XYZ point)
+        => double.IsFinite(point.X) && double.IsFinite(point.Y) && double.IsFinite(point.Z);
+
     private static bool TryDirection(CSMath.XYZ direction, out double radians)
     {
         radians = 0;
@@ -323,6 +443,9 @@ public static class ACadSharpProxyGraphicsMapping
         mapped = result;
         return true;
     }
+
+    private static double PositiveAngleDelta(double startRadians, double endRadians)
+        => NormalizeAngle(endRadians - startRadians);
 
     private static double NormalizeAngle(double radians)
     {
