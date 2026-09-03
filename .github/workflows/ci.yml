@@ -30,6 +30,24 @@ jobs:
             throw 'TianzhengExportProbe did not parse expected kernel32 exports.'
           }
           $output | Write-Host
+
+          $badPath = Join-Path $env:RUNNER_TEMP 'cadcore-tchsym-invalid.bin'
+          [IO.File]::WriteAllBytes($badPath, [byte[]]::new(64))
+          $rejected = $false
+          try {
+            & ./tools/tianzheng-probe/TianzhengExportProbe.ps1 `
+              -ModulePath $badPath `
+              -MatchPattern 'anything' | Out-Null
+          }
+          catch {
+            $rejected = $true
+          }
+          finally {
+            Remove-Item -LiteralPath $badPath -Force -ErrorAction SilentlyContinue
+          }
+          if (-not $rejected) {
+            throw 'TianzhengExportProbe must fail closed for malformed PE input.'
+          }
       - run: dotnet restore SpatialViewer.CadCore.sln
       - run: dotnet build SpatialViewer.CadCore.sln -c Debug --no-restore
       - run: dotnet build SpatialViewer.CadCore.sln -c Release --no-restore
