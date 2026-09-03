@@ -126,6 +126,29 @@ public sealed class TianzhengProbeExperimentCasesV0120Tests
     }
 
     [Fact]
+    public void ConsensusRejectsFabricatedNonCanonicalCaseEvenWhenEveryObservationUsesIt()
+    {
+        var signature = CadTianzhengProbeOutputParser.ParseSignature("""
+            [TCHSIG] Object type=TCH_AXIS_LABEL
+            [TCHSIG] Entry count=3
+            [TCHSIG] Subclass marker count=1
+            [TCHSIG] code-signature=0,100,40
+            """);
+        var diff = CadTianzhengProbeOutputParser.ParseDiff("""
+            [TCHDIFF] Object type=TCH_AXIS_LABEL
+            [TCHDIFF] changed slot=2 code=40 occurrence=1
+            """);
+        var fabricated = new CadTianzhengProbeExperimentCase(
+            "FAKE_AXIS_CASE",
+            "TCH_AXIS_LABEL",
+            "fabricated test intent");
+        var observation = new CadTianzhengProbeExperimentObservation(fabricated, diff);
+
+        Assert.Throws<ArgumentException>(() =>
+            CadTianzhengProbeExperimentParser.BuildConsensus(signature, new[] { observation, observation }));
+    }
+
+    [Fact]
     public void ConsensusRequiresCaseObjectTypeToMatchSignature()
     {
         var signature = CadTianzhengProbeOutputParser.ParseSignature("""
