@@ -39,16 +39,20 @@ public sealed record CadTianzhengWallSemantic(
 }
 
 /// <summary>
-/// Partial native evidence for a Tianzheng opening. Only the insertion anchor is decoded here because
-/// published evidence identifies DXF point 10 as the opening insertion point, while reliable group mappings
-/// for width, height, sill height, opening type, and label are not yet available. Host-wall identity remains
-/// a document-level relationship resolved by <see cref="CadCustomRelationshipResolver"/>.
+/// Partial native evidence for a Tianzheng opening. Public evidence identifies DXF point 10 as the opening
+/// insertion point and group 302 as the opening number when that field is present. Reliable raw mappings for
+/// width, height, sill height, opening type, and native geometry are still unavailable. Host-wall identity
+/// remains a document-level relationship resolved by <see cref="CadCustomRelationshipResolver"/>.
 /// </summary>
 public sealed record CadTianzhengOpeningAnchorSemantic(
     Point2D InsertionPoint,
     double? Elevation,
     string DecoderProfile)
-    : CadCustomSemantic(DecoderProfile);
+    : CadCustomSemantic(DecoderProfile)
+{
+    /// <summary>Optional Tianzheng opening/door-window number retained from raw DXF group 302.</summary>
+    public string? Number { get; init; }
+}
 
 /// <summary>
 /// Partial native evidence for a Tianzheng elevation symbol. Public Tianzheng-oriented AutoLISP examples
@@ -186,10 +190,14 @@ public static class CadTianzhengSemanticDecoder
         if (!TryNumber(payload, 10, out var x) || !TryNumber(payload, 20, out var y)) return null;
         var insertionPoint = new Point2D(x, y);
         if (!Finite(insertionPoint)) return null;
+        var rawNumber = payload.Groups.FirstOrDefault(group => group.Code == 302)?.RawValue;
         return new CadTianzhengOpeningAnchorSemantic(
             insertionPoint,
             OptionalNumber(payload, 30),
-            OpeningAnchorDirectProfile);
+            OpeningAnchorDirectProfile)
+        {
+            Number = string.IsNullOrWhiteSpace(rawNumber) ? null : rawNumber
+        };
     }
 
     private static CadTianzhengElevationSemantic? TryDecodeElevation(CadDxfCustomPayload payload)
