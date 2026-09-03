@@ -57,7 +57,12 @@ public static class CadSourceContentProfiler
         ArgumentNullException.ThrowIfNull(source);
 
         var modelEntities = source.Entities.ToArray();
-        var paperLayouts = source.Layouts.Where(layout => layout.IsPaperSpace).ToArray();
+        var layouts = source.Layouts.ToArray();
+        var paperLayouts = layouts.Where(layout => layout.IsPaperSpace).ToArray();
+        var layoutBlocks = layouts
+            .Select(layout => layout.AssociatedBlock)
+            .Where(block => block is not null)
+            .ToHashSet(ReferenceEqualityComparer.Instance);
         var paperEntities = paperLayouts
             .SelectMany(layout => layout.AssociatedBlock is { } block
                 ? block.Entities.AsEnumerable()
@@ -66,8 +71,11 @@ public static class CadSourceContentProfiler
             .ToArray();
         var paperViewportCount = paperLayouts.Sum(layout => layout.Viewports.Count());
 
+        // Layout-associated model/paper-space records are traversal roots, not ordinary block
+        // definitions. Exclude them by object identity first; keep the name check only as a
+        // compatibility fallback for malformed/incomplete layout relationships.
         var blockDefinitions = source.BlockRecords
-            .Where(record => !IsSpaceRecord(record.Name))
+            .Where(record => !layoutBlocks.Contains(record) && !IsSpaceRecord(record.Name))
             .ToArray();
         var blockDefinitionEntities = blockDefinitions.SelectMany(record => record.Entities).ToArray();
         var allEntities = modelEntities.Concat(paperEntities).Concat(blockDefinitionEntities).ToArray();
