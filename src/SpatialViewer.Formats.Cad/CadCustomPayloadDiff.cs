@@ -123,7 +123,7 @@ public static class CadDxfCustomPayloadDiffer
         return before.Count == after.Count ? null : commonCount;
     }
 
-    private static IReadOnlyList<CadDxfCustomPayloadCodeCountDelta> CodeCountDeltas(
+    private static CadDxfCustomPayloadCodeCountDelta[] CodeCountDeltas(
         IReadOnlyList<CadRawDxfGroup> before,
         IReadOnlyList<CadRawDxfGroup> after)
     {
