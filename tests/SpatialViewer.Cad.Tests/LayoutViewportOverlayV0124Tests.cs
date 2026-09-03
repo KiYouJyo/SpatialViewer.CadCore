@@ -8,6 +8,8 @@ public sealed class LayoutViewportOverlayV0124Tests
     [Fact]
     public void SyntheticViewportBoundaryDoesNotRenderOrPolluteVisibleExtents()
     {
+        // Isolate the synthesized viewport rectangle from legitimate model-through-viewport content:
+        // a giant viewport overlay must never enlarge Fit Extents by itself.
         var document = new CadDocument(
             "sheet.dwg",
             "DWG",
@@ -15,7 +17,7 @@ public sealed class LayoutViewportOverlayV0124Tests
             CadUnits.Millimetres,
             new[] { new CadLayer("0", CadColor.FromAci(7)) },
             Array.Empty<CadBlockDefinition>(),
-            new CadEntity[] { new CadLineEntity("MODEL", new Point2D(0, 0), new Point2D(100, 0)) });
+            Array.Empty<CadEntity>());
         var layout = new CadLayoutDefinition(
             "Layout1",
             1,
@@ -46,7 +48,6 @@ public sealed class LayoutViewportOverlayV0124Tests
         Assert.False(overlay.Layer.IsVisible);
 
         var visibleBounds = scene.GetBounds();
-        Assert.True(visibleBounds.MaxX < 1000);
-        Assert.True(visibleBounds.MaxY < 1000);
+        Assert.Equal(new BoundingBox2D(10, 10, 20, 10), visibleBounds);
     }
 }
