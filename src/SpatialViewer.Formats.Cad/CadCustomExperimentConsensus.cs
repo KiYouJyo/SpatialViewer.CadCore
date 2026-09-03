@@ -190,13 +190,13 @@ public static class CadCustomExperimentAnalyzer
             && string.Equals(left.ApplicationName, right.ApplicationName, StringComparison.OrdinalIgnoreCase);
 
     private static CadDwgCustomObjectChangedByteRange[] IntersectRanges(
-        IReadOnlyList<CadDwgCustomObjectChangedByteRange> left,
+        CadDwgCustomObjectChangedByteRange[] left,
         IReadOnlyList<CadDwgCustomObjectChangedByteRange> right)
     {
         var result = new List<CadDwgCustomObjectChangedByteRange>();
         var leftIndex = 0;
         var rightIndex = 0;
-        while (leftIndex < left.Count && rightIndex < right.Count)
+        while (leftIndex < left.Length && rightIndex < right.Count)
         {
             var a = left[leftIndex];
             var b = right[rightIndex];
