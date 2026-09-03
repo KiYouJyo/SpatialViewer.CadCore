@@ -39,6 +39,7 @@ public sealed class TianzhengProbeExperimentCasesV0120Tests
     [InlineData("UNKNOWN_CASE", "TCH_AXIS_LABEL")]
     [InlineData("AXIS_LABEL_TEXT", "TCH_DRAWINGINDEX")]
     [InlineData("DIMENSION_PLOT_SCALE", "TCH_AXIS_LABEL")]
+    [InlineData("DIMENSION_PLOT_SCALE", "TCH_DIMENSION")]
     public void ParserFailsClosedForUnknownOrWrongObjectCase(string caseId, string dxfName)
     {
         var text = $"""

@@ -45,6 +45,18 @@ This document defines the evidence strength used for the final SpatialViewer.Cad
 
 2026 年公开的明经 CAD AutoLISP 帖已经确认 `TCH_DIMENSION2` 的出图比例可以被专门动态调整，但当前搜索索引没有暴露其具体 `entget/entmod` group 代码。因此仍不能据此把 group 47 或其他 group 直接命名为 `PlotScale`。
 
+### `TCH_DIMENSION` / `TCH_DIMENSION2` identity drift
+
+当前公开资料出现了一个必须单独记录的版本差异：2026 年较新的天正兼容 AutoLISP 支持表使用 `TCH_DIMENSION`，而同一资料引用的旧实现标题、LibreDWG class registry 以及既有第三方 CAD 代码使用 `TCH_DIMENSION2`。现有证据不足以判断这是简单重命名、两个并存的对象类型，还是不同天正版本/保存格式产生的不同 class。
+
+CadCore 因此采用严格边界：
+
+- `TCH_DIMENSION` 仍按 `TCH_*` 身份完整保留为 Tianzheng opaque custom entity，继续保留 raw/proxy evidence；
+- 不把 `TCH_DIMENSION` alias 成 `TCH_DIMENSION2`；
+- `DIMENSION_PLOT_SCALE` canonical experiment 仍严格绑定 `TCH_DIMENSION2`，选择 `TCH_DIMENSION` 时 fail closed；
+- 这个 identity drift 暂时作为兼容性观察线，不凭公开名称差异新增或解除 semantic gate；
+- 如果真实现代 T20 corpus / `TCHRUN` 证明 `TCH_DIMENSION` 已经替代 `TCH_DIMENSION2`，必须显式重新评估 v0.12 dimension gate，而不是通过 alias 让 gate 虚假变绿。
+
 ### 现代版本限制
 
 公开的 2025 Autodesk Community 讨论还报告：T20 V10 的部分自定义天正对象可能无法通过普通 `entget` / `vlax-dump-object` 暴露需要的字段。这个事实不会降低 gate，反而说明实验工具必须保留 fail-closed 策略：如果当前天正版本不暴露可比较 raw layout，就记录为“不足以解码”，而不是回退到猜测、跨类类推或 Proxy Graphics 反推字段。
@@ -64,6 +76,12 @@ Current public material confirms editable axis-label text, index-symbol/index-dr
 
 Public related-object evidence repeatedly associates group 47 with plot scale, including Tianzheng annotation entget material, but this remains a hypothesis for `TCH_DIMENSION2` until evidence from that exact type identifies its field. A public 2026 AutoLISP post confirms that `TCH_DIMENSION2` plot scale is dynamically adjustable but the indexed code does not expose the field used.
 
+### `TCH_DIMENSION` / `TCH_DIMENSION2` identity drift
+
+Newer public Tianzheng-compatible AutoLISP material lists `TCH_DIMENSION`, while the older implementation it references, LibreDWG's class registry and existing third-party CAD code use `TCH_DIMENSION2`. There is not enough evidence to treat these as a rename or as the same payload schema.
+
+CadCore therefore preserves `TCH_DIMENSION` as a Tianzheng opaque custom entity with raw/proxy evidence, but does not alias it to `TCH_DIMENSION2`. The canonical `DIMENSION_PLOT_SCALE` experiment remains bound to `TCH_DIMENSION2` and fails closed for `TCH_DIMENSION`. If a real modern T20 corpus proves that `TCH_DIMENSION` supersedes the legacy identity, the v0.12 dimension gate must be explicitly revisited rather than silently cleared through an alias.
+
 A 2025 Autodesk Community discussion also reports that some T20 V10 custom objects may not expose useful group data through ordinary `entget` / `vlax-dump-object`. CadCore therefore keeps the gate fail closed when a version does not expose a comparable raw layout.
 
 ## 日本語
@@ -80,5 +98,11 @@ named semantic へ進むには canonical case、atomic `TCHRUN` bundle（また�
 現在の公開資料では、軸番号 text、索引 symbol / 索引図名の編集機能、`TCH_DIMENSION2` の出図 scale について ParameterExistence までは確認できます。しかし残る case のいずれも exact raw group + occurrence の mapping はまだ確認できていません。索引 evidence は意図的に product-semantic level に留めています。
 
 group 47 は複数の関連 Tianzheng annotation object で出図 scale と関連しますが、`TCH_DIMENSION2` 自身の field evidence が出るまでは hypothesis のままです。2026 年公開 AutoLISP 投稿は `TCH_DIMENSION2` の出図 scale が動的に変更可能であることを確認しますが、検索 index では使用 raw field が確認できません。
+
+### `TCH_DIMENSION` / `TCH_DIMENSION2` identity drift
+
+新しい公開 Tianzheng 対応 AutoLISP 資料では `TCH_DIMENSION` が列挙されていますが、その資料が参照する旧実装、LibreDWG class registry、既存 third-party CAD code では `TCH_DIMENSION2` が使われています。現時点では rename、共存 type、version/save-format 差のどれかを断定できません。
+
+そのため CadCore は `TCH_DIMENSION` を Tianzheng opaque custom entity として raw/proxy evidence ごと保持しますが、`TCH_DIMENSION2` への alias は行いません。canonical `DIMENSION_PLOT_SCALE` experiment は引き続き `TCH_DIMENSION2` に限定し、`TCH_DIMENSION` は fail closed とします。modern T20 の real corpus で置換関係が確認された場合は、alias で gate を見かけ上通過させるのではなく、v0.12 dimension gate を明示的に再評価します。
 
 また 2025 年の Autodesk Community では、T20 V10 の一部 custom object が通常の `entget` / `vlax-dump-object` で必要 group data を公開しない可能性が報告されています。したがって比較可能 raw layout を取得できない version は fail closed とし、推測で gate を解除しません。

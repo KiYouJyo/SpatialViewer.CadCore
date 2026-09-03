@@ -71,14 +71,50 @@ public sealed class TianzhengCompatibilityV0110ReaderTests
         }
     }
 
-    private static void WriteDxfWithTianzhengClass(string path)
+    [Fact]
+    public async Task ModernTchDimensionIdentityIsPreservedOpaqueWithoutLegacySemanticAlias()
+    {
+        var root = TemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(root, "tianzheng-modern-dimension.dxf");
+            WriteDxfWithTianzhengClass(path, "TCH_DIMENSION", "OpaqueTchDimensionClass");
+            InjectCustomEntity(path, "TCH_DIMENSION");
+
+            var result = await new ACadSharpCadImporter().ImportAsync(new ImportRequest(path));
+            var document = Assert.IsType<CadDocument>(result.Document);
+            var preservedClass = Assert.Single(document.CustomClasses, candidate => candidate.DxfName == "TCH_DIMENSION");
+            var custom = Assert.Single(document.ModelSpace.OfType<CadCustomEntity>());
+
+            Assert.True(result.IsSuccess);
+            Assert.True(preservedClass.IsTianzheng);
+            Assert.True(custom.IsTianzheng);
+            Assert.Equal("TCH_DIMENSION", custom.SourceEntityType);
+            Assert.Equal("TCH_DIMENSION", custom.ClassDefinition?.DxfName);
+            Assert.NotEqual("TCH_DIMENSION2", custom.ClassDefinition?.DxfName);
+            Assert.Equal(CadCustomEntityRepresentation.Opaque, custom.Representation);
+            Assert.Null(custom.NativeSemantics);
+            Assert.Equal(bool.TrueString, document.Metadata["TianzhengDetected"]);
+            Assert.Equal("1", document.Metadata["TianzhengEntityCount"]);
+            Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "CAD_CUSTOM_ENTITY_PRESERVED");
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    private static void WriteDxfWithTianzhengClass(
+        string path,
+        string dxfName = "TCH_WALL",
+        string cppClassName = "TDbWall")
     {
         var source = new global::ACadSharp.CadDocument();
         source.CreateDefaults();
         source.Classes.Add(new DxfClass
         {
-            DxfName = "TCH_WALL",
-            CppClassName = "TDbWall",
+            DxfName = dxfName,
+            CppClassName = cppClassName,
             ApplicationName = "Tianzheng Architecture",
             ClassNumber = 501,
             InstanceCount = 1,
