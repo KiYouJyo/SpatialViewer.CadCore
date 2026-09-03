@@ -191,7 +191,7 @@ internal static class CadTextSceneBuilder
     }
 
     private static Transform2D RotationTransform(Point2D origin, double rotation)
-        => Transform2D.Translation(origin.X, origin.Y).Then(Transform2D.Rotation(rotation)).Then(Transform2D.Translation(-origin.X, -origin.Y));
+        => Transform2D.Translation(-origin.X, -origin.Y).Then(Transform2D.Rotation(rotation)).Then(Transform2D.Translation(origin.X, origin.Y));
 
     private static double EstimateNaturalWidth(string text, double height, double widthFactor)
     {

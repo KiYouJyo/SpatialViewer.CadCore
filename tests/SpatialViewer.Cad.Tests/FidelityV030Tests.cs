@@ -60,6 +60,16 @@ public sealed class FidelityV030Tests
         Assert.Equal(2, origin.DistanceTo(x), 8);
     }
 
+    [Fact]
+    public async Task ACadSharpReaderAnglesAreAlreadyRadiansForTextAndInsert()
+    {
+        var document = await ImportAsync();
+        var text = Assert.Single(document.ModelSpace.OfType<CadTextEntity>());
+        var insert = Assert.Single(document.ModelSpace.OfType<CadBlockReferenceEntity>());
+        Assert.Equal(Math.PI / 4, text.RotationRadians, 10);
+        Assert.Equal(Math.PI / 6, insert.RotationRadians, 10);
+    }
+
     private static async Task<CadDocument> ImportAsync()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "fixtures", "cad", "dxf", "fidelity-v030.dxf");
