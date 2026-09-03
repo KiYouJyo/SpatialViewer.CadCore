@@ -104,7 +104,7 @@ public static class CadSourceContentProfiler
             externalDefinitions.Length,
             externalReferences,
             externalDefinitions.Count(record => record.IsUnloaded),
-            externalDefinitions.Count(record => !record.Entities.Any()));
+            externalDefinitions.Count(record => record.Entities.Count == 0));
     }
 
     private static bool IsSpaceRecord(string name)
