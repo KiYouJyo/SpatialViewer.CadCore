@@ -88,11 +88,12 @@ public sealed partial class CadSceneTranslator
             return TianzhengWallNode(custom, wall, style, metadata);
 
         if (custom.ProxyPrimitives.Count == 0) return null;
+        var traitsApplied = CadProxyTraitInspector.HasOverrides(custom.ProxyPrimitives);
         var enriched = new Dictionary<string, string>(metadata, StringComparer.Ordinal)
         {
             ["CustomProxyFallback"] = bool.TrueString,
             ["ProxyPrimitiveCount"] = custom.ProxyPrimitives.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ["ProxyTraitsApplied"] = bool.FalseString,
+            ["ProxyTraitsApplied"] = traitsApplied.ToString(),
             ["NativeSemanticsDecoded"] = bool.FalseString
         };
         var children = custom.ProxyPrimitives
@@ -145,15 +146,16 @@ public sealed partial class CadSceneTranslator
         {
             ["ProxySourceKind"] = primitive.SourceKind
         };
+        var effectiveStyle = ResolveProxyStyle(primitive, style, enriched);
         return primitive switch
         {
-            CadProxyClipGroup clip when clip.ClipPolygon.Count >= 3 => ProxyClipGroupNode(id, clip, style, enriched),
-            CadProxyPolyline polyline when polyline.Points.Count >= 2 => new SceneNode(id, new PolylineGeometry(polyline.Points), style: style, metadata: enriched),
-            CadProxyLwPolyline polyline when polyline.Points.Count >= 2 => ProxyLwPolylineNode(id, polyline, style, enriched),
-            CadProxyPolygon polygon when polygon.Points.Count >= 3 => new SceneNode(id, new PolygonGeometry(polygon.Points), style: style, metadata: enriched),
-            CadProxyCircle circle when double.IsFinite(circle.Radius) && circle.Radius > double.Epsilon => new SceneNode(id, new CircleGeometry(circle.Center, circle.Radius), style: style, metadata: enriched),
+            CadProxyClipGroup clip when clip.ClipPolygon.Count >= 3 => ProxyClipGroupNode(id, clip, effectiveStyle, enriched),
+            CadProxyPolyline polyline when polyline.Points.Count >= 2 => new SceneNode(id, new PolylineGeometry(polyline.Points), style: effectiveStyle, metadata: enriched),
+            CadProxyLwPolyline polyline when polyline.Points.Count >= 2 => ProxyLwPolylineNode(id, polyline, effectiveStyle, enriched),
+            CadProxyPolygon polygon when polygon.Points.Count >= 3 => new SceneNode(id, new PolygonGeometry(polygon.Points), style: effectiveStyle, metadata: enriched),
+            CadProxyCircle circle when double.IsFinite(circle.Radius) && circle.Radius > double.Epsilon => new SceneNode(id, new CircleGeometry(circle.Center, circle.Radius), style: effectiveStyle, metadata: enriched),
             CadProxyArc arc when double.IsFinite(arc.Radius) && arc.Radius > double.Epsilon && double.IsFinite(arc.StartRadians) && double.IsFinite(arc.SweepRadians)
-                => new SceneNode(id, new ArcGeometry(arc.Center, arc.Radius, arc.StartRadians, arc.SweepRadians), style: style, metadata: enriched),
+                => new SceneNode(id, new ArcGeometry(arc.Center, arc.Radius, arc.StartRadians, arc.SweepRadians), style: effectiveStyle, metadata: enriched),
             CadProxyText text when !string.IsNullOrEmpty(text.Text)
                 && double.IsFinite(text.Height)
                 && text.Height > double.Epsilon
@@ -161,9 +163,34 @@ public sealed partial class CadSceneTranslator
                 && double.IsFinite(text.WidthFactor)
                 && text.WidthFactor > double.Epsilon
                 && double.IsFinite(text.ObliqueAngleRadians)
-                => ProxyTextNode(id, text, style, enriched),
+                => ProxyTextNode(id, text, effectiveStyle, enriched),
             _ => null
         };
+    }
+
+    private static SceneStyle ResolveProxyStyle(CadProxyPrimitive primitive, SceneStyle inherited, Dictionary<string, string> metadata)
+    {
+        var style = inherited;
+        metadata["ProxyPrimitiveTraitsApplied"] = primitive.Traits.HasOverrides.ToString();
+
+        if (primitive.Traits.Color is { } color)
+        {
+            metadata.Remove(BackgroundAdaptiveStrokeKey);
+            metadata.Remove("CadColorIndex");
+            metadata.Remove("CadTrueColor");
+            AddColorMetadata(metadata, color);
+            metadata["ProxyColorOverride"] = bool.TrueString;
+            style = style with { Stroke = ToHex(color) };
+        }
+
+        if (primitive.Traits.LineWeight is { } lineWeight)
+        {
+            metadata["LineWeight"] = lineWeight.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            metadata["ProxyLineWeightOverride"] = bool.TrueString;
+            style = style with { StrokeWidth = Math.Max(1, lineWeight / 100d) };
+        }
+
+        return style;
     }
 
     private static SceneNode? ProxyClipGroupNode(ObjectId id, CadProxyClipGroup clip, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
