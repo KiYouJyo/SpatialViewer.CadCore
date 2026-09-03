@@ -59,13 +59,13 @@ public sealed class TianzhengSchemaCorpusJsonV0120Tests
 
         const string oldSchema = """
             {
-              "schemaVersion": 1,
+              "schemaVersion": 2,
               "sampleCount": 0,
               "entries": []
             }
             """;
         var exception = Assert.Throws<ArgumentException>(() => CadTianzhengSchemaCorpus.FromJson(oldSchema));
-        Assert.Contains("version: 1", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("version: 2", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -80,6 +80,22 @@ public sealed class TianzhengSchemaCorpusJsonV0120Tests
             () => CadTianzhengSchemaCorpus.FromJson(root.ToJsonString()));
 
         Assert.Contains("ResolvedRelationshipEntityCount", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FromJsonRejectsSemanticCoverageThatDoesNotReconcile()
+    {
+        var json = CadTianzhengSchemaCorpus.ToJson(CadTianzhengSchemaCorpus.Build(Document("100")));
+        var root = JsonNode.Parse(json)!.AsObject();
+        var entry = root["entries"]!.AsArray()[0]!.AsObject();
+        entry["nativeSemanticEntityCount"] = 1;
+        entry["partialSemanticEntityCount"] = 0;
+        entry["drawable2DSemanticEntityCount"] = 0;
+
+        var exception = Assert.Throws<ArgumentException>(
+            () => CadTianzhengSchemaCorpus.FromJson(root.ToJsonString()));
+
+        Assert.Contains("exactly equal native semantic coverage", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
