@@ -56,11 +56,11 @@ public sealed class TianzhengStairStepHeightV0120Tests
     [Fact]
     public void StairDecoderRequiresExactConsistentIdentityAndOnePositiveFiniteGroupForty()
     {
-        var valid = Payload(new(40, "175"));
-        var duplicate = Payload(new(40, "175"), new(40, "180"));
-        var malformed = Payload(new(40, "not-a-number"));
-        var zero = Payload(new(40, "0"));
-        var negative = Payload(new(40, "-175"));
+        var valid = Payload(new CadRawDxfGroup(40, "175"));
+        var duplicate = Payload(new CadRawDxfGroup(40, "175"), new CadRawDxfGroup(40, "180"));
+        var malformed = Payload(new CadRawDxfGroup(40, "not-a-number"));
+        var zero = Payload(new CadRawDxfGroup(40, "0"));
+        var negative = Payload(new CadRawDxfGroup(40, "-175"));
         var truncated = new CadDxfCustomPayload(valid.Groups, true);
 
         var line = Assert.IsType<CadTianzhengStairStepSemantic>(
@@ -83,15 +83,15 @@ public sealed class TianzhengStairStepHeightV0120Tests
     public void StairStepSemanticDoesNotPromoteOtherPublishedTableFieldsWithoutIndependentValidation()
     {
         var payload = Payload(
-            new(40, "175"),
-            new(41, "280"),
-            new(42, "1200"),
-            new(43, "280"),
-            new(44, "1100"),
-            new(50, "1.57079632679"),
-            new(70, "12"),
-            new(71, "10"),
-            new(72, "9"));
+            new CadRawDxfGroup(40, "175"),
+            new CadRawDxfGroup(41, "280"),
+            new CadRawDxfGroup(42, "1200"),
+            new CadRawDxfGroup(43, "280"),
+            new CadRawDxfGroup(44, "1100"),
+            new CadRawDxfGroup(50, "1.57079632679"),
+            new CadRawDxfGroup(70, "12"),
+            new CadRawDxfGroup(71, "10"),
+            new CadRawDxfGroup(72, "9"));
 
         var semantic = Assert.IsType<CadTianzhengStairStepSemantic>(
             CadTianzhengStairSemanticDecoder.Decode("TCH_RECTSTAIR", StairClass("TCH_RECTSTAIR"), payload));
