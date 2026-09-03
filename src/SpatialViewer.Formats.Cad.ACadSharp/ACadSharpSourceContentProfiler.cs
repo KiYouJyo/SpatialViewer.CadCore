@@ -59,7 +59,9 @@ public static class CadSourceContentProfiler
         var modelEntities = source.Entities.ToArray();
         var paperLayouts = source.Layouts.Where(layout => layout.IsPaperSpace).ToArray();
         var paperEntities = paperLayouts
-            .SelectMany(layout => layout.AssociatedBlock?.Entities ?? Array.Empty<Entity>())
+            .SelectMany(layout => layout.AssociatedBlock is { } block
+                ? block.Entities.AsEnumerable()
+                : Enumerable.Empty<Entity>())
             .Where(entity => entity is not Viewport)
             .ToArray();
         var paperViewportCount = paperLayouts.Sum(layout => layout.Viewports.Count());
@@ -79,7 +81,9 @@ public static class CadSourceContentProfiler
 
         var tables = allEntities.OfType<TableEntity>().ToArray();
         var tableCacheNames = new HashSet<string>(
-            tables.Select(table => table.Block?.Name).Where(name => !string.IsNullOrWhiteSpace(name))!,
+            tables.Select(table => table.Block?.Name)
+                .OfType<string>()
+                .Where(name => !string.IsNullOrWhiteSpace(name)),
             StringComparer.OrdinalIgnoreCase);
         var tableCacheDefinitions = blockDefinitions.Count(record => tableCacheNames.Contains(record.Name));
 
