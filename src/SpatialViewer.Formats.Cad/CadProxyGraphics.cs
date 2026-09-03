@@ -28,6 +28,16 @@ public sealed record CadProxyArc(Point2D Center, double Radius, double StartRadi
     : CadProxyPrimitive("CircularArc");
 
 /// <summary>
+/// Scoped 2D proxy-graphics clip. The boundary and children are already expressed in the same
+/// reader-independent object coordinate system. Nested groups preserve the original push/pop scope.
+/// </summary>
+public sealed record CadProxyClipGroup(
+    IReadOnlyList<Point2D> ClipPolygon,
+    IReadOnlyList<CadProxyPrimitive> Children,
+    bool DrawBoundary = false)
+    : CadProxyPrimitive("ClipGroup");
+
+/// <summary>
 /// Display-only text presentation supplied by a proxy-graphics stream. This retains only the
 /// presentation fields explicitly exposed by the reader and is not a native custom-object semantic.
 /// </summary>
