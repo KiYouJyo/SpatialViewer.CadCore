@@ -4,11 +4,6 @@ namespace SpatialViewer.Formats.Cad;
 
 public sealed partial class CadSceneTranslator
 {
-    /// <summary>
-    /// Intercepts dimension/leader arrow calls whose metadata is still mutable. Known AutoCAD built-in
-    /// architectural tick identities are rendered as a single oblique stroke; every other request is
-    /// delegated to the established conservative arrow fallback.
-    /// </summary>
     private static void AddArrow(
         List<SceneNode> children,
         ObjectId id,
@@ -18,7 +13,14 @@ public sealed partial class CadSceneTranslator
         SceneStyle style,
         Dictionary<string, string> metadata)
     {
-        if (!metadata.TryGetValue("DimensionArrowRequestedBlock", out var requested) || !IsArchitecturalTick(requested))
+        metadata.TryGetValue("DimensionArrowRequestedBlock", out var requested);
+        if (string.IsNullOrWhiteSpace(requested) && metadata.TryGetValue("DimensionArrowBlock", out var shared))
+        {
+            requested = shared;
+            metadata["DimensionArrowRequestedBlock"] = shared;
+            metadata["DimensionArrowSharedBlockFallback"] = bool.TrueString;
+        }
+        if (!IsArchitecturalTick(requested))
         {
             AddArrow(children, id, tip, toward, size, style, (IReadOnlyDictionary<string, string>)metadata);
             return;
@@ -26,7 +28,6 @@ public sealed partial class CadSceneTranslator
 
         var direction = Normalize(new Point2D(toward.X - tip.X, toward.Y - tip.Y));
         if (Math.Abs(direction.X) <= double.Epsilon && Math.Abs(direction.Y) <= double.Epsilon) return;
-
         var arrowSize = size > double.Epsilon ? size : 2.5;
         var tickDirection = Rotate(direction, Math.PI / 4);
         var halfLength = arrowSize * 0.75;
@@ -40,10 +41,6 @@ public sealed partial class CadSceneTranslator
         children.Add(LineNode(id, start, end, style, enriched));
     }
 
-    /// <summary>
-    /// AutoCAD dimension text is conventionally kept readable. Only semantic DIMENSION text uses this
-    /// overload; ordinary TEXT/MTEXT retains its authored rotation exactly.
-    /// </summary>
     private static SceneNode TextNode(
         ObjectId id,
         Point2D insertionPoint,
@@ -53,21 +50,29 @@ public sealed partial class CadSceneTranslator
         SceneStyle style,
         Dictionary<string, string> metadata)
     {
-        var resolved = metadata.TryGetValue("DimensionSemantic", out var semantic)
-            && bool.TryParse(semantic, out var isDimension)
-            && isDimension
-                ? ReadableDimensionRotation(rotationRadians)
-                : rotationRadians;
+        var isDimension = metadata.TryGetValue("DimensionSemantic", out var semantic)
+            && bool.TryParse(semantic, out var parsedDimension)
+            && parsedDimension;
+        var resolved = isDimension ? ReadableDimensionRotation(rotationRadians) : rotationRadians;
+        var enriched = new Dictionary<string, string>(metadata, StringComparer.Ordinal);
         if (resolved != rotationRadians)
         {
-            metadata = new Dictionary<string, string>(metadata, StringComparer.Ordinal)
-            {
-                ["DimensionTextReadableRotationApplied"] = bool.TrueString,
-                ["DimensionTextSourceRotation"] = rotationRadians.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
-                ["DimensionTextResolvedRotation"] = resolved.ToString("R", System.Globalization.CultureInfo.InvariantCulture)
-            };
+            enriched["DimensionTextReadableRotationApplied"] = bool.TrueString;
+            enriched["DimensionTextSourceRotation"] = rotationRadians.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+            enriched["DimensionTextResolvedRotation"] = resolved.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
         }
-        return TextNode(id, insertionPoint, text, height, resolved, style, (IReadOnlyDictionary<string, string>)metadata);
+        if (!isDimension) return TextNode(id, insertionPoint, text, height, resolved, style, (IReadOnlyDictionary<string, string>)enriched);
+
+        enriched["DimensionTextAnchor"] = "MiddleCenter";
+        var geometry = new TextGeometry(insertionPoint, text, height)
+        {
+            HorizontalAlignment = TextHorizontalAlignment2D.Center,
+            VerticalAlignment = TextVerticalAlignment2D.Middle
+        };
+        var transform = Transform2D.Translation(-insertionPoint.X, -insertionPoint.Y)
+            .Then(Transform2D.Rotation(resolved))
+            .Then(Transform2D.Translation(insertionPoint.X, insertionPoint.Y));
+        return new SceneNode(id, geometry, transform, style, metadata: enriched);
     }
 
     private static bool IsArchitecturalTick(string? requested)
