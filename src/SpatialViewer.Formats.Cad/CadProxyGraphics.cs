@@ -11,6 +11,13 @@ public abstract record CadProxyPrimitive(string SourceKind);
 public sealed record CadProxyPolyline(IReadOnlyList<Point2D> Points)
     : CadProxyPrimitive("Polyline");
 
+/// <summary>Planar lightweight-polyline proxy retaining closed state and per-segment bulges.</summary>
+public sealed record CadProxyLwPolyline(
+    IReadOnlyList<Point2D> Points,
+    IReadOnlyList<double> Bulges,
+    bool IsClosed)
+    : CadProxyPrimitive("LwPolyine");
+
 public sealed record CadProxyPolygon(IReadOnlyList<Point2D> Points)
     : CadProxyPrimitive("Polygon");
 
