@@ -204,18 +204,40 @@ try {
     Assert-FileRange -Offset $optionalHeaderOffset -Length $sizeOfOptionalHeader -FileLength $fileLength -Label 'optional header'
     $optionalMagic = Read-UInt16At -Reader $reader -Offset $optionalHeaderOffset -FileLength $fileLength -Label 'optional-header magic'
     switch ($optionalMagic) {
-        0x10B { $dataDirectoryOffset = $optionalHeaderOffset + 96 }
-        0x20B { $dataDirectoryOffset = $optionalHeaderOffset + 112 }
+        0x10B {
+            $numberOfRvaAndSizesOffset = $optionalHeaderOffset + 92
+            $dataDirectoryOffset = $optionalHeaderOffset + 96
+        }
+        0x20B {
+            $numberOfRvaAndSizesOffset = $optionalHeaderOffset + 108
+            $dataDirectoryOffset = $optionalHeaderOffset + 112
+        }
         default { throw ('Unsupported PE optional-header magic 0x{0:X4}.' -f $optionalMagic) }
     }
 
-    if ($dataDirectoryOffset + 8 -gt $optionalHeaderOffset + $sizeOfOptionalHeader) {
+    if ($numberOfRvaAndSizesOffset + 4 -gt $optionalHeaderOffset + $sizeOfOptionalHeader) {
+        throw 'Malformed PE image: NumberOfRvaAndSizes is absent from the optional header.'
+    }
+    $numberOfRvaAndSizes = Read-UInt32At -Reader $reader -Offset $numberOfRvaAndSizesOffset -FileLength $fileLength -Label 'NumberOfRvaAndSizes'
+
+    if ($numberOfRvaAndSizes -gt 0 -and $dataDirectoryOffset + 8 -gt $optionalHeaderOffset + $sizeOfOptionalHeader) {
         throw 'Malformed PE image: export data directory is absent from the optional header.'
     }
 
     $sizeOfHeaders = Read-UInt32At -Reader $reader -Offset ($optionalHeaderOffset + 60) -FileLength $fileLength -Label 'SizeOfHeaders'
-    $exportRva = Read-UInt32At -Reader $reader -Offset $dataDirectoryOffset -FileLength $fileLength -Label 'export-table RVA'
-    $exportSize = Read-UInt32At -Reader $reader -Offset ($dataDirectoryOffset + 4) -FileLength $fileLength -Label 'export-table size'
+    [uint32]$exportRva = 0
+    [uint32]$exportSize = 0
+    if ($numberOfRvaAndSizes -gt 0) {
+        $exportRva = Read-UInt32At -Reader $reader -Offset $dataDirectoryOffset -FileLength $fileLength -Label 'export-table RVA'
+        $exportSize = Read-UInt32At -Reader $reader -Offset ($dataDirectoryOffset + 4) -FileLength $fileLength -Label 'export-table size'
+    }
+
+    if (($exportRva -eq 0) -xor ($exportSize -eq 0)) {
+        throw 'Malformed PE image: export-table RVA and size must both be zero or both be non-zero.'
+    }
+    if ($exportRva -ne 0 -and $exportSize -lt 40) {
+        throw 'Malformed PE image: export directory is smaller than IMAGE_EXPORT_DIRECTORY.'
+    }
 
     $sectionTableOffset = $optionalHeaderOffset + $sizeOfOptionalHeader
     $sectionTableLength = [long]$numberOfSections * 40
@@ -233,7 +255,7 @@ try {
     }
 
     $allExports = [System.Collections.Generic.List[string]]::new()
-    if ($exportRva -ne 0 -and $exportSize -ne 0) {
+    if ($exportRva -ne 0) {
         $exportOffset = Convert-RvaToFileOffset -Rva $exportRva -Sections $sections -SizeOfHeaders $sizeOfHeaders -FileLength $fileLength -Label 'export directory'
         Assert-FileRange -Offset $exportOffset -Length 40 -FileLength $fileLength -Label 'export directory'
 
