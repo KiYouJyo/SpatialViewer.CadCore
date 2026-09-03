@@ -10,15 +10,15 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
     <PlatformTarget>x64</PlatformTarget>
-    <Version>0.12.1</Version>
+    <Version>0.12.2</Version>
     <AbiVersion>1.0.0.0</AbiVersion>
     <HostContractName>SpatialViewer.CadHost</HostContractName>
     <HostContractMinVersion>1.0.0</HostContractMinVersion>
     <HostContractMaxVersionExclusive>2.0.0</HostContractMaxVersionExclusive>
     <ReleaseManifestSchemaVersion>2</ReleaseManifestSchemaVersion>
     <AssemblyVersion>$(AbiVersion)</AssemblyVersion>
-    <FileVersion>0.12.1.0</FileVersion>
-    <InformationalVersion>0.12.1</InformationalVersion>
+    <FileVersion>0.12.2.0</FileVersion>
+    <InformationalVersion>0.12.2</InformationalVersion>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
     <Deterministic>true</Deterministic>
   </PropertyGroup>
