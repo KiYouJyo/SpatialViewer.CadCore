@@ -121,7 +121,11 @@ public sealed class TianzhengProbeExperimentBundleV0120Tests
             [TCHDIFF] changed slot=4 code=40 occurrence=2
             """);
 
-        Assert.Equal(first.Signature, second.Signature);
+        Assert.Equal(first.Signature.DxfName, second.Signature.DxfName);
+        Assert.Equal(first.Signature.EntryCount, second.Signature.EntryCount);
+        Assert.Equal(first.Signature.SubclassMarkerCount, second.Signature.SubclassMarkerCount);
+        Assert.Equal(first.Signature.GroupCodes.ToArray(), second.Signature.GroupCodes.ToArray());
+
         var consensus = CadTianzhengProbeExperimentParser.BuildConsensus(
             first.Signature,
             new[] { first.Observation, second.Observation });
