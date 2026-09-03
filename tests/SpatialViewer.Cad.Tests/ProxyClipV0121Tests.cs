@@ -79,10 +79,11 @@ public sealed class ProxyClipV0121Tests
         var outer = Assert.IsType<CadProxyClipGroup>(Assert.Single(mapped));
         var inner = Assert.IsType<CadProxyClipGroup>(Assert.Single(outer.Children));
         Assert.Equal(3, inner.ClipPolygon.Count);
-        var item = Assert.Single(Document(Custom(mapped)).Scene.GetItems());
+        var scene = Document(Custom(mapped)).Scene;
+        var item = Assert.Single(scene.GetItems());
         Assert.Equal(2, item.ClipPolygons.Count);
-        Assert.NotNull(HitTesting.HitTest(Document(Custom(mapped)).Scene, new Point2D(7, 10), 0));
-        Assert.Null(HitTesting.HitTest(Document(Custom(mapped)).Scene, new Point2D(14, 10), 0));
+        Assert.NotNull(HitTesting.HitTest(scene, new Point2D(7, 10), 0));
+        Assert.Null(HitTesting.HitTest(scene, new Point2D(14, 10), 0));
     }
 
     [Fact]
@@ -104,7 +105,8 @@ public sealed class ProxyClipV0121Tests
         Assert.Equal(graphics.Length, unsupported);
     }
 
-    private static ProxyPushClip Clip(params CSMath.XY[] points) => Clip(points);
+    private static ProxyPushClip Clip(params CSMath.XY[] points)
+        => Clip((IReadOnlyList<CSMath.XY>)points);
 
     private static ProxyPushClip Clip(IReadOnlyList<CSMath.XY> points, CSMath.Matrix4? inverse = null, bool front = false, CSMath.XYZ? extrusion = null, CSMath.XYZ? origin = null)
         => new()
