@@ -8,7 +8,8 @@ namespace SpatialViewer.Formats.Cad.ACadSharp;
 /// Adds the evidence-backed 2D subset of ObjectARX clip-boundary semantics on top of the existing
 /// proxy primitive mapper. Streams without clip commands delegate directly to the established mapper.
 /// Clip streams remain fail-closed unless every state transition and clip transform can be represented
-/// exactly by CadCore's 2D scene contract.
+/// exactly by CadCore's 2D scene contract. Supported subentity color/line-weight state is carried
+/// through clip scopes and snapshotted onto each emitted drawable primitive.
 /// </summary>
 public static class ACadSharpProxyGraphicsClipMapping
 {
@@ -30,6 +31,7 @@ public static class ACadSharpProxyGraphicsClipMapping
         var transformStack = new Stack<ProxyTransformState>();
         var clipStack = new Stack<ClipFrame>();
         var current = ProxyTransformState.Identity;
+        var traits = default(CadProxyTraits);
 
         foreach (var graphic in source)
         {
@@ -67,13 +69,22 @@ public static class ACadSharpProxyGraphicsClipMapping
                     continue;
             }
 
+            if (ACadSharpProxyGraphicsMapping.IsHandledTraitCommand(graphic))
+            {
+                if (!ACadSharpProxyGraphicsMapping.TryApplyTraitCommand(graphic, ref traits)) unsupportedCount++;
+                continue;
+            }
+
             var mapped = ACadSharpProxyGraphicsMapping.Map(
                 new[] { graphic },
                 out var primitiveUnsupported,
                 out _);
             unsupportedCount += primitiveUnsupported;
             foreach (var primitive in mapped)
-                Append(result, clipStack, current.IsIdentity ? primitive : ApplyTransform(primitive, current));
+            {
+                var transformed = current.IsIdentity ? primitive : ApplyTransform(primitive, current);
+                Append(result, clipStack, transformed with { Traits = traits });
+            }
         }
 
         if (transformStack.Count != 0 || clipStack.Count != 0)
@@ -288,7 +299,8 @@ public static class ACadSharpProxyGraphicsClipMapping
     }
 
     private static CadProxyPrimitive ApplyTransform(CadProxyPrimitive primitive, ProxyTransformState state)
-        => primitive switch
+    {
+        var transformed = primitive switch
         {
             CadProxyPolyline polyline => new CadProxyPolyline(polyline.Points.Select(state.Transform.Apply).ToArray()),
             CadProxyLwPolyline polyline => new CadProxyLwPolyline(polyline.Points.Select(state.Transform.Apply).ToArray(), polyline.Bulges.ToArray(), polyline.IsClosed),
@@ -309,6 +321,8 @@ public static class ACadSharpProxyGraphicsClipMapping
                 text.ProxyTextKind),
             _ => primitive
         };
+        return transformed with { Traits = primitive.Traits };
+    }
 
     private static bool IsStatefulGeometryCommand(GraphicsType type)
         => type is GraphicsType.PushModelTransform

@@ -7,8 +7,9 @@ namespace SpatialViewer.Formats.Cad.ACadSharp;
 /// <summary>
 /// Converts the safe 2D subset of ACadSharp proxy graphics into reader-independent CadCore primitives.
 /// Balanced planar model-transform stacks are applied for translation, rotation and uniform scaling.
-/// Clip commands, malformed stacks and non-planar/non-similarity transforms remain fail-closed so a
-/// fallback is never drawn at a plausible-but-wrong location.
+/// Supported ObjectARX subentity color/true-color/line-weight states are snapshotted onto each emitted
+/// primitive. Clip commands, malformed stacks and non-planar/non-similarity transforms remain fail-closed
+/// so a fallback is never drawn at a plausible-but-wrong location.
 /// </summary>
 public static class ACadSharpProxyGraphicsMapping
 {
@@ -23,14 +24,15 @@ public static class ACadSharpProxyGraphicsMapping
         var source = graphics.ToArray();
         statefulGeometryCommandsPresent = source.Any(graphic => IsStatefulGeometryCommand(graphic.GraphicsType));
 
-        // Clip state changes visibility rather than just coordinates. Until clip boundaries are represented
-        // in the reader-independent proxy model, withholding the whole stream is safer than drawing through it.
+        // Clip state changes visibility rather than just coordinates. The clip-aware mapper owns that
+        // state machine; this legacy entry point remains fail-closed when clip commands are present.
         if (source.Any(graphic => graphic.GraphicsType is GraphicsType.PushClip or GraphicsType.PopClip))
             return FailClosed(source, out unsupportedCount);
 
         var result = new List<CadProxyPrimitive>();
         var stack = new Stack<ProxyTransformState>();
         var current = ProxyTransformState.Identity;
+        var traits = default(CadProxyTraits);
         unsupportedCount = 0;
 
         foreach (var graphic in source)
@@ -52,6 +54,12 @@ public static class ACadSharpProxyGraphicsMapping
                     continue;
             }
 
+            if (IsHandledTraitCommand(graphic))
+            {
+                if (!TryApplyTraitCommand(graphic, ref traits)) unsupportedCount++;
+                continue;
+            }
+
             var mapped = MapOne(graphic);
             if (mapped is null)
             {
@@ -59,13 +67,82 @@ public static class ACadSharpProxyGraphicsMapping
                 continue;
             }
 
-            result.Add(current.IsIdentity ? mapped : ApplyTransform(mapped, current));
+            var transformed = current.IsIdentity ? mapped : ApplyTransform(mapped, current);
+            result.Add(transformed with { Traits = traits });
         }
 
         if (stack.Count != 0)
             return FailClosed(source, out unsupportedCount);
 
         return result;
+    }
+
+    internal static bool IsHandledTraitCommand(IProxyGeometry graphic)
+        => graphic is ProxySubentColor or ProxySubentTrueColor or ProxySubentLineWeight;
+
+    internal static bool TryApplyTraitCommand(IProxyGeometry graphic, ref CadProxyTraits traits)
+    {
+        switch (graphic)
+        {
+            case ProxySubentColor color:
+                if (color.ColorIndex is 0 or 256)
+                {
+                    traits = traits with { Color = null };
+                    return true;
+                }
+                if (color.ColorIndex is >= 1 and <= 255)
+                {
+                    traits = traits with { Color = CadColor.FromAci(color.ColorIndex) };
+                    return true;
+                }
+                // An unknown color state must not leave a stale previous override active.
+                traits = traits with { Color = null };
+                return false;
+
+            case ProxySubentTrueColor trueColor:
+                switch (trueColor.ColorMethod)
+                {
+                    case ProxyColorMethod.ByLayer:
+                    case ProxyColorMethod.ByBlock:
+                        traits = traits with { Color = null };
+                        return true;
+                    case ProxyColorMethod.ByColor when trueColor.Color.IsTrueColor:
+                        traits = traits with { Color = CadColor.FromRgb(trueColor.Color.R, trueColor.Color.G, trueColor.Color.B) };
+                        return true;
+                    case ProxyColorMethod.ByACI when trueColor.Color.Index is >= 1 and <= 255:
+                        traits = traits with { Color = CadColor.FromAci(trueColor.Color.Index) };
+                        return true;
+                    default:
+                        // Foreground/None/unknown methods are not assigned guessed CAD colors.
+                        traits = traits with { Color = null };
+                        return false;
+                }
+
+            case ProxySubentLineWeight lineWeight:
+                switch (lineWeight.LineWeight)
+                {
+                    case global::ACadSharp.LineWeightType.ByLayer:
+                    case global::ACadSharp.LineWeightType.ByBlock:
+                    case global::ACadSharp.LineWeightType.Default:
+                        traits = traits with { LineWeight = null };
+                        return true;
+                    case global::ACadSharp.LineWeightType.ByDIPs:
+                        traits = traits with { LineWeight = null };
+                        return false;
+                    default:
+                        var value = (int)lineWeight.LineWeight;
+                        if (value >= 0 && Enum.IsDefined(typeof(global::ACadSharp.LineWeightType), lineWeight.LineWeight))
+                        {
+                            traits = traits with { LineWeight = value };
+                            return true;
+                        }
+                        traits = traits with { LineWeight = null };
+                        return false;
+                }
+
+            default:
+                return false;
+        }
     }
 
     private static CadProxyPrimitive[] FailClosed(IProxyGeometry[] source, out int unsupportedCount)
@@ -138,7 +215,8 @@ public static class ACadSharpProxyGraphicsMapping
     }
 
     private static CadProxyPrimitive ApplyTransform(CadProxyPrimitive primitive, ProxyTransformState state)
-        => primitive switch
+    {
+        var transformed = primitive switch
         {
             CadProxyPolyline polyline => new CadProxyPolyline(polyline.Points.Select(state.Transform.Apply).ToArray()),
             CadProxyLwPolyline polyline => new CadProxyLwPolyline(
@@ -162,6 +240,8 @@ public static class ACadSharpProxyGraphicsMapping
                 text.ProxyTextKind),
             _ => primitive
         };
+        return transformed with { Traits = primitive.Traits };
+    }
 
     private static CadProxyPrimitive? MapOne(IProxyGeometry graphic)
         => graphic switch
