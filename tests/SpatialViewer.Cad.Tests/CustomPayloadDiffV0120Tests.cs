@@ -149,13 +149,13 @@ public sealed class CustomPayloadDiffV0120Tests
             "TCH_COLUMN",
             "TDbColumn",
             "Tianzheng Architecture",
-            Payload(new(100, "TDbColumn"), new(40, "400")));
+            Payload(new CadRawDxfGroup(100, "TDbColumn"), new CadRawDxfGroup(40, "400")));
         var after = Entity(
             "SECRET_HANDLE_AFTER",
             "TCH_COLUMN",
             "TDbColumn",
             "Tianzheng Architecture",
-            Payload(new(100, "TDbColumn"), new(40, "500")));
+            Payload(new CadRawDxfGroup(100, "TDbColumn"), new CadRawDxfGroup(40, "500")));
 
         var report = CadDxfCustomPayloadDiffer.Compare(before, after);
 
@@ -175,13 +175,13 @@ public sealed class CustomPayloadDiffV0120Tests
             "TCH_COLUMN",
             "TDbColumn",
             "Tianzheng Architecture",
-            Payload(new(40, privateValue)));
+            Payload(new CadRawDxfGroup(40, privateValue)));
         var after = Entity(
             "SECRET_STAIR_HANDLE",
             "TCH_RECTSTAIR",
             "TDbRectStair",
             "Tianzheng Architecture",
-            Payload(new(40, "PRIVATE_STAIR_VALUE")));
+            Payload(new CadRawDxfGroup(40, "PRIVATE_STAIR_VALUE")));
 
         var exception = Assert.Throws<ArgumentException>(() => CadDxfCustomPayloadDiffer.Compare(before, after));
 
@@ -198,19 +198,19 @@ public sealed class CustomPayloadDiffV0120Tests
             "TCH_COLUMN",
             "TDbColumnV1",
             "Tianzheng Architecture",
-            Payload(new(40, "400")));
+            Payload(new CadRawDxfGroup(40, "400")));
         var cppMismatch = Entity(
             "101",
             "TCH_COLUMN",
             "TDbColumnV2",
             "Tianzheng Architecture",
-            Payload(new(40, "500")));
+            Payload(new CadRawDxfGroup(40, "500")));
         var applicationMismatch = Entity(
             "102",
             "TCH_COLUMN",
             "TDbColumnV1",
             "Other Architecture",
-            Payload(new(40, "500")));
+            Payload(new CadRawDxfGroup(40, "500")));
 
         var cppException = Assert.Throws<ArgumentException>(() => CadDxfCustomPayloadDiffer.Compare(before, cppMismatch));
         var applicationException = Assert.Throws<ArgumentException>(() => CadDxfCustomPayloadDiffer.Compare(before, applicationMismatch));
@@ -233,7 +233,7 @@ public sealed class CustomPayloadDiffV0120Tests
             "TCH_COLUMN",
             "TDbColumn",
             "Tianzheng Architecture",
-            Payload(new(40, "500")));
+            Payload(new CadRawDxfGroup(40, "500")));
 
         var exception = Assert.Throws<ArgumentException>(() => CadDxfCustomPayloadDiffer.Compare(before, after));
 
