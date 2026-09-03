@@ -30,7 +30,7 @@ public sealed class ProxyGraphicsV0121Tests
             Array.Empty<CadBlockDefinition>(),
             new CadEntity[] { custom });
 
-        var item = Assert.Single(document.Scene.GetItems().Where(item => item.Id == custom.ObjectId));
+        var item = Assert.Single(document.Scene.GetItems(), item => item.Id == custom.ObjectId);
         var text = Assert.IsType<TextGeometry>(item.Geometry);
 
         Assert.Equal("轴1", text.Text);
@@ -112,6 +112,61 @@ public sealed class ProxyGraphicsV0121Tests
         Assert.False(tiltedStateful);
         Assert.Equal(1, tiltedUnsupported);
         Assert.Empty(tiltedMapped);
+    }
+
+    [Fact]
+    public void LightweightProxyPolylineRetainsClosedStateAndBulges()
+    {
+        var entity = new ACadSharp.Entities.LwPolyline(
+            new ACadSharp.Entities.LwPolyline.Vertex(0, 0) { Bulge = 1 },
+            new ACadSharp.Entities.LwPolyline.Vertex(10, 0),
+            new ACadSharp.Entities.LwPolyline.Vertex(10, 10))
+        {
+            Normal = CSMath.XYZ.AxisZ,
+            IsClosed = true
+        };
+        var proxy = new ProxyLwPolyine { Entity = entity };
+
+        var mapped = ACadSharpProxyGraphicsMapping.Map(new IProxyGeometry[] { proxy }, out var unsupported, out var stateful);
+
+        Assert.False(stateful);
+        Assert.Equal(0, unsupported);
+        var polyline = Assert.IsType<CadProxyLwPolyline>(Assert.Single(mapped));
+        Assert.True(polyline.IsClosed);
+        Assert.Equal(3, polyline.Points.Count);
+        Assert.Equal(3, polyline.Bulges.Count);
+        Assert.Equal(1, polyline.Bulges[0], 12);
+    }
+
+    [Fact]
+    public void LightweightProxyPolylineRejectsWidthAndNonPlanarData()
+    {
+        var wideEntity = new ACadSharp.Entities.LwPolyline(
+            new ACadSharp.Entities.LwPolyline.Vertex(0, 0),
+            new ACadSharp.Entities.LwPolyline.Vertex(10, 0))
+        {
+            Normal = CSMath.XYZ.AxisZ,
+            ConstantWidth = 2
+        };
+        var tiltedEntity = new ACadSharp.Entities.LwPolyline(
+            new ACadSharp.Entities.LwPolyline.Vertex(0, 0),
+            new ACadSharp.Entities.LwPolyline.Vertex(10, 0))
+        {
+            Normal = new CSMath.XYZ(0, 0.5, Math.Sqrt(0.75))
+        };
+
+        var mapped = ACadSharpProxyGraphicsMapping.Map(
+            new IProxyGeometry[]
+            {
+                new ProxyLwPolyine { Entity = wideEntity },
+                new ProxyLwPolyine { Entity = tiltedEntity }
+            },
+            out var unsupported,
+            out var stateful);
+
+        Assert.False(stateful);
+        Assert.Equal(2, unsupported);
+        Assert.Empty(mapped);
     }
 
     [Fact]
