@@ -255,7 +255,7 @@ public static class CadTianzhengProbeOutputParser
             ? parsed
             : throw Invalid($"Probe {field} is not an integer.");
 
-    private static IEnumerable<string> Lines(string text)
+    private static string[] Lines(string text)
         => text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
 
     private static void ValidateInput(string text)
