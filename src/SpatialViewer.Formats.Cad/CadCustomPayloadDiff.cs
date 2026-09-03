@@ -51,6 +51,29 @@ public sealed record CadDxfCustomPayloadDiffReport(
 /// </summary>
 public static class CadDxfCustomPayloadDiffer
 {
+    /// <summary>
+    /// Compare two custom entities only after their application-defined identities are compatible and both
+    /// sides contain retained raw DXF evidence. This is the preferred entry point for controlled object A/B
+    /// experiments because it prevents accidental comparison of unrelated custom classes.
+    /// </summary>
+    public static CadDxfCustomPayloadDiffReport Compare(
+        CadCustomEntity before,
+        CadCustomEntity after)
+    {
+        ArgumentNullException.ThrowIfNull(before);
+        ArgumentNullException.ThrowIfNull(after);
+        ValidateEntityIdentity(before, after);
+        var beforePayload = before.RawDxfPayload
+            ?? throw new ArgumentException("The before custom entity does not contain retained raw DXF payload evidence.", nameof(before));
+        var afterPayload = after.RawDxfPayload
+            ?? throw new ArgumentException("The after custom entity does not contain retained raw DXF payload evidence.", nameof(after));
+        return Compare(beforePayload, afterPayload);
+    }
+
+    /// <summary>
+    /// Low-level payload comparison. Callers are responsible for establishing that both payloads belong to
+    /// the same logical custom-object class; object-oriented experiments should prefer the entity overload.
+    /// </summary>
     public static CadDxfCustomPayloadDiffReport Compare(
         CadDxfCustomPayload before,
         CadDxfCustomPayload after)
@@ -109,6 +132,35 @@ public static class CadDxfCustomPayloadDiffer
             changes,
             Array.Empty<CadDxfCustomPayloadCodeCountDelta>());
     }
+
+    private static void ValidateEntityIdentity(CadCustomEntity before, CadCustomEntity after)
+    {
+        if (!string.Equals(EntityDxfIdentity(before), EntityDxfIdentity(after), StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Custom entities must have the same DXF identity before payload comparison.", nameof(after));
+
+        var beforeCpp = before.ClassDefinition?.CppClassName;
+        var afterCpp = after.ClassDefinition?.CppClassName;
+        if (!string.IsNullOrWhiteSpace(beforeCpp)
+            && !string.IsNullOrWhiteSpace(afterCpp)
+            && !string.Equals(beforeCpp, afterCpp, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("Custom entities with different known C++ class identities cannot be compared as one A/B object profile.", nameof(after));
+        }
+
+        var beforeApplication = before.ClassDefinition?.ApplicationName;
+        var afterApplication = after.ClassDefinition?.ApplicationName;
+        if (!string.IsNullOrWhiteSpace(beforeApplication)
+            && !string.IsNullOrWhiteSpace(afterApplication)
+            && !string.Equals(beforeApplication, afterApplication, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("Custom entities from different known applications cannot be compared as one A/B object profile.", nameof(after));
+        }
+    }
+
+    private static string EntityDxfIdentity(CadCustomEntity entity)
+        => string.IsNullOrWhiteSpace(entity.ClassDefinition?.DxfName)
+            ? entity.SourceEntityType
+            : entity.ClassDefinition.DxfName;
 
     private static int? FirstLayoutMismatch(
         IReadOnlyList<CadRawDxfGroup> before,
