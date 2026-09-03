@@ -1,14 +1,15 @@
 ;;; SpatialViewer.CadCore — Tianzheng structural research probe
-;;; Commands: TCHDIFF, TCHSIG
+;;; Commands: TCHDIFF, TCHSIG, TCHPLAN
 ;;;
 ;;; TCHDIFF compares two controlled Tianzheng custom objects without printing
-;;; raw DXF values, handles, entity names, or file paths.
+;;; raw DXF values, handles, entity names, or file paths. For the unresolved
+;;; v0.12 gates it can bind output to one canonical single-variable case.
 ;;;
 ;;; TCHSIG prints only one object's TCH_* type, structural counts, and ordered
 ;;; DXF group-code signature. It never prints group values or subclass names.
 ;;;
 ;;; This tool is research evidence only. A changed slot is not automatically a
-;;; column width, stair height, dimension scale, axis number, or index field.
+;;; dimension scale, axis number, drawing-index number, or index-pointer field.
 
 (vl-load-com)
 
@@ -93,6 +94,18 @@
   )
 )
 
+(defun tchdiff:_case-info (key)
+  ;; Returns (protocol-case-id expected-dxf-name). Adhoc intentionally stays
+  ;; untagged for non-gate research and preserves the original TCHDIFF mode.
+  (cond
+    ((equal key "Axis")     (list "AXIS_LABEL_TEXT" "TCH_AXIS_LABEL"))
+    ((equal key "Index")    (list "DRAWING_INDEX_TEXT" "TCH_DRAWINGINDEX"))
+    ((equal key "Pointer")  (list "INDEX_POINTER_TEXT" "TCH_INDEXPOINTER"))
+    ((equal key "DimScale") (list "DIMENSION_PLOT_SCALE" "TCH_DIMENSION2"))
+    (T nil)
+  )
+)
+
 (defun tchdiff:_print-code-signature (codes / first code)
   (princ "\n[TCHSIG] code-signature=")
   (setq first T)
@@ -153,6 +166,17 @@
   )
 )
 
+(defun c:TCHPLAN ()
+  (princ "\nTCHPLAN — v0.12 canonical controlled experiments")
+  (princ "\n  Axis     -> AXIS_LABEL_TEXT / TCH_AXIS_LABEL")
+  (princ "\n  Index    -> DRAWING_INDEX_TEXT / TCH_DRAWINGINDEX")
+  (princ "\n  Pointer  -> INDEX_POINTER_TEXT / TCH_INDEXPOINTER")
+  (princ "\n  DimScale -> DIMENSION_PLOT_SCALE / TCH_DIMENSION2")
+  (princ "\nFor each gate case, change exactly the named UI property and nothing else.")
+  (princ "\nRun at least two independent A/B pairs before CadCore consensus.")
+  (princ)
+)
+
 (defun c:TCHSIG (/ pick data type codes)
   (princ "\nTCHSIG — privacy-safe Tianzheng structural signature")
   (setq pick (car (entsel "\nSelect Tianzheng object: ")))
@@ -176,8 +200,14 @@
   (princ)
 )
 
-(defun c:TCHDIFF (/ pick-a pick-b data-a data-b type-a type-b codes-a codes-b)
+(defun c:TCHDIFF (/ case-key case-info expected-type pick-a pick-b data-a data-b type-a type-b codes-a codes-b)
   (princ "\nTCHDIFF — privacy-safe Tianzheng controlled A/B structural probe")
+  (initget "Axis Index Pointer DimScale Adhoc")
+  (setq case-key (getkword "\nExperiment case [Axis/Index/Pointer/DimScale/Adhoc] <Adhoc>: "))
+  (if (not case-key) (setq case-key "Adhoc"))
+  (setq case-info (tchdiff:_case-info case-key)
+        expected-type (if case-info (cadr case-info) nil))
+
   (setq pick-a (car (entsel "\nSelect BASELINE Tianzheng object: ")))
   (if (not pick-a)
     (princ "\n[TCHDIFF] Cancelled.")
@@ -199,11 +229,20 @@
             ((not (equal (strcase type-a) (strcase type-b)))
              (princ "\n[TCHDIFF] Refused: DXF object identities differ."))
 
+            ((and expected-type (not (equal (strcase type-a) expected-type)))
+             (princ
+               (strcat
+                 "\n[TCHDIFF] Refused: experiment case expects object type="
+                 expected-type)))
+
             ((not (equal (tchdiff:_subclasses data-a)
                          (tchdiff:_subclasses data-b)))
              (princ "\n[TCHDIFF] Refused: subclass identity/profile differs."))
 
             (T
+             (if case-info
+               (princ (strcat "\n[TCHDIFF] Case=" (car case-info)))
+             )
              (princ (strcat "\n[TCHDIFF] Object type=" type-a))
              (setq codes-a (tchdiff:_codes data-a)
                    codes-b (tchdiff:_codes data-b))
@@ -220,5 +259,5 @@
   (princ)
 )
 
-(princ "\nSpatialViewer Tianzheng probe loaded. Run TCHDIFF or TCHSIG.")
+(princ "\nSpatialViewer Tianzheng probe loaded. Run TCHPLAN, TCHDIFF or TCHSIG.")
 (princ)
