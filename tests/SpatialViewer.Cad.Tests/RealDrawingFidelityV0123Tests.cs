@@ -102,7 +102,7 @@ public sealed class RealDrawingFidelityV0123Tests
             .Where(item => item.Id == dimension.ObjectId)
             .ToArray();
         var lines = items.Where(item => item.Geometry is LineGeometry).ToArray();
-        var text = Assert.Single(items.Where(item => item.Geometry is TextGeometry));
+        var text = Assert.Single(items, item => item.Geometry is TextGeometry);
 
         Assert.Contains(lines, item => item.Style.Stroke == "#808080");
         Assert.Contains(lines, item => item.Style.Stroke == "#FFFF00");
