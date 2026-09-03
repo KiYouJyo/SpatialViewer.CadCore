@@ -68,9 +68,9 @@ public static class ACadSharpProxyGraphicsMapping
         return result;
     }
 
-    private static IReadOnlyList<CadProxyPrimitive> FailClosed(IReadOnlyCollection<IProxyGeometry> source, out int unsupportedCount)
+    private static CadProxyPrimitive[] FailClosed(IProxyGeometry[] source, out int unsupportedCount)
     {
-        unsupportedCount = source.Count;
+        unsupportedCount = source.Length;
         return Array.Empty<CadProxyPrimitive>();
     }
 
