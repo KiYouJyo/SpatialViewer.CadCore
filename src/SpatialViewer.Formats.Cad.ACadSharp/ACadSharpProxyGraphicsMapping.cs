@@ -47,12 +47,37 @@ public static class ACadSharpProxyGraphicsMapping
     private static CadProxyPrimitive? MapOne(IProxyGeometry graphic)
         => graphic switch
         {
+            // ProxyPolylineWithNormal derives from ProxyPolyline. Handle it first and do not let a
+            // rejected non-planar instance fall through to the unguarded base-class arm.
+            ProxyPolylineWithNormal polyline => IsPlanar(polyline.Normal) && TryPoints(polyline.Points, 2, out var points)
+                ? new CadProxyPolyline(points)
+                : null,
             ProxyPolyline polyline when TryPoints(polyline.Points, 2, out var points) => new CadProxyPolyline(points),
             ProxyPolygon polygon when TryPoints(polygon.Points, 3, out var points) => new CadProxyPolygon(points),
             ProxyCircle circle when IsPlanar(circle.Normal) && IsPositiveFinite(circle.Radius) && TryPoint(circle.Center, out var center)
                 => new CadProxyCircle(center, circle.Radius),
             ProxyCircularArc arc when IsPlanar(arc.Normal) && IsPositiveFinite(arc.Radius) && TryPoint(arc.Center, out var center) && TryDirection(arc.StartVectorDirection, out var startRadians) && double.IsFinite(arc.SweepAngle)
                 => new CadProxyArc(center, arc.Radius, startRadians, arc.Normal.Z < 0 ? -arc.SweepAngle : arc.SweepAngle),
+            ProxyText text when TryProxyText(
+                text.Normal,
+                text.StartPoint,
+                text.TextDirection,
+                text.Text,
+                text.Height,
+                text.WidthFactor,
+                text.ObliqueAngle,
+                nameof(GraphicsType.Text),
+                out var mappedText) => mappedText,
+            ProxyUnicodeText text when TryProxyText(
+                text.Normal,
+                text.StartPoint,
+                text.TextDirection,
+                text.Text,
+                text.Height,
+                text.WidthFactor,
+                text.ObliqueAngle,
+                nameof(GraphicsType.UnicodeText),
+                out var mappedText) => mappedText,
             _ => null
         };
 
@@ -71,7 +96,45 @@ public static class ACadSharpProxyGraphicsMapping
             && Math.Abs(normal.Y) <= Epsilon
             && Math.Abs(Math.Abs(normal.Z) - 1d) <= Epsilon;
 
+    private static bool IsPositiveFacingPlanar(CSMath.XYZ normal)
+        => IsPlanar(normal) && normal.Z > 0;
+
     private static bool IsPositiveFinite(double value) => double.IsFinite(value) && value > Epsilon;
+
+    private static bool TryProxyText(
+        CSMath.XYZ normal,
+        CSMath.XYZ origin,
+        CSMath.XYZ direction,
+        string? text,
+        double height,
+        double widthFactor,
+        double obliqueAngle,
+        string proxyTextKind,
+        out CadProxyText mapped)
+    {
+        mapped = null!;
+        // Negative-Z text needs an OCS/mirroring transform. Withhold it rather than silently flipping
+        // labels; ordinary Tianzheng plan annotations use the positive-Z planar case.
+        if (!IsPositiveFacingPlanar(normal)
+            || string.IsNullOrEmpty(text)
+            || !IsPositiveFinite(height)
+            || !double.IsFinite(widthFactor)
+            || !double.IsFinite(obliqueAngle)
+            || !TryPoint(origin, out var mappedOrigin)
+            || !TryDirection(direction, out var rotationRadians))
+            return false;
+
+        var normalizedWidthFactor = Math.Abs(widthFactor) > Epsilon ? Math.Abs(widthFactor) : 1d;
+        mapped = new CadProxyText(
+            mappedOrigin,
+            text,
+            height,
+            rotationRadians,
+            normalizedWidthFactor,
+            obliqueAngle,
+            proxyTextKind);
+        return true;
+    }
 
     private static bool TryDirection(CSMath.XYZ direction, out double radians)
     {
