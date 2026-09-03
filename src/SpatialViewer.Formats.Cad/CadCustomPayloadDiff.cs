@@ -133,7 +133,7 @@ public static class CadDxfCustomPayloadDiffer
             Array.Empty<CadDxfCustomPayloadCodeCountDelta>());
     }
 
-    private static void ValidateEntityIdentity(CadCustomEntity before, CadCustomEntity after)
+    internal static void ValidateEntityIdentity(CadCustomEntity before, CadCustomEntity after)
     {
         if (!string.Equals(EntityDxfIdentity(before), EntityDxfIdentity(after), StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Custom entities must have the same DXF identity before payload comparison.", nameof(after));
