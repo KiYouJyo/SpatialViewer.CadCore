@@ -44,7 +44,8 @@ public sealed record CadTianzhengSemanticReadiness(
 /// <summary>
 /// Combines anonymous repeatability consensus with independently maintained public evidence without guessing.
 /// Parameter-existence material can strengthen a research hypothesis but can never name a raw field. A raw
-/// mapping must agree with exactly one stable probe candidate by group code and occurrence.
+/// mapping must agree with exactly one stable probe candidate by group code and occurrence. Research-only
+/// experiment cases are deliberately rejected here even if they have repeatable raw evidence.
 /// </summary>
 public static class CadTianzhengSemanticEvidenceAssessor
 {
@@ -59,10 +60,14 @@ public static class CadTianzhengSemanticEvidenceAssessor
         ArgumentNullException.ThrowIfNull(claims);
 
         var canonical = CadTianzhengProbeExperimentCases.Resolve(consensus.ExperimentCase.Id);
+        if (!canonical.CanClearReleaseGate)
+            throw new ArgumentException("Research-only Tianzheng experiment cases cannot clear a release semantic gate.", nameof(consensus));
         if (!string.Equals(canonical.DxfName, consensus.ExperimentCase.DxfName, StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Experiment consensus is not bound to the canonical object identity.", nameof(consensus));
         if (!string.Equals(canonical.ParameterIntent, consensus.ExperimentCase.ParameterIntent, StringComparison.Ordinal))
             throw new ArgumentException("Experiment consensus is not bound to the canonical parameter intent.", nameof(consensus));
+        if (canonical.CanClearReleaseGate != consensus.ExperimentCase.CanClearReleaseGate)
+            throw new ArgumentException("Experiment consensus release-gate scope is not canonical.", nameof(consensus));
         if (!string.Equals(canonical.DxfName, consensus.StructuralConsensus.Signature.DxfName, StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Experiment consensus signature does not match the canonical object identity.", nameof(consensus));
         if (consensus.StructuralConsensus.ObservationCount < 2)
@@ -84,6 +89,8 @@ public static class CadTianzhengSemanticEvidenceAssessor
                 throw new ArgumentException("External evidence contains a duplicate source id.", nameof(claims));
 
             var claimCase = CadTianzhengProbeExperimentCases.Resolve(claim.ExperimentCaseId);
+            if (!claimCase.CanClearReleaseGate)
+                throw new ArgumentException("Research-only Tianzheng evidence cannot be reused as release-gate evidence.", nameof(claims));
             if (!string.Equals(canonical.Id, claimCase.Id, StringComparison.Ordinal))
                 throw new ArgumentException("External evidence belongs to a different Tianzheng experiment case.", nameof(claims));
 

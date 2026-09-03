@@ -12,6 +12,9 @@
 ;;; and modified objects first, then emits a TCHSIG + case-bound TCHDIFF bundle
 ;;; from that same A/B pair. No protocol bundle is emitted on structural mismatch.
 ;;;
+;;; DimScaleModern is explicitly research-only. It studies the newer
+;;; TCH_DIMENSION identity and cannot clear the legacy TCH_DIMENSION2 release gate.
+;;;
 ;;; This tool is research evidence only. A changed slot is not automatically a
 ;;; dimension scale, axis number, drawing-index number, or index-pointer field.
 
@@ -100,12 +103,13 @@
 
 (defun tchdiff:_case-info (key)
   ;; Returns (protocol-case-id expected-dxf-name). Adhoc intentionally stays
-  ;; untagged for non-gate research and preserves the original TCHDIFF mode.
+  ;; untagged for non-canonical research and preserves the original TCHDIFF mode.
   (cond
-    ((equal key "Axis")     (list "AXIS_LABEL_TEXT" "TCH_AXIS_LABEL"))
-    ((equal key "Index")    (list "DRAWING_INDEX_TEXT" "TCH_DRAWINGINDEX"))
-    ((equal key "Pointer")  (list "INDEX_POINTER_TEXT" "TCH_INDEXPOINTER"))
-    ((equal key "DimScale") (list "DIMENSION_PLOT_SCALE" "TCH_DIMENSION2"))
+    ((equal key "Axis")           (list "AXIS_LABEL_TEXT" "TCH_AXIS_LABEL"))
+    ((equal key "Index")          (list "DRAWING_INDEX_TEXT" "TCH_DRAWINGINDEX"))
+    ((equal key "Pointer")        (list "INDEX_POINTER_TEXT" "TCH_INDEXPOINTER"))
+    ((equal key "DimScale")       (list "DIMENSION_PLOT_SCALE" "TCH_DIMENSION2"))
+    ((equal key "DimScaleModern") (list "DIMENSION_PLOT_SCALE_MODERN" "TCH_DIMENSION"))
     (T nil)
   )
 )
@@ -179,14 +183,18 @@
 )
 
 (defun c:TCHPLAN ()
-  (princ "\nTCHPLAN — v0.12 canonical controlled experiments")
-  (princ "\n  Axis     -> AXIS_LABEL_TEXT / TCH_AXIS_LABEL")
-  (princ "\n  Index    -> DRAWING_INDEX_TEXT / TCH_DRAWINGINDEX")
-  (princ "\n  Pointer  -> INDEX_POINTER_TEXT / TCH_INDEXPOINTER")
-  (princ "\n  DimScale -> DIMENSION_PLOT_SCALE / TCH_DIMENSION2")
-  (princ "\nFor each gate case, change exactly the named UI property and nothing else.")
+  (princ "\nTCHPLAN — v0.12 controlled experiments")
+  (princ "\nRelease-gate cases:")
+  (princ "\n  Axis           -> AXIS_LABEL_TEXT / TCH_AXIS_LABEL")
+  (princ "\n  Index          -> DRAWING_INDEX_TEXT / TCH_DRAWINGINDEX")
+  (princ "\n  Pointer        -> INDEX_POINTER_TEXT / TCH_INDEXPOINTER")
+  (princ "\n  DimScale       -> DIMENSION_PLOT_SCALE / TCH_DIMENSION2")
+  (princ "\nResearch-only identity-drift case:")
+  (princ "\n  DimScaleModern -> DIMENSION_PLOT_SCALE_MODERN / TCH_DIMENSION")
+  (princ "\nFor each case, change exactly the named UI property and nothing else.")
   (princ "\nRun at least two independent A/B pairs before CadCore consensus.")
   (princ "\nUse TCHRUN for an atomic signature + diff transcript from one validated pair.")
+  (princ "\nResearch-only cases can compare schemas but cannot clear a release semantic gate.")
   (princ)
 )
 
@@ -209,8 +217,8 @@
 
 (defun c:TCHDIFF (/ case-key case-info expected-type pick-a pick-b data-a data-b type-a type-b codes-a codes-b)
   (princ "\nTCHDIFF — privacy-safe Tianzheng controlled A/B structural probe")
-  (initget "Axis Index Pointer DimScale Adhoc")
-  (setq case-key (getkword "\nExperiment case [Axis/Index/Pointer/DimScale/Adhoc] <Adhoc>: "))
+  (initget "Axis Index Pointer DimScale DimScaleModern Adhoc")
+  (setq case-key (getkword "\nExperiment case [Axis/Index/Pointer/DimScale/DimScaleModern/Adhoc] <Adhoc>: "))
   (if (not case-key) (setq case-key "Adhoc"))
   (setq case-info (tchdiff:_case-info case-key)
         expected-type (if case-info (cadr case-info) nil))
@@ -268,8 +276,8 @@
 
 (defun c:TCHRUN (/ case-key case-info expected-type pick-a pick-b data-a data-b type-a type-b codes-a codes-b)
   (princ "\nTCHRUN — atomic v0.12 Tianzheng controlled experiment")
-  (initget 1 "Axis Index Pointer DimScale")
-  (setq case-key (getkword "\nExperiment case [Axis/Index/Pointer/DimScale]: ")
+  (initget 1 "Axis Index Pointer DimScale DimScaleModern")
+  (setq case-key (getkword "\nExperiment case [Axis/Index/Pointer/DimScale/DimScaleModern]: ")
         case-info (tchdiff:_case-info case-key)
         expected-type (cadr case-info))
 
@@ -313,7 +321,10 @@
                  (princ (strcat "\n[TCHDIFF] Object type=" type-a))
                  (tchdiff:_emit-signature-data data-a type-a)
                  (tchdiff:_compare-values data-a data-b)
-                 (princ "\n[TCHRUN] Bundle complete. Copy this command output as one experiment transcript.")
+                 (if (equal case-key "DimScaleModern")
+                   (princ "\n[TCHRUN] Research-only bundle complete; it cannot clear a release semantic gate.")
+                   (princ "\n[TCHRUN] Bundle complete. Copy this command output as one experiment transcript.")
+                 )
                )
              )
             )

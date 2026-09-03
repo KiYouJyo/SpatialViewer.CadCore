@@ -3,18 +3,20 @@ using System.Collections.ObjectModel;
 namespace SpatialViewer.Formats.Cad;
 
 /// <summary>
-/// A privacy-safe controlled experiment intent for one unresolved Tianzheng semantic gate.
+/// A privacy-safe controlled experiment intent for one Tianzheng semantic investigation.
 /// The case names the property intentionally changed by the researcher, but does not assign
-/// any DXF group to that property.
+/// any DXF group to that property. Research-only cases can collect comparable evidence without
+/// becoming eligible to clear a release gate.
 /// </summary>
 public sealed record CadTianzhengProbeExperimentCase(
     string Id,
     string DxfName,
-    string ParameterIntent);
+    string ParameterIntent,
+    bool CanClearReleaseGate = true);
 
 /// <summary>
-/// Canonical v0.12 gate experiments. Keeping this catalog narrow prevents observations from
-/// different single-variable manipulations from being accidentally mixed into one consensus.
+/// Canonical v0.12 probe experiments. The release-gate catalog remains narrow while explicitly
+/// separated research-only cases can investigate version/identity drift without semantic aliasing.
 /// </summary>
 public static class CadTianzhengProbeExperimentCases
 {
@@ -22,8 +24,9 @@ public static class CadTianzhengProbeExperimentCases
     public const string DrawingIndexText = "DRAWING_INDEX_TEXT";
     public const string IndexPointerText = "INDEX_POINTER_TEXT";
     public const string DimensionPlotScale = "DIMENSION_PLOT_SCALE";
+    public const string ModernDimensionPlotScale = "DIMENSION_PLOT_SCALE_MODERN";
 
-    private static readonly IReadOnlyDictionary<string, CadTianzhengProbeExperimentCase> Cases =
+    private static readonly IReadOnlyDictionary<string, CadTianzhengProbeExperimentCase> GateCases =
         new ReadOnlyDictionary<string, CadTianzhengProbeExperimentCase>(
             new Dictionary<string, CadTianzhengProbeExperimentCase>(StringComparer.Ordinal)
             {
@@ -33,16 +36,32 @@ public static class CadTianzhengProbeExperimentCases
                 [DimensionPlotScale] = new(DimensionPlotScale, "TCH_DIMENSION2", "dimension plot/output scale")
             });
 
+    private static readonly IReadOnlyDictionary<string, CadTianzhengProbeExperimentCase> ResearchCases =
+        new ReadOnlyDictionary<string, CadTianzhengProbeExperimentCase>(
+            new Dictionary<string, CadTianzhengProbeExperimentCase>(StringComparer.Ordinal)
+            {
+                [ModernDimensionPlotScale] = new(
+                    ModernDimensionPlotScale,
+                    "TCH_DIMENSION",
+                    "dimension plot/output scale on modern identity",
+                    CanClearReleaseGate: false)
+            });
+
+    /// <summary>The four formal v0.12 release-gate experiments only.</summary>
     public static IReadOnlyCollection<CadTianzhengProbeExperimentCase> All
-        => new ReadOnlyCollection<CadTianzhengProbeExperimentCase>(Cases.Values.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray());
+        => new ReadOnlyCollection<CadTianzhengProbeExperimentCase>(GateCases.Values.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray());
+
+    /// <summary>Canonical research-only cases that can collect evidence but cannot clear release gates.</summary>
+    public static IReadOnlyCollection<CadTianzhengProbeExperimentCase> ResearchOnly
+        => new ReadOnlyCollection<CadTianzhengProbeExperimentCase>(ResearchCases.Values.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray());
 
     public static CadTianzhengProbeExperimentCase Resolve(string id)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         var normalized = id.Trim().ToUpperInvariant();
-        if (!Cases.TryGetValue(normalized, out var experimentCase))
-            throw new FormatException($"Unknown Tianzheng gate experiment case '{normalized}'.");
-        return experimentCase;
+        if (GateCases.TryGetValue(normalized, out var gateCase)) return gateCase;
+        if (ResearchCases.TryGetValue(normalized, out var researchCase)) return researchCase;
+        throw new FormatException($"Unknown Tianzheng probe experiment case '{normalized}'.");
     }
 }
 
@@ -63,7 +82,7 @@ public sealed record CadTianzhengProbeExperimentConsensus(
 }
 
 /// <summary>
-/// Parses the optional case-bound protocol emitted by the v0.12 gate probe. Only a fixed case ID is
+/// Parses the optional case-bound protocol emitted by the v0.12 probe. Only a fixed case ID is
 /// retained in addition to the existing privacy-safe structural TCHDIFF output; raw values remain ignored.
 /// </summary>
 public static class CadTianzhengProbeExperimentParser
@@ -121,11 +140,13 @@ public static class CadTianzhengProbeExperimentParser
         }
         catch (Exception exception) when (exception is ArgumentException or FormatException)
         {
-            throw new ArgumentException("Experiment case is not a canonical v0.12 gate case.", nameof(observations), exception);
+            throw new ArgumentException("Experiment case is not a canonical v0.12 probe case.", nameof(observations), exception);
         }
 
         if (!string.Equals(canonicalCase.DxfName, firstDeclaredCase.DxfName, StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Declared experiment case object identity is not canonical.", nameof(observations));
+        if (canonicalCase.CanClearReleaseGate != firstDeclaredCase.CanClearReleaseGate)
+            throw new ArgumentException("Declared experiment case release-gate scope is not canonical.", nameof(observations));
         if (!string.Equals(canonicalCase.DxfName, signature.DxfName, StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Experiment case object type does not match the TCHSIG signature.", nameof(signature));
 
@@ -141,6 +162,8 @@ public static class CadTianzhengProbeExperimentParser
                 throw new ArgumentException("Cannot mix different Tianzheng experiment cases in one consensus.", nameof(observations));
             if (!string.Equals(canonicalCase.DxfName, observation.ExperimentCase.DxfName, StringComparison.OrdinalIgnoreCase))
                 throw new ArgumentException("Experiment case object identity is not canonical.", nameof(observations));
+            if (canonicalCase.CanClearReleaseGate != observation.ExperimentCase.CanClearReleaseGate)
+                throw new ArgumentException("Experiment case release-gate scope is not canonical.", nameof(observations));
         }
 
         var structural = CadTianzhengProbeOutputParser.BuildConsensus(signature, items.Select(item => item.Diff));
