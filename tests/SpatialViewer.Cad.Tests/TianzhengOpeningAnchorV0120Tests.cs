@@ -23,7 +23,8 @@ public sealed class TianzhengOpeningAnchorV0120Tests
                 (10, "124819.3754"),
                 (20, "-80530.6856"),
                 (30, "600.0"),
-                (90, "2020")
+                (90, "2020"),
+                (302, "M-01")
             });
 
             var result = await new ACadSharpCadImporter().ImportAsync(new ImportRequest(path));
@@ -35,6 +36,7 @@ public sealed class TianzhengOpeningAnchorV0120Tests
             Assert.Equal(CadTianzhengSemanticDecoder.OpeningAnchorDirectProfile, opening.DecoderProfile);
             Assert.Equal(new Point2D(124819.3754, -80530.6856), opening.InsertionPoint);
             Assert.Equal(600.0, opening.Elevation);
+            Assert.Equal("M-01", opening.Number);
             Assert.Equal(CadCustomSemanticCoverage.Partial, opening.Coverage);
             Assert.False(opening.IsDrawable2D);
             Assert.Equal(bool.TrueString, custom.Metadata["NativeSemanticsDecoded"]);
@@ -48,6 +50,37 @@ public sealed class TianzhengOpeningAnchorV0120Tests
         {
             Directory.Delete(root, true);
         }
+    }
+
+    [Fact]
+    public void OpeningNumberIsOptionalAndPreservesPublishedGroup302Text()
+    {
+        var withNumber = new CadDxfCustomPayload(new CadRawDxfGroup[]
+        {
+            new(100, "TDbOpening"),
+            new(10, "100"),
+            new(20, "200"),
+            new(302, "  C-07  ")
+        });
+        var blankNumber = new CadDxfCustomPayload(new CadRawDxfGroup[]
+        {
+            new(100, "TDbOpening"),
+            new(10, "100"),
+            new(20, "200"),
+            new(302, "   ")
+        });
+
+        var numbered = Assert.IsType<CadTianzhengOpeningAnchorSemantic>(
+            CadTianzhengSemanticDecoder.Decode("TCH_OPENING", OpeningClass(), withNumber));
+        var blank = Assert.IsType<CadTianzhengOpeningAnchorSemantic>(
+            CadTianzhengSemanticDecoder.Decode("TCH_OPENING", OpeningClass(), blankNumber));
+        var absent = Assert.IsType<CadTianzhengOpeningAnchorSemantic>(
+            CadTianzhengSemanticDecoder.Decode("TCH_OPENING", OpeningClass(), OpeningPayload("100", "200", "0")));
+
+        Assert.Equal("  C-07  ", numbered.Number);
+        Assert.Null(blank.Number);
+        Assert.Null(absent.Number);
+        Assert.Equal(new Point2D(100, 200), absent.InsertionPoint);
     }
 
     [Fact]
@@ -83,6 +116,7 @@ public sealed class TianzhengOpeningAnchorV0120Tests
             candidate => candidate.Kind == CadCustomRelationshipKind.TianzhengOpeningHostWall);
 
         Assert.Equal(new Point2D(500, 0), openingSemantic.InsertionPoint);
+        Assert.Null(openingSemantic.Number);
         Assert.Equal(CadCustomSemanticCoverage.Partial, openingSemantic.Coverage);
         Assert.False(openingSemantic.IsDrawable2D);
         Assert.Equal("200", relationship.SourceHandle);
@@ -95,7 +129,10 @@ public sealed class TianzhengOpeningAnchorV0120Tests
         var semantic = new CadTianzhengOpeningAnchorSemantic(
             new Point2D(100, 200),
             0,
-            CadTianzhengSemanticDecoder.OpeningAnchorDirectProfile);
+            CadTianzhengSemanticDecoder.OpeningAnchorDirectProfile)
+        {
+            Number = "W-03"
+        };
         var custom = new CadCustomEntity("CA11", "TCH_OPENING")
         {
             ClassDefinition = OpeningClass(),
@@ -119,6 +156,7 @@ public sealed class TianzhengOpeningAnchorV0120Tests
         Assert.Equal(new BoundingBox2D(90, 190, 110, 210), item.Bounds);
         Assert.Equal(bool.TrueString, item.Metadata["CustomProxyFallback"]);
         Assert.Equal(bool.FalseString, item.Metadata["NativeSemanticsDecoded"]);
+        Assert.Equal("W-03", semantic.Number);
         Assert.Equal(CadCustomSemanticCoverage.Partial, semantic.Coverage);
         Assert.False(semantic.IsDrawable2D);
         Assert.Equal(CadTianzhengSemanticDecoder.OpeningAnchorDirectProfile, custom.NativeSemantics?.DecoderProfile);
@@ -132,14 +170,16 @@ public sealed class TianzhengOpeningAnchorV0120Tests
             new(100, "TDbOpening"),
             new(10, "10.5"),
             new(20, "20.5"),
-            new(30, "30.5")
+            new(30, "30.5"),
+            new(302, "M-02")
         };
         var truncated = new CadDxfCustomPayload(validGroups, true);
         var malformed = new CadDxfCustomPayload(new CadRawDxfGroup[]
         {
             new(100, "TDbOpening"),
             new(10, "not-a-number"),
-            new(20, "20.5")
+            new(20, "20.5"),
+            new(302, "M-02")
         });
         var unrelated = new CadDxfCustomPayload(validGroups);
 
@@ -152,23 +192,33 @@ public sealed class TianzhengOpeningAnchorV0120Tests
     }
 
     [Fact]
-    public void AnchorSemanticDoesNotInventOpeningDimensions()
+    public void AnchorSemanticDoesNotInventUnverifiedOpeningFields()
     {
+        var payload = new CadDxfCustomPayload(new CadRawDxfGroup[]
+        {
+            new(100, "TDbOpening"),
+            new(10, "100"),
+            new(20, "200"),
+            new(30, "300"),
+            new(302, "D-12"),
+            new(40, "900"),
+            new(41, "2100")
+        });
         var semantic = Assert.IsType<CadTianzhengOpeningAnchorSemantic>(
-            CadTianzhengSemanticDecoder.Decode(
-                "TCH_OPENING",
-                OpeningClass(),
-                OpeningPayload("100", "200", "300")));
+            CadTianzhengSemanticDecoder.Decode("TCH_OPENING", OpeningClass(), payload));
 
         Assert.Equal(new Point2D(100, 200), semantic.InsertionPoint);
         Assert.Equal(300, semantic.Elevation);
+        Assert.Equal("D-12", semantic.Number);
         Assert.Equal(CadCustomSemanticCoverage.Partial, semantic.Coverage);
         Assert.False(semantic.IsDrawable2D);
         Assert.DoesNotContain(
             typeof(CadTianzhengOpeningAnchorSemantic).GetProperties(),
             property => property.Name.Contains("Width", StringComparison.OrdinalIgnoreCase)
                 || property.Name.Contains("Height", StringComparison.OrdinalIgnoreCase)
-                || property.Name.Contains("Sill", StringComparison.OrdinalIgnoreCase));
+                || property.Name.Contains("Sill", StringComparison.OrdinalIgnoreCase)
+                || property.Name.Contains("Clearance", StringComparison.OrdinalIgnoreCase)
+                || property.Name.Contains("Type", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
