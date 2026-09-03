@@ -28,6 +28,7 @@ public sealed partial class ACadSharpCadImporter
             entity.ProxyGeometries,
             out var unsupportedProxyGraphicCount,
             out var statefulGeometryCommandsPresent);
+        var proxyGraphicTraitsApplied = CadProxyTraitInspector.HasOverrides(proxyPrimitives);
         var representation = proxyPrimitives.Count > 0
             ? CadCustomEntityRepresentation.ProxyGraphics
             : CadCustomEntityRepresentation.Opaque;
@@ -49,7 +50,7 @@ public sealed partial class ACadSharpCadImporter
             ["ProxyGraphicTranslatedCount"] = proxyPrimitives.Count.ToString(CultureInfo.InvariantCulture),
             ["ProxyGraphicUnsupportedCount"] = unsupportedProxyGraphicCount.ToString(CultureInfo.InvariantCulture),
             ["ProxyGraphicStatefulGeometryCommandsPresent"] = statefulGeometryCommandsPresent.ToString(),
-            ["ProxyGraphicTraitsApplied"] = bool.FalseString,
+            ["ProxyGraphicTraitsApplied"] = proxyGraphicTraitsApplied.ToString(),
             ["RawDxfPayloadAvailable"] = (rawDxfPayload is not null).ToString(),
             ["RawDxfScanBinary"] = (rawScan?.IsBinaryDxf == true).ToString(),
             ["RawDxfScanFailed"] = (rawScan?.ScanFailed == true).ToString(),
