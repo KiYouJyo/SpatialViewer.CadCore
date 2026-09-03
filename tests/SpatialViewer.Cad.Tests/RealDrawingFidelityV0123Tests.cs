@@ -72,6 +72,23 @@ public sealed class RealDrawingFidelityV0123Tests
     }
 
     [Fact]
+    public void DimensionTextMiddlePointIsRenderedAsMiddleCenterAnchor()
+    {
+        var dimension = LinearDimension();
+
+        var textNode = Document(dimension).Scene.GetItems()
+            .Single(item => item.Id == dimension.ObjectId && item.Geometry is TextGeometry);
+        var geometry = Assert.IsType<TextGeometry>(textNode.Geometry);
+
+        Assert.Equal(TextHorizontalAlignment2D.Center, geometry.HorizontalAlignment);
+        Assert.Equal(TextVerticalAlignment2D.Middle, geometry.VerticalAlignment);
+        Assert.Equal("MiddleCenter", textNode.Metadata["DimensionTextAnchor"]);
+        var bounds = geometry.GetBounds();
+        Assert.InRange((bounds.MinX + bounds.MaxX) / 2, dimension.TextPosition.X - 1e-9, dimension.TextPosition.X + 1e-9);
+        Assert.InRange((bounds.MinY + bounds.MaxY) / 2, dimension.TextPosition.Y - 1e-9, dimension.TextPosition.Y + 1e-9);
+    }
+
+    [Fact]
     public void LegacyShxCjkFallbackUsesPrintOrientedCadMetrics()
     {
         var resolution = CadFontResolver.Resolve("hztxt.shx", "北京意铭创设咨询有限公司");
