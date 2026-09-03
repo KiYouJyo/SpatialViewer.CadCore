@@ -3,10 +3,26 @@ using SpatialViewer.Core;
 namespace SpatialViewer.Formats.Cad;
 
 /// <summary>
+/// Display-only subentity trait overrides captured from an ObjectARX proxy-graphics stream.
+/// Null values inherit the containing CAD custom entity's already-resolved presentation.
+/// </summary>
+public readonly record struct CadProxyTraits(CadColor? Color = null, int? LineWeight = null)
+{
+    public bool HasOverrides => Color is not null || LineWeight is not null;
+}
+
+/// <summary>
 /// Reader-independent proxy graphic retained from an application-defined CAD object.
 /// These primitives are display fallbacks only; they do not imply native Tianzheng semantics.
 /// </summary>
-public abstract record CadProxyPrimitive(string SourceKind);
+public abstract record CadProxyPrimitive(string SourceKind)
+{
+    /// <summary>
+    /// Evidence-backed display traits active when this primitive was emitted. These affect only
+    /// fallback presentation and never promote proprietary object semantics.
+    /// </summary>
+    public CadProxyTraits Traits { get; init; }
+}
 
 public sealed record CadProxyPolyline(IReadOnlyList<Point2D> Points)
     : CadProxyPrimitive("Polyline");
@@ -50,3 +66,17 @@ public sealed record CadProxyText(
     double ObliqueAngleRadians,
     string ProxyTextKind)
     : CadProxyPrimitive(ProxyTextKind);
+
+/// <summary>Helpers for reporting whether a proxy tree actually carries supported trait overrides.</summary>
+public static class CadProxyTraitInspector
+{
+    public static bool HasOverrides(IEnumerable<CadProxyPrimitive> primitives)
+    {
+        ArgumentNullException.ThrowIfNull(primitives);
+        return primitives.Any(HasOverrides);
+    }
+
+    private static bool HasOverrides(CadProxyPrimitive primitive)
+        => primitive.Traits.HasOverrides
+            || primitive is CadProxyClipGroup clip && clip.Children.Any(HasOverrides);
+}
