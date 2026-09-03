@@ -120,7 +120,7 @@ public static class ACadSharpProxyGraphicsClipMapping
         return true;
     }
 
-    private static bool TryBoundary(IReadOnlyList<CSMath.XY>? source, out IReadOnlyList<Point2D> boundary)
+    private static bool TryBoundary(List<CSMath.XY>? source, out IReadOnlyList<Point2D> boundary)
     {
         boundary = Array.Empty<Point2D>();
         if (source is null || source.Count < 2) return false;
