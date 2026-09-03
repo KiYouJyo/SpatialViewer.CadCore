@@ -1,16 +1,11 @@
-;;; SpatialViewer.CadCore — Tianzheng A/B structural probe
-;;; Command: TCHDIFF
+;;; SpatialViewer.CadCore — Tianzheng structural research probe
+;;; Commands: TCHDIFF, TCHSIG
 ;;;
-;;; Purpose:
-;;;   Compare two controlled Tianzheng custom objects inside AutoCAD/Tianzheng
-;;;   without printing raw DXF values, handles, entity names, or file paths.
+;;; TCHDIFF compares two controlled Tianzheng custom objects without printing
+;;; raw DXF values, handles, entity names, or file paths.
 ;;;
-;;; Recommended experiment:
-;;;   1. Create two otherwise-equivalent Tianzheng objects.
-;;;   2. Change exactly one known property on the second object.
-;;;   3. Run TCHDIFF and select baseline, then modified object.
-;;;   4. Record only the reported group code / occurrence / slot candidates.
-;;;   5. Repeat with an independent pair before assigning semantic meaning.
+;;; TCHSIG prints only one object's TCH_* type, structural counts, and ordered
+;;; DXF group-code signature. It never prints group values or subclass names.
 ;;;
 ;;; This tool is research evidence only. A changed slot is not automatically a
 ;;; column width, stair height, dimension scale, axis number, or index field.
@@ -96,6 +91,18 @@
   )
 )
 
+(defun tchdiff:_print-code-signature (codes / first code)
+  (princ "\n[TCHSIG] code-signature=")
+  (setq first T)
+  (foreach code codes
+    (if first
+      (setq first nil)
+      (princ ",")
+    )
+    (princ (itoa code))
+  )
+)
+
 (defun tchdiff:_print-layout-mismatch (left-codes right-codes / mismatch)
   (setq mismatch (tchdiff:_first-code-mismatch left-codes right-codes))
   (princ
@@ -144,15 +151,38 @@
   )
 )
 
+(defun c:TCHSIG (/ pick data type codes)
+  (princ "\nTCHSIG — privacy-safe Tianzheng structural signature")
+  (setq pick (car (entsel "\nSelect Tianzheng object: ")))
+  (if (not pick)
+    (princ "\n[TCHSIG] Cancelled.")
+    (progn
+      (setq data (tchdiff:_filtered pick)
+            type (tchdiff:_type data))
+      (if (not (tchdiff:_tch-type-p type))
+        (princ "\n[TCHSIG] Refused: selection must be a TCH_* custom object.")
+        (progn
+          (setq codes (tchdiff:_codes data))
+          (princ (strcat "\n[TCHSIG] Object type=" type))
+          (princ (strcat "\n[TCHSIG] Entry count=" (itoa (length data))))
+          (princ (strcat "\n[TCHSIG] Subclass marker count=" (itoa (length (tchdiff:_subclasses data)))))
+          (tchdiff:_print-code-signature codes)
+        )
+      )
+    )
+  )
+  (princ)
+)
+
 (defun c:TCHDIFF (/ pick-a pick-b data-a data-b type-a type-b codes-a codes-b)
   (princ "\nTCHDIFF — privacy-safe Tianzheng controlled A/B structural probe")
   (setq pick-a (car (entsel "\nSelect BASELINE Tianzheng object: ")))
   (if (not pick-a)
-    (progn (princ "\n[TCHDIFF] Cancelled.") (princ))
+    (princ "\n[TCHDIFF] Cancelled.")
     (progn
       (setq pick-b (car (entsel "\nSelect MODIFIED Tianzheng object: ")))
       (if (not pick-b)
-        (progn (princ "\n[TCHDIFF] Cancelled.") (princ))
+        (princ "\n[TCHDIFF] Cancelled.")
         (progn
           (setq data-a (tchdiff:_filtered pick-a)
                 data-b (tchdiff:_filtered pick-b)
@@ -188,5 +218,5 @@
   (princ)
 )
 
-(princ "\nSpatialViewer Tianzheng probe loaded. Run TCHDIFF.")
+(princ "\nSpatialViewer Tianzheng probe loaded. Run TCHDIFF or TCHSIG.")
 (princ)
