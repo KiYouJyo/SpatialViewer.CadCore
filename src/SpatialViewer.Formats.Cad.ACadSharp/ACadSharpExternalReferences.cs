@@ -289,8 +289,8 @@ public sealed partial class ACadSharpCadImporter
     private static CadEntity NamespaceExternalEntity(
         CadEntity entity,
         string handlePrefix,
-        IReadOnlyDictionary<string, string> layerNames,
-        IReadOnlyDictionary<string, string> blockNames)
+        Dictionary<string, string> layerNames,
+        Dictionary<string, string> blockNames)
     {
         var layerName = layerNames.TryGetValue(entity.LayerName, out var mappedLayer) ? mappedLayer : entity.LayerName;
         var handle = handlePrefix + entity.Handle;
@@ -407,7 +407,7 @@ public sealed partial class ACadSharpCadImporter
     {
         public static XrefResolutionStats Empty { get; } = new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
-        public IReadOnlyDictionary<string, string> ToMetadata() => new Dictionary<string, string>
+        public Dictionary<string, string> ToMetadata() => new()
         {
             ["XrefDefinitionCount"] = DefinitionCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["XrefLocalCacheCount"] = LocalCacheCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
