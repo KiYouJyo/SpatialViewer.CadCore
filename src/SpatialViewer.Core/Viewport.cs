@@ -41,10 +41,14 @@ public static class HitTesting
             var item = items[candidates[candidate]];
             if (!item.Layer.IsVisible) continue;
             if (item.ClipBounds is { } clip && !clip.Inflate(worldTolerance).Contains(worldPoint)) continue;
+            if (item.ClipPolygons.Any(polygon => !PointInsideClip(polygon, worldPoint, worldTolerance))) continue;
             if (item.Bounds.Inflate(worldTolerance).Contains(worldPoint) && Hit(item, worldPoint, worldTolerance)) return item;
         }
         return null;
     }
+
+    private static bool PointInsideClip(IReadOnlyList<Point2D> polygon, Point2D point, double tolerance)
+        => polygon.Count >= 3 && (PointInPolygon(polygon, point) || HitSegments(polygon, true, point, tolerance));
 
     private static bool Hit(SceneItem item, Point2D point, double worldTolerance)
     {
