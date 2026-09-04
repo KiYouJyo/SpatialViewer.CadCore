@@ -15,6 +15,7 @@ All notable CadCore changes are recorded here.
 - Added a privacy-safe native-vs-converted Xiangyuan diff that highlights custom classes/profiles removed by controlled all-explode/result-output conversion without promoting those candidates to vendor or parcel semantics.
 - Added conversion-candidate-scoped A/B experiments for removed unknown entity classes, with exact CLASSES identity matching and a fresh global-classifier check so candidate research cannot silently promote unknown objects to Xiangyuan.
 - Added multi-pair Xiangyuan conversion consensus with validated privacy-safe JSON and CLI support; repeated unknown candidates require at least two independent removals and no retained/added contradiction before stronger A/B research.
+- Added a canonical P1 Xiangyuan parcel experiment catalog and case-bound DXF/DWG consensus gate for parcel number, land-use identity, area, FAR/density/green-rate/height ranges, while keeping boundary and control-indicator relationships outside raw-value semantic inference.
 
 ## 0.7.0 - 2026-09-01
 
