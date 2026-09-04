@@ -9,6 +9,7 @@ All notable CadCore changes are recorded here.
 - Added Xiangyuan class/entity detection metadata while reusing the existing reader-independent custom-object, raw DXF/DWG evidence and ObjectARX Proxy Graphics fallback pipeline.
 - Added reader-level regression coverage and a Xiangyuan compatibility roadmap for parcel, atlas/street-block and utility-object follow-up work.
 - Added a privacy-safe Xiangyuan schema corpus with deterministic structural clustering, proxy/opaque coverage, raw-evidence coverage, generic relationship coverage, JSON validation and multi-sample merge support.
+- Added a Xiangyuan-only privacy-safe A/B experiment gate over the generic DXF/DWG differ and repeatability-consensus pipeline, rejecting non-Xiangyuan observations before proprietary-field candidates can be produced.
 
 ## 0.7.0 - 2026-09-01
 
