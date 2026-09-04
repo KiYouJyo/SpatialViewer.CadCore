@@ -238,10 +238,10 @@ public static class CadProxyGeometryDiffer
                     builder.Append("P=").Append(item.Points.Count);
                     break;
                 case CadProxyCircle:
-                    builder.Append("C");
+                    builder.Append('C');
                     break;
                 case CadProxyArc:
-                    builder.Append("A");
+                    builder.Append('A');
                     break;
                 case CadProxyEdgeSet item:
                     builder.Append("E=").Append(item.Edges.Count).Append(",K=").Append(item.ProxyEdgeKind);
