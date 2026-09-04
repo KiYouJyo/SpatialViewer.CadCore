@@ -7,25 +7,28 @@ return await XiangyuanCorpusProbe.RunAsync(args);
 
 internal static class XiangyuanCorpusProbe
 {
-    private const string Usage = "Usage: XiangyuanProbe --out <report.json> <drawing1.dwg|dxf> [drawing2.dwg|dxf ...]";
+    private const string Usage = "Usage: XiangyuanProbe [--discovery] --out <report.json> <drawing1.dwg|dxf> [drawing2.dwg|dxf ...]";
 
     public static async Task<int> RunAsync(string[] args)
     {
         ArgumentNullException.ThrowIfNull(args);
-        if (!TryParseArguments(args, out var outputPath, out var inputs))
+        if (!TryParseArguments(args, out var outputPath, out var inputs, out var discoveryMode))
         {
             Console.Error.WriteLine(Usage);
             return 2;
         }
 
+        var prefix = discoveryMode ? "XYDISCOVERY" : "XYCORPUS";
         var importer = new ACadSharpCadImporter();
-        var reports = new List<CadXiangyuanSchemaCorpusReport>(inputs.Count);
+        var strictReports = discoveryMode ? null : new List<CadXiangyuanSchemaCorpusReport>(inputs.Count);
+        var discoveryReports = discoveryMode ? new List<CadXiangyuanDiscoveryReport>(inputs.Count) : null;
+
         for (var index = 0; index < inputs.Count; index++)
         {
             var input = inputs[index];
             if (!importer.CanImport(input))
             {
-                Console.Error.WriteLine($"[XYCORPUS] Input={index + 1} Status=UnsupportedExtension");
+                Console.Error.WriteLine($"[{prefix}] Input={index + 1} Status=UnsupportedExtension");
                 return 2;
             }
 
@@ -36,7 +39,7 @@ internal static class XiangyuanCorpusProbe
             }
             catch (Exception exception) when (exception is not OutOfMemoryException)
             {
-                Console.Error.WriteLine($"[XYCORPUS] Input={index + 1} Status=ImportException Type={exception.GetType().Name}");
+                Console.Error.WriteLine($"[{prefix}] Input={index + 1} Status=ImportException Type={exception.GetType().Name}");
                 return 3;
             }
 
@@ -47,37 +50,60 @@ internal static class XiangyuanCorpusProbe
                     .Where(code => !string.IsNullOrWhiteSpace(code))
                     .Distinct(StringComparer.Ordinal)
                     .OrderBy(code => code, StringComparer.Ordinal));
-                Console.Error.WriteLine($"[XYCORPUS] Input={index + 1} Status=ImportFailed DiagnosticCodes={codes}");
+                Console.Error.WriteLine($"[{prefix}] Input={index + 1} Status=ImportFailed DiagnosticCodes={codes}");
                 return 3;
             }
 
-            reports.Add(CadXiangyuanSchemaCorpus.Build(document));
+            if (discoveryMode)
+            {
+                discoveryReports!.Add(CadXiangyuanDiscoveryCorpus.Build(document));
+            }
+            else
+            {
+                strictReports!.Add(CadXiangyuanSchemaCorpus.Build(document));
+            }
         }
 
-        var merged = CadXiangyuanSchemaCorpus.Merge(reports);
-        var json = CadXiangyuanSchemaCorpus.ToJson(merged);
+        string json;
+        string summary;
+        if (discoveryMode)
+        {
+            var merged = CadXiangyuanDiscoveryCorpus.Merge(discoveryReports!);
+            json = CadXiangyuanDiscoveryCorpus.ToJson(merged);
+            summary = $"Samples={merged.SampleCount} Classes={merged.Classes.Count} Profiles={merged.Profiles.Count} CustomEntities={merged.CustomEntityCount} KnownXiangyuanEntities={merged.KnownXiangyuanEntityCount} UnknownVendorEntities={merged.UnknownVendorEntityCount}";
+        }
+        else
+        {
+            var merged = CadXiangyuanSchemaCorpus.Merge(strictReports!);
+            json = CadXiangyuanSchemaCorpus.ToJson(merged);
+            summary = $"Samples={merged.SampleCount} Profiles={merged.Entries.Count} Entities={merged.EntityCount} XiangyuanDetected={(merged.EntityCount > 0)}";
+        }
+
         try
         {
             WriteReport(outputPath, json, inputs);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
-            Console.Error.WriteLine($"[XYCORPUS] Status=WriteFailed Type={exception.GetType().Name}");
+            Console.Error.WriteLine($"[{prefix}] Status=WriteFailed Type={exception.GetType().Name}");
             return 4;
         }
 
-        Console.WriteLine(
-            $"[XYCORPUS] Status=OK Samples={merged.SampleCount} Profiles={merged.Entries.Count} Entities={merged.EntityCount} XiangyuanDetected={(merged.EntityCount > 0)}");
+        Console.WriteLine($"[{prefix}] Status=OK {summary}");
         return 0;
     }
 
     private static bool TryParseArguments(
         string[] args,
         out string outputPath,
-        out List<string> inputs)
+        out List<string> inputs,
+        out bool discoveryMode)
     {
         outputPath = string.Empty;
         inputs = new List<string>();
+        discoveryMode = false;
+        var discoverySeen = false;
+
         for (var index = 0; index < args.Length; index++)
         {
             var argument = args[index];
@@ -87,22 +113,22 @@ internal static class XiangyuanCorpusProbe
                 return false;
             }
 
+            if (string.Equals(argument, "--discovery", StringComparison.OrdinalIgnoreCase))
+            {
+                if (discoverySeen) return false;
+                discoveryMode = true;
+                discoverySeen = true;
+                continue;
+            }
+
             if (string.Equals(argument, "--out", StringComparison.OrdinalIgnoreCase))
             {
-                if (outputPath.Length > 0 || index + 1 >= args.Length)
-                {
-                    return false;
-                }
-
+                if (outputPath.Length > 0 || index + 1 >= args.Length) return false;
                 outputPath = args[++index];
                 continue;
             }
 
-            if (argument.StartsWith('-'))
-            {
-                return false;
-            }
-
+            if (argument.StartsWith('-')) return false;
             inputs.Add(argument);
         }
 
