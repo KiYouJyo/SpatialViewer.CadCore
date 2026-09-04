@@ -140,6 +140,19 @@ public sealed record CadXiangyuanParcelGeometryExperimentConsensus(
     public bool HasStableCandidate => StructuralConsensus.HasStableCandidate;
 }
 
+public sealed record CadXiangyuanParcelReferenceExperimentObservation(
+    CadXiangyuanParcelExperimentCase ExperimentCase,
+    CadXiangyuanParcelExperimentProvenance Provenance,
+    CadCustomHandleReferenceExperimentObservation Observation);
+
+public sealed record CadXiangyuanParcelReferenceExperimentConsensus(
+    CadXiangyuanParcelExperimentCase ExperimentCase,
+    CadXiangyuanParcelExperimentProvenance Provenance,
+    CadCustomHandleReferenceExperimentConsensus StructuralConsensus)
+{
+    public bool HasStableCandidate => StructuralConsensus.HasStableCandidate;
+}
+
 /// <summary>
 /// Case-bound Xiangyuan parcel A/B research. This layer prevents observations from different intentionally
 /// changed parcel properties from being mixed into one consensus. Stable slots/ranges remain anonymous.
@@ -290,6 +303,101 @@ public static class CadXiangyuanParcelExperimentAnalyzer
         var structural = CadProxyGeometryExperimentAnalyzer.BuildConsensus(
             items.Select(item => item.Observation));
         return new(items[0].ExperimentCase, items[0].Provenance, structural);
+    }
+
+    public static CadXiangyuanParcelReferenceExperimentObservation ObserveExplicitReference(
+        CadXiangyuanParcelExperimentCase experimentCase,
+        CadCustomEntity before,
+        CadCustomEntity after)
+    {
+        var canonical = ValidateReferenceCase(experimentCase, nameof(experimentCase));
+        CadXiangyuanExperimentAnalyzer.ValidateXiangyuanPair(before, after);
+        var observation = CadCustomHandleReferenceExperimentAnalyzer.Observe(before, after);
+        return new(canonical, CadXiangyuanParcelExperimentProvenance.ExplicitXiangyuanIdentity, observation);
+    }
+
+    public static CadXiangyuanParcelReferenceExperimentObservation ObserveCandidateReference(
+        CadXiangyuanParcelExperimentCase experimentCase,
+        CadXiangyuanConversionClassConsensus candidate,
+        CadCustomEntity before,
+        CadCustomEntity after)
+    {
+        var canonical = ValidateReferenceCase(experimentCase, nameof(experimentCase));
+        CadXiangyuanCandidateExperimentAnalyzer.ValidateRepeatedCandidate(candidate);
+        CadXiangyuanCandidateExperimentAnalyzer.ValidateEntity(candidate, before, nameof(before));
+        CadXiangyuanCandidateExperimentAnalyzer.ValidateEntity(candidate, after, nameof(after));
+        var observation = CadCustomHandleReferenceExperimentAnalyzer.Observe(before, after);
+        return new(canonical, CadXiangyuanParcelExperimentProvenance.RepeatedConversionCandidate, observation);
+    }
+
+    public static CadXiangyuanParcelReferenceExperimentConsensus BuildExplicitReferenceConsensus(
+        IEnumerable<CadXiangyuanParcelReferenceExperimentObservation> observations)
+    {
+        var items = MaterializeReference(
+            observations,
+            CadXiangyuanParcelExperimentProvenance.ExplicitXiangyuanIdentity);
+        CadXiangyuanExperimentAnalyzer.ValidateXiangyuanIdentities(
+            items.Select(item => item.Observation.Identity));
+        var structural = CadCustomHandleReferenceExperimentAnalyzer.BuildConsensus(
+            items.Select(item => item.Observation));
+        return new(items[0].ExperimentCase, items[0].Provenance, structural);
+    }
+
+    public static CadXiangyuanParcelReferenceExperimentConsensus BuildCandidateReferenceConsensus(
+        CadXiangyuanConversionClassConsensus candidate,
+        IEnumerable<CadXiangyuanParcelReferenceExperimentObservation> observations)
+    {
+        CadXiangyuanCandidateExperimentAnalyzer.ValidateRepeatedCandidate(candidate);
+        var items = MaterializeReference(
+            observations,
+            CadXiangyuanParcelExperimentProvenance.RepeatedConversionCandidate);
+        foreach (var item in items)
+            CadXiangyuanCandidateExperimentAnalyzer.ValidateIdentity(
+                candidate,
+                item.Observation.Identity,
+                nameof(observations));
+        var structural = CadCustomHandleReferenceExperimentAnalyzer.BuildConsensus(
+            items.Select(item => item.Observation));
+        return new(items[0].ExperimentCase, items[0].Provenance, structural);
+    }
+
+    private static CadXiangyuanParcelExperimentCase ValidateReferenceCase(
+        CadXiangyuanParcelExperimentCase experimentCase,
+        string parameterName)
+    {
+        var canonical = CadXiangyuanParcelExperimentCases.ValidateCanonical(experimentCase, parameterName);
+        if (!string.Equals(
+                canonical.Id,
+                CadXiangyuanParcelExperimentCases.ControlIndicatorRelationship,
+                StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                "Custom-reference parcel experiments are restricted to CONTROL_INDICATOR_RELATIONSHIP.",
+                parameterName);
+        }
+        return canonical;
+    }
+
+    private static List<CadXiangyuanParcelReferenceExperimentObservation> MaterializeReference(
+        IEnumerable<CadXiangyuanParcelReferenceExperimentObservation> observations,
+        CadXiangyuanParcelExperimentProvenance expectedProvenance)
+    {
+        ArgumentNullException.ThrowIfNull(observations);
+        var items = observations.Take(MaxObservations + 1).ToList();
+        if (items.Count < 2)
+            throw new ArgumentException("At least two independent case-bound parcel reference observations are required.", nameof(observations));
+        if (items.Count > MaxObservations)
+            throw new ArgumentException($"Parcel reference consensus supports at most {MaxObservations} observations.", nameof(observations));
+
+        foreach (var item in items)
+        {
+            if (item is null || item.Observation is null)
+                throw new ArgumentException("Parcel reference observation cannot be null.", nameof(observations));
+            ValidateReferenceCase(item.ExperimentCase, nameof(observations));
+            if (item.Provenance != expectedProvenance)
+                throw new ArgumentException("Cannot mix parcel reference experiment provenance modes in one consensus.", nameof(observations));
+        }
+        return items;
     }
 
     private static CadXiangyuanParcelExperimentCase ValidateProxyGeometryCase(
