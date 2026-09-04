@@ -305,7 +305,7 @@ public static class CadXiangyuanSchemaCorpus
                 profile?.GroupCodeSignature ?? Unavailable,
                 profile is null ? Unavailable : string.Join('>', profile.SubclassMarkers),
                 ReferenceSignature(entity),
-                ProxyGraphicKindSignature(entity));
+                CadXiangyuanSchemaCorpus.ProxyGraphicKindSignature(entity));
         }
 
         public static ProfileKey Create(CadXiangyuanSchemaCorpusEntry entry)
