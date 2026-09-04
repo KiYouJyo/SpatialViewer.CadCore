@@ -98,16 +98,15 @@ internal static class XiangyuanCorpusProbe
                 continue;
             }
 
-            if (argument.StartsWith("-", StringComparison.Ordinal))
+            if (argument.StartsWith('-'))
             {
                 return false;
             }
 
-            parsedInputs.Add(argument);
+            inputs.Add(argument);
         }
 
-        inputs = parsedInputs;
-        return outputPath.Length > 0 && parsedInputs.Count > 0;
+        return outputPath.Length > 0 && inputs.Count > 0;
     }
 
     private static void WriteReport(
