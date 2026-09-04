@@ -32,6 +32,8 @@ Geometry/derived/relationship experiments:
 
 The geometry/relationship cases are deliberately rejected by the raw DXF/DWG value-consensus API. A boundary or relationship must be researched through geometry/reference evidence instead of forcing an anonymous raw-value slot to carry that meaning.
 
+`AREA` and `BOUNDARY` now have a dedicated proxy-geometry evidence path. `CadProxyGeometryDiffer` compares equal-layout proxy trees in memory and emits only anonymous locations such as primitive path + point/field index. Coordinates, text values and other source values are not returned. `CadProxyGeometryExperimentAnalyzer` requires at least two independent equal-layout observations before a changed geometry slot becomes repeatable evidence. A primitive/vertex-count change is `LayoutMismatch` and fails closed rather than being coerced into a coordinate mapping. `CONTROL_INDICATOR_RELATIONSHIP` remains outside this path and still requires object-reference evidence.
+
 ## Required gate before a named semantic mapper
 
 A proposed parcel property mapping is accepted only when all of the following are true:
