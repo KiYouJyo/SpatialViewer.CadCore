@@ -34,6 +34,8 @@ The geometry/relationship cases are deliberately rejected by the raw DXF/DWG val
 
 `AREA` and `BOUNDARY` now have a dedicated proxy-geometry evidence path. `CadProxyGeometryDiffer` compares equal-layout proxy trees in memory and emits only anonymous locations such as primitive path + point/field index. Coordinates, text values and other source values are not returned. `CadProxyGeometryExperimentAnalyzer` requires at least two independent equal-layout observations before a changed geometry slot becomes repeatable evidence. A primitive/vertex-count change is `LayoutMismatch` and fails closed rather than being coerced into a coordinate mapping. `CONTROL_INDICATOR_RELATIONSHIP` remains outside this path and still requires object-reference evidence.
 
+`CONTROL_INDICATOR_RELATIONSHIP` now has a separate privacy-safe object-reference path. `CadCustomHandleReferenceDiffer` compares retained reference slots only when both sides have the same custom-object identity and the same ordered reference group-code layout. It uses target handles only for in-memory equality and emits only `GroupCode + CodeOccurrence`; source/target handles are never returned. Missing references or a changed reference-code/count layout fail closed. `CadCustomHandleReferenceExperimentAnalyzer` requires at least two independent comparable observations before a reference slot becomes repeatable evidence. A stable `330#1` (for example) is still anonymous reference evidence, **not** proof that the target is a control-indicator block; target type/role requires independent real-sample verification.
+
 ## Required gate before a named semantic mapper
 
 A proposed parcel property mapping is accepted only when all of the following are true:
