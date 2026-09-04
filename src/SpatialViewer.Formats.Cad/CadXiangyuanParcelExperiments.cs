@@ -127,6 +127,19 @@ public sealed record CadXiangyuanParcelDwgExperimentConsensus(
     public bool HasStableCandidate => StructuralConsensus.HasStableCandidate;
 }
 
+public sealed record CadXiangyuanParcelGeometryExperimentObservation(
+    CadXiangyuanParcelExperimentCase ExperimentCase,
+    CadXiangyuanParcelExperimentProvenance Provenance,
+    CadProxyGeometryExperimentObservation Observation);
+
+public sealed record CadXiangyuanParcelGeometryExperimentConsensus(
+    CadXiangyuanParcelExperimentCase ExperimentCase,
+    CadXiangyuanParcelExperimentProvenance Provenance,
+    CadProxyGeometryExperimentConsensus StructuralConsensus)
+{
+    public bool HasStableCandidate => StructuralConsensus.HasStableCandidate;
+}
+
 /// <summary>
 /// Case-bound Xiangyuan parcel A/B research. This layer prevents observations from different intentionally
 /// changed parcel properties from being mixed into one consensus. Stable slots/ranges remain anonymous.
@@ -221,6 +234,103 @@ public static class CadXiangyuanParcelExperimentAnalyzer
             candidate,
             items.Select(item => item.Observation));
         return new(items[0].ExperimentCase, items[0].Provenance, structural);
+    }
+
+    public static CadXiangyuanParcelGeometryExperimentObservation ObserveExplicitGeometry(
+        CadXiangyuanParcelExperimentCase experimentCase,
+        CadCustomEntity before,
+        CadCustomEntity after)
+    {
+        var canonical = ValidateProxyGeometryCase(experimentCase, nameof(experimentCase));
+        CadXiangyuanExperimentAnalyzer.ValidateXiangyuanPair(before, after);
+        var observation = CadProxyGeometryExperimentAnalyzer.Observe(before, after);
+        return new(canonical, CadXiangyuanParcelExperimentProvenance.ExplicitXiangyuanIdentity, observation);
+    }
+
+    public static CadXiangyuanParcelGeometryExperimentObservation ObserveCandidateGeometry(
+        CadXiangyuanParcelExperimentCase experimentCase,
+        CadXiangyuanConversionClassConsensus candidate,
+        CadCustomEntity before,
+        CadCustomEntity after)
+    {
+        var canonical = ValidateProxyGeometryCase(experimentCase, nameof(experimentCase));
+        CadXiangyuanCandidateExperimentAnalyzer.ValidateRepeatedCandidate(candidate);
+        CadXiangyuanCandidateExperimentAnalyzer.ValidateEntity(candidate, before, nameof(before));
+        CadXiangyuanCandidateExperimentAnalyzer.ValidateEntity(candidate, after, nameof(after));
+        var observation = CadProxyGeometryExperimentAnalyzer.Observe(before, after);
+        return new(canonical, CadXiangyuanParcelExperimentProvenance.RepeatedConversionCandidate, observation);
+    }
+
+    public static CadXiangyuanParcelGeometryExperimentConsensus BuildExplicitGeometryConsensus(
+        IEnumerable<CadXiangyuanParcelGeometryExperimentObservation> observations)
+    {
+        var items = MaterializeGeometry(
+            observations,
+            CadXiangyuanParcelExperimentProvenance.ExplicitXiangyuanIdentity);
+        CadXiangyuanExperimentAnalyzer.ValidateXiangyuanIdentities(
+            items.Select(item => item.Observation.Identity));
+        var structural = CadProxyGeometryExperimentAnalyzer.BuildConsensus(
+            items.Select(item => item.Observation));
+        return new(items[0].ExperimentCase, items[0].Provenance, structural);
+    }
+
+    public static CadXiangyuanParcelGeometryExperimentConsensus BuildCandidateGeometryConsensus(
+        CadXiangyuanConversionClassConsensus candidate,
+        IEnumerable<CadXiangyuanParcelGeometryExperimentObservation> observations)
+    {
+        CadXiangyuanCandidateExperimentAnalyzer.ValidateRepeatedCandidate(candidate);
+        var items = MaterializeGeometry(
+            observations,
+            CadXiangyuanParcelExperimentProvenance.RepeatedConversionCandidate);
+        foreach (var item in items)
+            CadXiangyuanCandidateExperimentAnalyzer.ValidateIdentity(
+                candidate,
+                item.Observation.Identity,
+                nameof(observations));
+        var structural = CadProxyGeometryExperimentAnalyzer.BuildConsensus(
+            items.Select(item => item.Observation));
+        return new(items[0].ExperimentCase, items[0].Provenance, structural);
+    }
+
+    private static CadXiangyuanParcelExperimentCase ValidateProxyGeometryCase(
+        CadXiangyuanParcelExperimentCase experimentCase,
+        string parameterName)
+    {
+        var canonical = CadXiangyuanParcelExperimentCases.ValidateCanonical(experimentCase, parameterName);
+        if (!string.Equals(canonical.Id, CadXiangyuanParcelExperimentCases.Area, StringComparison.Ordinal)
+            && !string.Equals(canonical.Id, CadXiangyuanParcelExperimentCases.Boundary, StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                "Proxy-geometry parcel experiments are restricted to AREA or BOUNDARY; object relationships require reference evidence.",
+                parameterName);
+        }
+        return canonical;
+    }
+
+    private static List<CadXiangyuanParcelGeometryExperimentObservation> MaterializeGeometry(
+        IEnumerable<CadXiangyuanParcelGeometryExperimentObservation> observations,
+        CadXiangyuanParcelExperimentProvenance expectedProvenance)
+    {
+        ArgumentNullException.ThrowIfNull(observations);
+        var items = observations.Take(MaxObservations + 1).ToList();
+        if (items.Count < 2)
+            throw new ArgumentException("At least two independent case-bound parcel geometry observations are required.", nameof(observations));
+        if (items.Count > MaxObservations)
+            throw new ArgumentException($"Parcel geometry consensus supports at most {MaxObservations} observations.", nameof(observations));
+
+        CadXiangyuanParcelExperimentCase? firstCase = null;
+        foreach (var item in items)
+        {
+            if (item is null || item.Observation is null)
+                throw new ArgumentException("Parcel geometry observation cannot be null.", nameof(observations));
+            var canonical = ValidateProxyGeometryCase(item.ExperimentCase, nameof(observations));
+            if (item.Provenance != expectedProvenance)
+                throw new ArgumentException("Cannot mix parcel geometry experiment provenance modes in one consensus.", nameof(observations));
+            firstCase ??= canonical;
+            if (!string.Equals(firstCase.Id, canonical.Id, StringComparison.Ordinal))
+                throw new ArgumentException("Cannot mix AREA and BOUNDARY parcel geometry cases in one consensus.", nameof(observations));
+        }
+        return items;
     }
 
     private static CadXiangyuanParcelExperimentCase ValidateRawPayloadCase(
