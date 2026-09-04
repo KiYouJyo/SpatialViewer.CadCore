@@ -4,6 +4,25 @@ All notable CadCore changes are recorded here.
 
 ## Unreleased
 
+## 0.12.7 - 2026-09-04
+
+### Added
+- Added the Xiangyuan Control Planning compatibility research pipeline from conservative vendor discovery through native-vs-converted diff, multi-pair repeated-candidate consensus and case-bound parcel experiments.
+- Added privacy-safe DXF/DWG value evidence, proxy-geometry evidence, anonymous object-reference evidence and reference-endpoint structural evidence for Xiangyuan parcel research.
+- Added strict whole-document A/B matching across model space, blocks and paper space using only the same unique retained handle plus exact class identity, with no geometric/content fallback pairing.
+- Added local whole-document A/B CLI modes for explicitly classified Xiangyuan objects and validated repeated-Unknown conversion candidates.
+
+### Safety and compatibility
+- Unknown Xiangyuan candidate classes remain globally `Unknown`; v0.12.7 does not guess proprietary class names or promote candidates to Xiangyuan without independent evidence.
+- Parcel-number, land-use, FAR, density, green-rate and height experiment IDs name operator intent only; no proprietary raw-field semantic mapping is claimed by this release.
+- AREA/BOUNDARY use geometry evidence and control-indicator relationships use anonymous reference/endpoint evidence; unsupported or structurally inconsistent inputs fail closed.
+- Privacy-safe reports exclude source drawing paths/names, entity and target handles, coordinates, raw property values and raw DWG bytes.
+- CLR ABI remains `1.0.0.0`; host contract remains `SpatialViewer.CadHost >=1.0.0,<2.0.0`; release manifest schema remains `2`.
+
+### Acceptance scope
+- v0.12.7 is an **on-device Xiangyuan compatibility acceptance build**. It makes the complete evidence and fallback pipeline available to SpatialViewer for real drawing verification.
+- It does not claim that native Xiangyuan parcel semantics are complete; v0.13.0 remains gated on real Xiangyuan sample evidence plus Reader/display regression.
+
 ### Added
 - Added conservative Xiangyuan Control Planning custom-object vendor classification from explicit application/C++ identities, without guessing DXF class names from public command prefixes.
 - Added Xiangyuan class/entity detection metadata while reusing the existing reader-independent custom-object, raw DXF/DWG evidence and ObjectARX Proxy Graphics fallback pipeline.
