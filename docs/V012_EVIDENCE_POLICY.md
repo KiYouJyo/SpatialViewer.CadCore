@@ -1,6 +1,6 @@
 # v0.12 Tianzheng semantic evidence policy
 
-This document defines the evidence strength used for the final SpatialViewer.CadCore v0.12 Tianzheng semantic blockers. It does not reduce the release gate in `V012_TIANZHENG_ARCHITECTURE.md`.
+This document defines the evidence strength used for SpatialViewer.CadCore Tianzheng native-semantic claims. The original product-release gate in `V012_TIANZHENG_ARCHITECTURE.md` was superseded by `V012_RELEASE_POLICY.md`; the requirements here now govern semantic completeness and future native-decoder claims, not whether 0.12.x may ship.
 
 ## 中文
 

@@ -1,6 +1,6 @@
 # v0.12 release policy — practical Tianzheng Architecture 2D compatibility
 
-> Effective for the v0.12.0 release on 2026-09-03. This document changes **release eligibility**, not the evidence standard required to claim native Tianzheng semantics.
+> Effective since the v0.12.0 release on 2026-09-03. This document changes **release eligibility**, not the evidence standard required to claim native Tianzheng semantics. CadCore has since advanced to v0.12.6; this policy remains the shipping rule while deeper Tianzheng proprietary-semantic work is paused.
 
 ## 中文
 

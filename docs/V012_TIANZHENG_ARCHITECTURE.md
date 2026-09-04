@@ -1,6 +1,6 @@
-# v0.12 Tianzheng Architecture 2D acceptance matrix
+# v0.12 Tianzheng Architecture 2D native-semantic acceptance matrix
 
-> Status document for the in-progress v0.12 milestone. This is **not** a v0.12 release note and does not advance the product version.
+> Historical/native-semantic completeness matrix for the v0.12 Tianzheng scope. It is **not a product-release gate**: [V012_RELEASE_POLICY.md](V012_RELEASE_POLICY.md) superseded the original shipping blocker before v0.12.0 was released. Current CadCore is v0.12.6.
 
 ## 中文
 
@@ -17,7 +17,7 @@ v0.12 的目标沿用 v0.11.0 已公开的后续范围：在 v0.11 的自定义�
 - 仅生成 schema corpus / fingerprint；
 - 根据“看起来像宽高/面积/角度”的数值位置猜测字段含义。
 
-正式将产品版本从 `0.11.0` 提升到 `0.12.0` 前，所有 v0.11.0 已列入 v0.12 的核心对象类别必须至少达到 **Partial semantic**，并满足真实 Reader 回归与 fail-closed 条件。证据不足的类别继续阻塞发布，不通过缩小历史范围来绕过验收。
+作为 **Tianzheng native-semantic completeness** 的完整验收标准，所有 v0.11.0 历史列入 v0.12 的核心对象类别仍应至少达到 **Partial semantic**，并满足真实 Reader 回归与 fail-closed 条件。证据不足的类别继续标记为 semantic blocker，但依据 `V012_RELEASE_POLICY.md`，它们不再阻塞 0.12.x 产品发布。
 
 ### 状态定义
 
@@ -126,9 +126,9 @@ The privacy-safe Tianzheng schema corpus aggregates structural signatures and co
 
 ### Current release conclusion
 
-- Product version remains `0.11.0`.
-- v0.12 is **not release-ready**.
-- Current blockers: evidence-backed semantics for **columns, grids, stairs, index/drawing-title objects, and Tianzheng dimensions**.
+- Current released product version is `0.12.6`; this matrix does not control shipping.
+- v0.12.x product releases are no longer gated by this matrix.
+- Remaining semantic-completeness gaps include evidence-backed semantics for **columns, grids, stairs, index/drawing-title objects, and Tianzheng dimensions**.
 - When evidence is insufficient, collect anonymous schema/real entget evidence instead of implementing speculative decoders.
 
 ---
@@ -187,7 +187,7 @@ privacy-safe Tianzheng schema corpus は図面内容を外部化せず structura
 
 ### 現在のリリース判断
 
-- Product version は `0.11.0` のままです。
-- v0.12 は**まだ release-ready ではありません**。
-- 主な blocker は **柱、軸網、階段、索引/図名、天正寸法**の evidence-backed semantic profile です。
+- 現在の正式 release は `0.12.6` で、この matrix は shipping を制御しません。
+- この matrix は 0.12.x product release を阻害しません。
+- 主な semantic-completeness gap は **柱、軸網、階段、索引/図名、天正寸法**の evidence-backed semantic profile です。
 - 証拠が不足する場合は speculative decoder を作らず、匿名 schema / 実 entget の収集を優先します。

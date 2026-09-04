@@ -1,6 +1,6 @@
-# v0.12 Tianzheng Architecture 2D progress ledger
+# v0.12 Tianzheng Architecture 2D native-semantic progress ledger
 
-> Incremental progress log for the in-progress v0.12 milestone. The acceptance baseline remains [V012_TIANZHENG_ARCHITECTURE.md](V012_TIANZHENG_ARCHITECTURE.md). This file records later merged work without redefining or shrinking the release gate.
+> Native-semantic completeness ledger for the v0.12 Tianzheng work. Product release eligibility is governed by [V012_RELEASE_POLICY.md](V012_RELEASE_POLICY.md), which superseded the original product-version blocking rule. The current released CadCore line is v0.12.6; the remaining Tianzheng items below are research/completeness gates, not 0.12.x shipping blockers.
 
 ## 中文
 
@@ -36,20 +36,21 @@
 - `TCH_COLUMN` — **Partial**；
 - `TCH_LINESTAIR` / `TCH_RECTSTAIR` — **Partial**。
 
-仍阻塞 v0.12 正式升版的 3 类：
+仍未完成 native semantic 的 3 类（**不再阻塞 0.12.x 产品发布**）：
 
 1. 自定义轴号 / `TCH_AXIS_LABEL` family；
 2. `TCH_INDEXPOINTER` / `TCH_DRAWINGINDEX` 等索引对象；
 3. `TCH_DIMENSION2` 等天正尺寸对象。
 
-这 3 类都必须至少取得一组**可明确命名、外部证据支持、真实 Reader 回归且 fail-closed** 的 raw field → semantic 映射，才能解除对应 gate。仅有类型登记、Proxy Graphics、raw payload、corpus 或 A/B candidate 不算完成。
+这 3 类都必须至少取得一组**可明确命名、外部证据支持、真实 Reader 回归且 fail-closed** 的 raw field → semantic 映射，才能解除对应 native-semantic gate。仅有类型登记、Proxy Graphics、raw payload、corpus 或 A/B candidate 不算完成。
 
-### 当前发布结论
+### 当前发布结论（2026-09-04 校正）
 
-- Product/File/Informational version 继续保持 `0.11.0`。
+- Product/File/Informational version 已推进并正式发布到 `0.12.6`。
 - CLR ABI 继续保持 `1.0.0.0`。
 - Host Contract 继续保持 `SpatialViewer.CadHost >=1.0.0,<2.0.0`。
-- v0.12 **尚未达到正式发布条件**；剩余 3 个 semantic blocker 全部解除后才进入最终版本升档、三语 release notes、完整 CI、tag 与 publish 收尾。
+- v0.12.0 起已经按 [V012_RELEASE_POLICY.md](V012_RELEASE_POLICY.md) 采用“实用兼容”发布口径；上述剩余 3 类仅表示 **Tianzheng native-semantic completeness** 尚未完成，不再阻塞产品版本、CI、tag 或 publish。
+- 当前开发优先级已暂停继续深挖 Tianzheng 私有语义；后续恢复时仍必须遵守既有 evidence / Reader regression / fail-closed 要求。
 
 ---
 
@@ -87,20 +88,21 @@ At least Partial semantics are already satisfied for:
 - `TCH_COLUMN` — **Partial**;
 - `TCH_LINESTAIR` / `TCH_RECTSTAIR` — **Partial**.
 
-Three categories still block v0.12 release:
+Three categories remain incomplete for native-semantic completeness (**they no longer block 0.12.x product releases**):
 
 1. custom axis-number / `TCH_AXIS_LABEL` family;
 2. `TCH_INDEXPOINTER` / `TCH_DRAWINGINDEX` index objects;
 3. `TCH_DIMENSION2` and related Tianzheng dimensions.
 
-Each category must reach at least one **clearly named, externally evidenced raw-field → semantic mapping with a real Reader regression and fail-closed behavior**. Type registration, Proxy Graphics, raw capture, corpus data or A/B candidates alone do not clear a gate.
+Each category must reach at least one **clearly named, externally evidenced raw-field → semantic mapping with a real Reader regression and fail-closed behavior**. Type registration, Proxy Graphics, raw capture, corpus data or A/B candidates alone do not clear a native-semantic gate.
 
-### Release conclusion
+### Release conclusion — corrected 2026-09-04
 
-- Product/File/Informational version remains `0.11.0`.
+- Product/File/Informational version has advanced and is released at `0.12.6`.
 - CLR ABI remains `1.0.0.0`.
 - Host Contract remains `SpatialViewer.CadHost >=1.0.0,<2.0.0`.
-- v0.12 is **not release-ready**. Final version bump, trilingual release notes, full CI, tag and publish work happen only after all three remaining semantic blockers are cleared.
+- Since v0.12.0, [V012_RELEASE_POLICY.md](V012_RELEASE_POLICY.md) governs shipping under the practical-compatibility scope. The three categories above are **Tianzheng native-semantic completeness** gaps only; they do not block product versioning, CI, tags or publishing.
+- Deeper Tianzheng proprietary-semantic work is currently paused. When resumed, the existing evidence, real-Reader regression and fail-closed requirements remain unchanged.
 
 ---
 
@@ -138,7 +140,7 @@ Each category must reach at least one **clearly named, externally evidenced raw-
 - `TCH_COLUMN` — **Partial**；
 - `TCH_LINESTAIR` / `TCH_RECTSTAIR` — **Partial**。
 
-v0.12 正式版を引き続き阻害している 3 カテゴリ：
+native semantic 完成度として未完了の 3 カテゴリ（**0.12.x product release は阻害しません**）：
 
 1. custom 軸番号 / `TCH_AXIS_LABEL` family；
 2. `TCH_INDEXPOINTER` / `TCH_DRAWINGINDEX` 索引 object；
@@ -146,9 +148,10 @@ v0.12 正式版を引き続き阻害している 3 カテゴリ：
 
 各カテゴリは、少なくとも 1 組の**明確に命名でき、外部 evidence があり、real Reader regression と fail-closed behavior を備えた raw field → semantic mapping**を取得する必要があります。type 登録、Proxy Graphics、raw evidence、corpus、A/B candidate だけでは gate を通過しません。
 
-### release 結論
+### release 結論（2026-09-04 訂正）
 
-- Product/File/Informational version は `0.11.0` のまま。
+- Product/File/Informational version は正式に `0.12.6` まで進んでいます。
 - CLR ABI は `1.0.0.0` のまま。
 - Host Contract は `SpatialViewer.CadHost >=1.0.0,<2.0.0` のまま。
-- v0.12 は **まだ release-ready ではありません**。残る 3 semantic blocker をすべて解除した後にのみ、最終 version bump、三言語 release note、full CI、tag、publish を実施します。
+- v0.12.0 以降、release 可否は [V012_RELEASE_POLICY.md](V012_RELEASE_POLICY.md) の practical-compatibility 方針に従います。上記 3 カテゴリは **Tianzheng native-semantic completeness** の未完了項目であり、product version / CI / tag / publish の blocker ではありません。
+- Tianzheng proprietary semantic の追加解析は現在一時停止します。再開時も既存の evidence / real Reader regression / fail-closed 条件は維持します。
