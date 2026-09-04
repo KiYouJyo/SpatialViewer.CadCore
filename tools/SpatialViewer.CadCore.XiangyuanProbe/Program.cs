@@ -72,27 +72,25 @@ internal static class XiangyuanCorpusProbe
     }
 
     private static bool TryParseArguments(
-        IReadOnlyList<string> args,
+        string[] args,
         out string outputPath,
-        out IReadOnlyList<string> inputs)
+        out List<string> inputs)
     {
         outputPath = string.Empty;
-        var parsedInputs = new List<string>();
-        for (var index = 0; index < args.Count; index++)
+        inputs = new List<string>();
+        for (var index = 0; index < args.Length; index++)
         {
             var argument = args[index];
             if (string.Equals(argument, "--help", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(argument, "-h", StringComparison.OrdinalIgnoreCase))
             {
-                inputs = Array.Empty<string>();
                 return false;
             }
 
             if (string.Equals(argument, "--out", StringComparison.OrdinalIgnoreCase))
             {
-                if (outputPath.Length > 0 || index + 1 >= args.Count)
+                if (outputPath.Length > 0 || index + 1 >= args.Length)
                 {
-                    inputs = Array.Empty<string>();
                     return false;
                 }
 
@@ -102,7 +100,6 @@ internal static class XiangyuanCorpusProbe
 
             if (argument.StartsWith("-", StringComparison.Ordinal))
             {
-                inputs = Array.Empty<string>();
                 return false;
             }
 
@@ -116,7 +113,7 @@ internal static class XiangyuanCorpusProbe
     private static void WriteReport(
         string outputPath,
         string json,
-        IReadOnlyList<string> inputs)
+        List<string> inputs)
     {
         var fullOutputPath = Path.GetFullPath(outputPath);
         foreach (var input in inputs)
