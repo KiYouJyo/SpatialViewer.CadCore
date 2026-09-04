@@ -58,6 +58,8 @@
 
 **P0 — 真实样本兼容矩阵**
 
+P0 的代码侧采集器已经建立：`CadXiangyuanSchemaCorpus` 可从导入后的文档生成 privacy-safe schema corpus，并支持 JSON 导出、反序列化校验和多样本 merge。Corpus 只保留 structural identity / coverage，不输出路径、handle、坐标、文本值、raw DXF value 或 raw DWG bytes。
+
 优先收集不同湘源代际生成的匿名测试 DWG/DXF，并统计：
 
 - CLASSES: DXF name / C++ class / application identity；
@@ -65,7 +67,9 @@
 - proxy primitive kinds；
 - raw DXF schema fingerprint；
 - DWG object-record availability；
-- 哪些对象在不装湘源时存在显示缺失。
+- 哪些对象在不装湘源时存在显示缺失；
+- Proxy Graphics 类型组合与 opaque/proxy 覆盖率；
+- generic resolved object-reference 覆盖率。
 
 **P1 — 地块对象**
 
