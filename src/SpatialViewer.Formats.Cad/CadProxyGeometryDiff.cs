@@ -27,8 +27,6 @@ public enum CadProxyGeometryField
     EdgeStartY,
     EdgeEndX,
     EdgeEndY,
-    FacePointX,
-    FacePointY,
     ClipPointX,
     ClipPointY,
     DrawBoundary,
@@ -39,7 +37,9 @@ public enum CadProxyGeometryField
     TextWidthFactor,
     TextObliqueAngle,
     TextTracking,
-    TextContent
+    TextContent,
+    FacePointX,
+    FacePointY
 }
 
 public sealed record CadProxyGeometryValueChange(
