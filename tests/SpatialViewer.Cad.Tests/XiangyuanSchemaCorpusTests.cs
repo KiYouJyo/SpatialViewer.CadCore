@@ -162,7 +162,10 @@ public sealed class XiangyuanSchemaCorpusTests
         Assert.Equal(0, entry.OpaqueEntityCount);
 
         var roundTrip = CadXiangyuanSchemaCorpus.FromJson(CadXiangyuanSchemaCorpus.ToJson(merged));
-        Assert.Equal(merged, roundTrip);
+        Assert.Equal(merged.SchemaVersion, roundTrip.SchemaVersion);
+        Assert.Equal(merged.SampleCount, roundTrip.SampleCount);
+        Assert.Equal(merged.EntityCount, roundTrip.EntityCount);
+        Assert.Equal(merged.Entries.ToArray(), roundTrip.Entries.ToArray());
     }
 
     [Fact]
