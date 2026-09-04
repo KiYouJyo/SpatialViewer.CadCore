@@ -24,6 +24,8 @@ public sealed record CadXiangyuanConversionClassDelta(
     bool IsEntity,
     bool WasProxy,
     string ProxyFlags,
+    bool PresentInNative,
+    bool PresentInConverted,
     int NativeDeclaredInstanceCount,
     int ConvertedDeclaredInstanceCount,
     CadXiangyuanConversionDiffStatus Status);
@@ -160,6 +162,8 @@ public static class CadXiangyuanConversionDiffer
             key.IsEntity,
             key.WasProxy,
             key.ProxyFlags,
+            native is not null,
+            converted is not null,
             nativeCount,
             convertedCount,
             Status(native is not null, converted is not null));
@@ -210,7 +214,13 @@ public static class CadXiangyuanConversionDiffer
             ValidateIdentity(item.ApplicationName, nameof(item.ApplicationName), parameterName, false);
             ValidateIdentity(item.ProxyFlags, nameof(item.ProxyFlags), parameterName, false);
             ValidateVendor(item.ClassifiedVendor, parameterName);
-            ValidateStatus(item.Status, item.NativeDeclaredInstanceCount, item.ConvertedDeclaredInstanceCount, parameterName);
+            ValidateClassStatus(
+                item.Status,
+                item.PresentInNative,
+                item.PresentInConverted,
+                item.NativeDeclaredInstanceCount,
+                item.ConvertedDeclaredInstanceCount,
+                parameterName);
         }
         foreach (var item in report.Profiles)
         {
@@ -223,11 +233,38 @@ public static class CadXiangyuanConversionDiffer
             ValidateIdentity(item.ReferenceCodeSignature, nameof(item.ReferenceCodeSignature), parameterName, false);
             ValidateIdentity(item.ProxyGraphicKindSignature, nameof(item.ProxyGraphicKindSignature), parameterName, true);
             ValidateVendor(item.ClassifiedVendor, parameterName);
-            ValidateStatus(item.Status, item.NativeEntityCount, item.ConvertedEntityCount, parameterName);
+            ValidateProfileStatus(item.Status, item.NativeEntityCount, item.ConvertedEntityCount, parameterName);
         }
     }
 
-    private static void ValidateStatus(
+    private static void ValidateClassStatus(
+        CadXiangyuanConversionDiffStatus status,
+        bool presentInNative,
+        bool presentInConverted,
+        int nativeCount,
+        int convertedCount,
+        string parameterName)
+    {
+        if (!Enum.IsDefined(status))
+            throw new ArgumentException($"Unsupported Xiangyuan conversion-diff status: {(int)status}.", parameterName);
+        if (nativeCount < 0 || convertedCount < 0)
+            throw new ArgumentException("Xiangyuan conversion-diff class instance counts cannot be negative.", parameterName);
+        if (!presentInNative && nativeCount != 0)
+            throw new ArgumentException("A class absent from the native report cannot have native instances.", parameterName);
+        if (!presentInConverted && convertedCount != 0)
+            throw new ArgumentException("A class absent from the converted report cannot have converted instances.", parameterName);
+        var consistent = status switch
+        {
+            CadXiangyuanConversionDiffStatus.RemovedAfterConversion => presentInNative && !presentInConverted,
+            CadXiangyuanConversionDiffStatus.RetainedAfterConversion => presentInNative && presentInConverted,
+            CadXiangyuanConversionDiffStatus.AddedAfterConversion => !presentInNative && presentInConverted,
+            _ => false
+        };
+        if (!consistent)
+            throw new ArgumentException("Xiangyuan conversion-diff class status is inconsistent with native/converted presence.", parameterName);
+    }
+
+    private static void ValidateProfileStatus(
         CadXiangyuanConversionDiffStatus status,
         int nativeCount,
         int convertedCount,
@@ -236,7 +273,7 @@ public static class CadXiangyuanConversionDiffer
         if (!Enum.IsDefined(status))
             throw new ArgumentException($"Unsupported Xiangyuan conversion-diff status: {(int)status}.", parameterName);
         if (nativeCount < 0 || convertedCount < 0 || nativeCount + convertedCount <= 0)
-            throw new ArgumentException("Xiangyuan conversion-diff counts must be non-negative with at least one non-zero side.", parameterName);
+            throw new ArgumentException("Xiangyuan conversion-diff profile counts must be non-negative with at least one non-zero side.", parameterName);
         var consistent = status switch
         {
             CadXiangyuanConversionDiffStatus.RemovedAfterConversion => nativeCount > 0 && convertedCount == 0,
@@ -245,7 +282,7 @@ public static class CadXiangyuanConversionDiffer
             _ => false
         };
         if (!consistent)
-            throw new ArgumentException("Xiangyuan conversion-diff status is inconsistent with native/converted counts.", parameterName);
+            throw new ArgumentException("Xiangyuan conversion-diff profile status is inconsistent with native/converted counts.", parameterName);
     }
 
     private static void ValidateIdentity(string? value, string name, string parameterName, bool required)
