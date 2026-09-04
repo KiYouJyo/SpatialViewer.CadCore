@@ -71,8 +71,8 @@ public static class CadCustomHandleReferenceDiffer
             occurrence++;
             occurrences[beforeReference.GroupCode] = occurrence;
             if (!string.Equals(
-                    CadDxfCustomPayloadProfiler.CanonicalHandle(beforeReference.TargetHandle),
-                    CadDxfCustomPayloadProfiler.CanonicalHandle(afterReferences[index].TargetHandle),
+                    beforeReference.TargetHandle,
+                    afterReferences[index].TargetHandle,
                     StringComparison.OrdinalIgnoreCase))
             {
                 changes.Add(new(beforeReference.GroupCode, occurrence));
