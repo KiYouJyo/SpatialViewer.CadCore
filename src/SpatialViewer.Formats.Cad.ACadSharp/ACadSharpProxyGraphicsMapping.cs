@@ -511,7 +511,7 @@ public static class ACadSharpProxyGraphicsMapping
     }
 
     private static bool TryAddFace(
-        IReadOnlyList<Point2D> points,
+        Point2D[] points,
         CadProxyFaceEvidence evidence,
         List<CadProxyFace> faces)
     {
