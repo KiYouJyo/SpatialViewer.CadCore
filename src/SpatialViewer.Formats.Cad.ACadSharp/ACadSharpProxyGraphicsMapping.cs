@@ -461,7 +461,7 @@ public static class ACadSharpProxyGraphicsMapping
     }
 
     private static bool TryCoplanarVertices(
-        IReadOnlyList<CSMath.XYZ> source,
+        List<CSMath.XYZ> source,
         out IReadOnlyList<Point2D> vertices)
     {
         vertices = Array.Empty<Point2D>();
