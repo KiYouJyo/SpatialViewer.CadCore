@@ -131,7 +131,7 @@ public sealed class XiangyuanSchemaCorpusTests
         Assert.Equal(1, entry.ResolvedRelationshipEntityCount);
         Assert.Equal(1, entry.ResolvedRelationshipCount);
         Assert.DoesNotContain("DEAD", json, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(""200"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"200\"", json, StringComparison.Ordinal);
     }
 
     [Fact]
