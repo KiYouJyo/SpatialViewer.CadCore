@@ -515,14 +515,14 @@ public static class ACadSharpProxyGraphicsMapping
         CadProxyFaceEvidence evidence,
         List<CadProxyFace> faces)
     {
-        if (points.Count < 3
+        if (points.Length < 3
             || points.Any(point => !double.IsFinite(point.X) || !double.IsFinite(point.Y)))
             return false;
 
         var twiceArea = 0d;
-        for (var index = 0; index < points.Count; index++)
+        for (var index = 0; index < points.Length; index++)
         {
-            var next = (index + 1) % points.Count;
+            var next = (index + 1) % points.Length;
             twiceArea += (points[index].X * points[next].Y) - (points[next].X * points[index].Y);
         }
         if (!double.IsFinite(twiceArea) || Math.Abs(twiceArea) <= Epsilon) return false;
