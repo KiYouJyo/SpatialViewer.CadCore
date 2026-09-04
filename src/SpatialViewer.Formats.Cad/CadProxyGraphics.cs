@@ -45,6 +45,34 @@ public sealed record CadProxyArc(Point2D Center, double Radius, double StartRadi
     : CadProxyPrimitive("CircularArc");
 
 /// <summary>
+/// Evidence attached to one edge inside an ObjectARX mesh/shell proxy primitive.
+/// Layer and linetype values are retained as raw proxy references until their object-reference table
+/// can be resolved without guessing. Color indices use the documented AcGiEdgeData color-index array.
+/// </summary>
+public readonly record struct CadProxyEdgeEvidence(
+    int? RawColorIndex = null,
+    CadColor? Color = null,
+    ulong? LayerReference = null,
+    ulong? LineTypeReference = null,
+    int? MarkerId = null,
+    int? Visibility = null);
+
+/// <summary>One independent edge emitted by a proxy mesh/shell primitive.</summary>
+public sealed record CadProxyEdgeSegment(
+    Point2D Start,
+    Point2D End,
+    CadProxyEdgeEvidence Evidence = default);
+
+/// <summary>
+/// Safe planar projection of ObjectARX mesh/shell edges. Faces are intentionally not filled: CadCore
+/// uses this representation only for display fallback linework such as custom dimension ticks.
+/// </summary>
+public sealed record CadProxyEdgeSet(
+    IReadOnlyList<CadProxyEdgeSegment> Edges,
+    string ProxyEdgeKind)
+    : CadProxyPrimitive(ProxyEdgeKind);
+
+/// <summary>
 /// Scoped 2D proxy-graphics clip. The boundary and children are already expressed in the same
 /// reader-independent object coordinate system. Nested groups preserve the original push/pop scope.
 /// </summary>
