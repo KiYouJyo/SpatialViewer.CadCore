@@ -6,6 +6,8 @@ namespace SpatialViewer.Cad.Tests;
 
 public sealed class XiangyuanSchemaCorpusTests
 {
+    private static readonly string[] PolylineProxyKinds = { "Polyline" };
+
     private static readonly CadCustomClassDefinition XiangyuanClass = new(
         "XY_TEST_PARCEL",
         "XiangyuanParcelObject",
@@ -89,12 +91,12 @@ public sealed class XiangyuanSchemaCorpusTests
         var complete = Xiangyuan("100", Payload("same", false), Array.Empty<CadCustomHandleReference>()) with
         {
             Representation = CadCustomEntityRepresentation.ProxyGraphics,
-            ProxyGraphicKinds = new[] { "Polyline" }
+            ProxyGraphicKinds = PolylineProxyKinds
         };
         var truncated = Xiangyuan("101", Payload("same", true), Array.Empty<CadCustomHandleReference>()) with
         {
             Representation = CadCustomEntityRepresentation.ProxyGraphics,
-            ProxyGraphicKinds = new[] { "Polyline" }
+            ProxyGraphicKinds = PolylineProxyKinds
         };
         var differentProxy = Xiangyuan("102", Payload("same", false), Array.Empty<CadCustomHandleReference>()) with
         {
@@ -142,14 +144,14 @@ public sealed class XiangyuanSchemaCorpusTests
             Xiangyuan("301", Payload("one", false), Array.Empty<CadCustomHandleReference>()) with
             {
                 Representation = CadCustomEntityRepresentation.ProxyGraphics,
-                ProxyGraphicKinds = new[] { "Polyline" }
+                ProxyGraphicKinds = PolylineProxyKinds
             }));
         var second = CadXiangyuanSchemaCorpus.Build(Document(
             "sample-two.dxf",
             Xiangyuan("401", Payload("two", false), Array.Empty<CadCustomHandleReference>()) with
             {
                 Representation = CadCustomEntityRepresentation.ProxyGraphics,
-                ProxyGraphicKinds = new[] { "Polyline" }
+                ProxyGraphicKinds = PolylineProxyKinds
             }));
 
         var merged = CadXiangyuanSchemaCorpus.Merge(new[] { first, second });
