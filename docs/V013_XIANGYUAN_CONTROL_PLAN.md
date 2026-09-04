@@ -60,6 +60,8 @@
 
 P0 的代码侧采集器已经建立：`CadXiangyuanSchemaCorpus` 可从导入后的文档生成 privacy-safe schema corpus，并支持 JSON 导出、反序列化校验和多样本 merge。Corpus 只保留 structural identity / coverage，不输出路径、handle、坐标、文本值、raw DXF value 或 raw DWG bytes。
 
+同时新增本地 CLI `tools/SpatialViewer.CadCore.XiangyuanProbe`：可直接读取一张或多张 DWG/DXF 并输出可共享的匿名 corpus JSON。CLI 控制台只报告输入序号、状态和 diagnostic code，不输出源图路径；CI 对普通 CAD fixture 执行 smoke test，验证不会误判湘源或把文件名写入报告。
+
 优先收集不同湘源代际生成的匿名测试 DWG/DXF，并统计：
 
 - CLASSES: DXF name / C++ class / application identity；

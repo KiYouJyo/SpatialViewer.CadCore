@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/SpatialViewer.Core/SpatialViewer.Core.csproj" />
+    <ProjectReference Include="../../src/SpatialViewer.Formats.Cad/SpatialViewer.Formats.Cad.csproj" />
+    <ProjectReference Include="../../src/SpatialViewer.Formats.Cad.ACadSharp/SpatialViewer.Formats.Cad.ACadSharp.csproj" />
+  </ItemGroup>
+</Project>
