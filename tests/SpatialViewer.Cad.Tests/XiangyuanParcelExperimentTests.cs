@@ -39,6 +39,7 @@ public sealed class XiangyuanParcelExperimentTests
         Assert.Contains(all, item => item.Id == CadXiangyuanParcelExperimentCases.GreenRateMax);
         Assert.Contains(all, item => item.Id == CadXiangyuanParcelExperimentCases.HeightMin);
         Assert.Contains(all, item => item.Id == CadXiangyuanParcelExperimentCases.HeightMax);
+        Assert.DoesNotContain(raw, item => item.Id == CadXiangyuanParcelExperimentCases.Area);
         Assert.DoesNotContain(raw, item => item.Id == CadXiangyuanParcelExperimentCases.Boundary);
         Assert.DoesNotContain(raw, item => item.Id == CadXiangyuanParcelExperimentCases.ControlIndicatorRelationship);
     }
