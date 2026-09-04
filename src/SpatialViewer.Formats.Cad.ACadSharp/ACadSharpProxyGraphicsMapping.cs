@@ -230,6 +230,13 @@ public static class ACadSharpProxyGraphicsMapping
                 arc.Radius * state.Scale,
                 NormalizeAngle(arc.StartRadians + state.RotationRadians),
                 arc.SweepRadians),
+            CadProxyEdgeSet edgeSet => new CadProxyEdgeSet(
+                edgeSet.Edges.Select(edge => edge with
+                {
+                    Start = state.Transform.Apply(edge.Start),
+                    End = state.Transform.Apply(edge.End)
+                }).ToArray(),
+                edgeSet.ProxyEdgeKind),
             CadProxyText text => new CadProxyText(
                 state.Transform.Apply(text.Origin),
                 text.Text,
@@ -282,6 +289,8 @@ public static class ACadSharpProxyGraphicsMapping
                 out var startRadians,
                 out var sweepRadians)
                 => new CadProxyArc(center, radius, startRadians, sweepRadians),
+            ProxyMesh mesh when TryMeshEdges(mesh, out var meshEdges) => meshEdges,
+            ProxyShell shell when TryShellEdges(shell, out var shellEdges) => shellEdges,
             ProxyText text when TryProxyText(
                 text.Normal,
                 text.StartPoint,
@@ -367,6 +376,175 @@ public static class ACadSharpProxyGraphicsMapping
         => IsPlanar(normal) && normal.Z > 0;
 
     private static bool IsPositiveFinite(double value) => double.IsFinite(value) && value > Epsilon;
+
+    private static bool TryMeshEdges(ProxyMesh mesh, out CadProxyEdgeSet mapped)
+    {
+        mapped = null!;
+        if (mesh.RowCount <= 0 || mesh.ColumnCount <= 0) return false;
+
+        var expectedVertexCount = (long)mesh.RowCount * mesh.ColumnCount;
+        if (expectedVertexCount != mesh.Vertices.Count || expectedVertexCount > int.MaxValue) return false;
+        if (!TryCoplanarVertices(mesh.Vertices, out var vertices)) return false;
+
+        var rowEdgeCount = (long)mesh.RowCount * Math.Max(0, mesh.ColumnCount - 1);
+        var columnEdgeCount = (long)Math.Max(0, mesh.RowCount - 1) * mesh.ColumnCount;
+        var expectedEdgeCountLong = rowEdgeCount + columnEdgeCount;
+        if (expectedEdgeCountLong <= 0 || expectedEdgeCountLong > int.MaxValue) return false;
+        var expectedEdgeCount = (int)expectedEdgeCountLong;
+
+        if (!TryEdgeEvidence(mesh.EdgeTraits, expectedEdgeCount, out var evidence)) return false;
+        var edges = new List<CadProxyEdgeSegment>(expectedEdgeCount);
+        var edgeIndex = 0;
+
+        // AcGiGeometry::mesh defines edge-data order as all row edges first, then all column edges.
+        for (var row = 0; row < mesh.RowCount; row++)
+        {
+            var rowStart = row * mesh.ColumnCount;
+            for (var column = 0; column < mesh.ColumnCount - 1; column++)
+            {
+                var first = rowStart + column;
+                var second = first + 1;
+                if (!TryAddEdge(vertices[first], vertices[second], evidence[edgeIndex++], edges)) return false;
+            }
+        }
+        for (var row = 0; row < mesh.RowCount - 1; row++)
+        {
+            var rowStart = row * mesh.ColumnCount;
+            for (var column = 0; column < mesh.ColumnCount; column++)
+            {
+                var first = rowStart + column;
+                var second = first + mesh.ColumnCount;
+                if (!TryAddEdge(vertices[first], vertices[second], evidence[edgeIndex++], edges)) return false;
+            }
+        }
+
+        if (edgeIndex != expectedEdgeCount || edges.Count == 0) return false;
+        mapped = new CadProxyEdgeSet(edges, "MeshEdges");
+        return true;
+    }
+
+    private static bool TryShellEdges(ProxyShell shell, out CadProxyEdgeSet mapped)
+    {
+        mapped = null!;
+        if (shell.Vertices.Count < 2 || shell.Faces.Count == 0) return false;
+        if (!TryCoplanarVertices(shell.Vertices, out var vertices)) return false;
+
+        long expectedEdgeCountLong = 0;
+        foreach (var face in shell.Faces)
+        {
+            if (face is null || face.Length < 2) return false;
+            expectedEdgeCountLong += face.Length;
+            if (expectedEdgeCountLong > int.MaxValue) return false;
+            foreach (var vertexIndex in face)
+                if (vertexIndex < 0 || vertexIndex >= vertices.Count) return false;
+        }
+        if (expectedEdgeCountLong <= 0) return false;
+        var expectedEdgeCount = (int)expectedEdgeCountLong;
+        if (!TryEdgeEvidence(shell.EdgeTraits, expectedEdgeCount, out var evidence)) return false;
+
+        var edges = new List<CadProxyEdgeSegment>(expectedEdgeCount);
+        var edgeIndex = 0;
+        // Shell edge data follows face-list traversal. ACadSharp retains one edge-trait slot for each
+        // face boundary entry, including shared boundaries, so preserve that order rather than dedupe.
+        foreach (var face in shell.Faces)
+        {
+            for (var index = 0; index < face.Length; index++)
+            {
+                var next = (index + 1) % face.Length;
+                if (!TryAddEdge(vertices[face[index]], vertices[face[next]], evidence[edgeIndex++], edges)) return false;
+            }
+        }
+
+        if (edgeIndex != expectedEdgeCount || edges.Count == 0) return false;
+        mapped = new CadProxyEdgeSet(edges, "ShellEdges");
+        return true;
+    }
+
+    private static bool TryCoplanarVertices(
+        IReadOnlyList<CSMath.XYZ> source,
+        out IReadOnlyList<Point2D> vertices)
+    {
+        vertices = Array.Empty<Point2D>();
+        if (source.Count == 0) return false;
+
+        var first = source[0];
+        if (!TryFinitePoint(first)) return false;
+        var zScale = Math.Max(1d, Math.Abs(first.Z));
+        for (var index = 1; index < source.Count; index++)
+        {
+            var point = source[index];
+            if (!TryFinitePoint(point)) return false;
+            zScale = Math.Max(zScale, Math.Abs(point.Z));
+        }
+
+        var zTolerance = Epsilon * zScale;
+        var mapped = new Point2D[source.Count];
+        for (var index = 0; index < source.Count; index++)
+        {
+            var point = source[index];
+            if (Math.Abs(point.Z - first.Z) > zTolerance) return false;
+            mapped[index] = new Point2D(point.X, point.Y);
+        }
+        vertices = mapped;
+        return true;
+    }
+
+    private static bool TryEdgeEvidence(
+        EdgeTraits? traits,
+        int edgeCount,
+        out IReadOnlyList<CadProxyEdgeEvidence> evidence)
+    {
+        var result = new CadProxyEdgeEvidence[edgeCount];
+        evidence = result;
+        if (traits is null) return true;
+
+        if (!TraitCountMatches(traits.Colors.Count, edgeCount)
+            || !TraitCountMatches(traits.LayerHandles.Count, edgeCount)
+            || !TraitCountMatches(traits.LineTypeHandles.Count, edgeCount)
+            || !TraitCountMatches(traits.MakerIds.Count, edgeCount)
+            || !TraitCountMatches(traits.VisibilityIndicators.Count, edgeCount))
+            return false;
+
+        for (var index = 0; index < edgeCount; index++)
+        {
+            var rawColor = traits.Colors.Count == 0 ? (int?)null : traits.Colors[index];
+            CadColor? color = rawColor is >= 1 and <= 255 ? CadColor.FromAci(rawColor.Value) : null;
+
+            ulong? layerReference = traits.LayerHandles.Count == 0 ? null : traits.LayerHandles[index];
+            ulong? lineTypeReference = traits.LineTypeHandles.Count == 0 ? null : traits.LineTypeHandles[index];
+            if (layerReference > uint.MaxValue || lineTypeReference > uint.MaxValue) return false;
+
+            var visibility = traits.VisibilityIndicators.Count == 0 ? (int?)null : traits.VisibilityIndicators[index];
+            if (visibility is not null && visibility is not (0 or 1 or 2)) return false;
+
+            result[index] = new CadProxyEdgeEvidence(
+                rawColor,
+                color,
+                layerReference,
+                lineTypeReference,
+                traits.MakerIds.Count == 0 ? null : traits.MakerIds[index],
+                visibility);
+        }
+        return true;
+    }
+
+    private static bool TraitCountMatches(int count, int edgeCount) => count == 0 || count == edgeCount;
+
+    private static bool TryAddEdge(
+        Point2D start,
+        Point2D end,
+        CadProxyEdgeEvidence evidence,
+        List<CadProxyEdgeSegment> edges)
+    {
+        if (!double.IsFinite(start.X)
+            || !double.IsFinite(start.Y)
+            || !double.IsFinite(end.X)
+            || !double.IsFinite(end.Y)
+            || start.DistanceTo(end) <= Epsilon)
+            return false;
+        edges.Add(new CadProxyEdgeSegment(start, end, evidence));
+        return true;
+    }
 
     private static bool TryLwPolyline(ProxyLwPolyine proxy, out CadProxyLwPolyline mapped)
     {
