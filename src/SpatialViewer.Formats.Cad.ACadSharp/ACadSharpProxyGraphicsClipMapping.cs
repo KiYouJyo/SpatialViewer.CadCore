@@ -75,16 +75,15 @@ public static class ACadSharpProxyGraphicsClipMapping
                 continue;
             }
 
-            var mapped = ACadSharpProxyGraphicsMapping.Map(
-                new[] { graphic },
-                out var primitiveUnsupported,
-                out _);
-            unsupportedCount += primitiveUnsupported;
-            foreach (var primitive in mapped)
+            var mapped = ACadSharpProxyGraphicsMapping.MapOne(graphic, traits);
+            if (mapped is null)
             {
-                var transformed = current.IsIdentity ? primitive : ApplyTransform(primitive, current);
-                Append(result, clipStack, transformed with { Traits = traits });
+                unsupportedCount++;
+                continue;
             }
+
+            var transformed = current.IsIdentity ? mapped : ApplyTransform(mapped, current);
+            Append(result, clipStack, transformed with { Traits = traits });
         }
 
         if (transformStack.Count != 0 || clipStack.Count != 0)
@@ -318,6 +317,17 @@ public static class ACadSharpProxyGraphicsClipMapping
                     End = state.Transform.Apply(edge.End)
                 }).ToArray(),
                 edgeSet.ProxyEdgeKind),
+            CadProxySurfaceSet surface => new CadProxySurfaceSet(
+                surface.Faces.Select(face => face with
+                {
+                    Points = face.Points.Select(state.Transform.Apply).ToArray()
+                }).ToArray(),
+                surface.Edges.Select(edge => edge with
+                {
+                    Start = state.Transform.Apply(edge.Start),
+                    End = state.Transform.Apply(edge.End)
+                }).ToArray(),
+                surface.ProxySurfaceKind),
             CadProxyText text => new CadProxyText(
                 state.Transform.Apply(text.Origin),
                 text.Text,
