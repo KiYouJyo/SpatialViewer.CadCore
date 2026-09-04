@@ -75,3 +75,19 @@ Shareable evidence must not include:
 ## Current release consequence
 
 This protocol does not change the product release from v0.12.6 and does not declare Xiangyuan P1 semantic support complete. v0.13.0 remains gated on real Xiangyuan sample evidence plus Reader/display regression.
+
+## Whole-document A/B matching
+
+`CadXiangyuanDocumentPairEvidenceAnalyzer` allows controlled experiments to operate on two complete copies of the same drawing instead of manually extracting one custom entity.
+
+The matcher is intentionally strict:
+
+- only the exact retained non-empty CAD handle may pair an entity across the two documents;
+- custom handles must be globally unique across model space, block definitions and paper-space layouts;
+- a same-handle class-identity change is recorded as an identity mismatch and produces no payload/geometry/reference evidence;
+- empty handles and missing counterparts remain unmatched;
+- geometry, layer, text, coordinates, block membership and content similarity are **never** used as fallback matching heuristics.
+
+For each exact same-handle/same-identity pair, the analyzer can collect privacy-safe changed observations from all evidence already implemented: raw DXF slots, bounded DWG byte ranges, proxy-geometry positions and object-reference slots. Only changed comparable observations are serialized. Source drawing names/paths, entity handles, raw values, coordinates, target handles and raw DWG bytes are absent from the report.
+
+Two provenance modes remain separate: explicit Xiangyuan identity, or one exact repeated-removal Unknown conversion candidate. Serialized reports re-check these identity rules so hand-edited JSON cannot promote an Unknown class into explicit Xiangyuan evidence.

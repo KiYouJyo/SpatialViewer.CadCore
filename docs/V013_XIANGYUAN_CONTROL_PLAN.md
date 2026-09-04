@@ -134,3 +134,7 @@ The foundation intentionally does **not** infer real Xiangyuan DXF class names f
 CadCore は既存の vendor-neutral ObjectARX preservation / Proxy Graphics 基盤を再利用し、湘源控規専用の compatibility foundation を追加します。明示的な application / C++ identity に基づいて Xiangyuan custom class/entity を識別し、document metadata で件数を集計し、無関係な custom object と区別します。
 
 公開 command の `LZX...` prefix だけから実際の DXF class 名を推測せず、地块や控制指标の native semantic もまだ宣言しません。次の gate は匿名化した実 DWG/DXF corpus と Reader regression です。
+
+### Whole-document controlled A/B
+
+P1 now has a strict whole-document pair matcher. Two edited copies of the same DWG/DXF can be compared without manually selecting an entity: CadCore matches custom objects only by the same unique retained handle and same structural class identity, then emits the existing anonymous DXF/DWG/geometry/reference evidence. There is deliberately no geometry/content heuristic fallback. This makes real-sample single-variable experiments practical while keeping handles and private drawing values local.
