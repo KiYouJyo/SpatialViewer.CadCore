@@ -153,7 +153,7 @@ public sealed partial class CadSceneTranslator
             CadProxyEdgeSet edgeSet when edgeSet.Edges.Count > 0 => ProxyEdgeSetNode(id, edgeSet, effectiveStyle, enriched),
             CadProxyPolyline polyline when polyline.Points.Count >= 2 => new SceneNode(id, new PolylineGeometry(polyline.Points), style: effectiveStyle, metadata: enriched),
             CadProxyLwPolyline polyline when polyline.Points.Count >= 2 => ProxyLwPolylineNode(id, polyline, effectiveStyle, enriched),
-            CadProxyPolygon polygon when polygon.Points.Count >= 3 => new SceneNode(id, new PolygonGeometry(polygon.Points), style: effectiveStyle, metadata: enriched),
+            CadProxyPolygon polygon when polygon.Points.Count >= 3 => ProxyPolygonNode(id, polygon, effectiveStyle, enriched),
             CadProxyCircle circle when double.IsFinite(circle.Radius) && circle.Radius > double.Epsilon => new SceneNode(id, new CircleGeometry(circle.Center, circle.Radius), style: effectiveStyle, metadata: enriched),
             CadProxyArc arc when double.IsFinite(arc.Radius) && arc.Radius > double.Epsilon && double.IsFinite(arc.StartRadians) && double.IsFinite(arc.SweepRadians)
                 => new SceneNode(id, new ArcGeometry(arc.Center, arc.Radius, arc.StartRadians, arc.SweepRadians), style: effectiveStyle, metadata: enriched),
@@ -167,6 +167,24 @@ public sealed partial class CadSceneTranslator
                 => ProxyTextNode(id, text, effectiveStyle, enriched),
             _ => null
         };
+    }
+
+    private static SceneNode ProxyPolygonNode(
+        ObjectId id,
+        CadProxyPolygon polygon,
+        SceneStyle style,
+        IReadOnlyDictionary<string, string> metadata)
+    {
+        var enriched = new Dictionary<string, string>(metadata, StringComparer.Ordinal)
+        {
+            ["ProxyPolygonFilled"] = bool.TrueString,
+            ["ProxyPolygonFillSource"] = "EffectiveProxyColor"
+        };
+        return new SceneNode(
+            id,
+            new PolygonGeometry(polygon.Points),
+            style: style with { Fill = style.Stroke },
+            metadata: enriched);
     }
 
     private static SceneStyle ResolveProxyStyle(CadProxyPrimitive primitive, SceneStyle inherited, Dictionary<string, string> metadata)
