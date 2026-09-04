@@ -104,6 +104,8 @@ internal static class ACadSharpProxyLayerProvenance
             or GraphicsType.CirclePt3
             or GraphicsType.CircularArc
             or GraphicsType.CircularArc3Pt
+            or GraphicsType.Mesh
+            or GraphicsType.Shell
             or GraphicsType.Text
             or GraphicsType.Text2
             or GraphicsType.UnicodeText
