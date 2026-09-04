@@ -62,3 +62,31 @@ dotnet run --project tools/SpatialViewer.CadCore.XiangyuanProbe -c Release -- `
 ```
 
 The consensus counts removed/retained/added observations for each exact class/profile structural identity. An unknown entity becomes a repeated-removal research candidate only after it disappears in at least two independent conversion pairs and has no contradictory retained/added observation. The current global vendor classifier is rechecked; the candidate remains `Unknown`.
+
+## Whole-document A/B evidence
+
+For a controlled single-variable edit on two complete copies of the same drawing, use explicit Xiangyuan identity mode:
+
+```powershell
+dotnet run --project tools/SpatialViewer.CadCore.XiangyuanProbe -c Release -- `
+  --document-pair `
+  --out .\xiangyuan-document-pair.json `
+  .\before.dwg .\after.dwg
+```
+
+This mode considers only objects that the conservative global classifier already identifies as Xiangyuan. It pairs entities only by the same unique retained CAD handle and exact class identity. Different handles are never matched by geometry/content similarity.
+
+For an unknown class that has already passed the multi-pair native→converted repeatability gate, select it from the conversion-consensus report instead of typing or guessing a proprietary class name:
+
+```powershell
+dotnet run --project tools/SpatialViewer.CadCore.XiangyuanProbe -c Release -- `
+  --candidate-document-pair `
+  --candidate-consensus .\xiangyuan-conversion-consensus.json `
+  --candidate-index 1 `
+  --out .\xiangyuan-candidate-document-pair.json `
+  .\before.dwg .\after.dwg
+```
+
+`--candidate-index` is 1-based over `GetRepeatedRemovedUnknownEntityCandidates(...)`, whose ordering is deterministic. The candidate must still classify globally as `Unknown`; this mode does not promote it to Xiangyuan.
+
+Both report types are privacy-safe: drawing paths/names, entity handles, raw DXF values, coordinates, target handles and raw DWG bytes are not serialized. The CLI also prevents the output path from overwriting either drawing or the supplied candidate-consensus JSON.
