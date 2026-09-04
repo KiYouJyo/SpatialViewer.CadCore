@@ -7,9 +7,9 @@ namespace SpatialViewer.Formats.Cad;
 /// Null values inherit the containing CAD custom entity's already-resolved presentation.
 /// LayerIndex is retained as provenance until the source reader can prove an index-to-layer mapping.
 /// </summary>
-public readonly record struct CadProxyTraits(CadColor? Color = null, int? LineWeight = null, int? LayerIndex = null)
+public readonly record struct CadProxyTraits(CadColor? Color = null, int? LineWeight = null, int? LayerIndex = null, bool? FillOn = null)
 {
-    public bool HasOverrides => Color is not null || LineWeight is not null || LayerIndex is not null;
+    public bool HasOverrides => Color is not null || LineWeight is not null || LayerIndex is not null || FillOn is not null;
 }
 
 /// <summary>
@@ -71,6 +71,29 @@ public sealed record CadProxyEdgeSet(
     IReadOnlyList<CadProxyEdgeSegment> Edges,
     string ProxyEdgeKind)
     : CadProxyPrimitive(ProxyEdgeKind);
+
+/// <summary>Evidence attached to one planar face inside an ObjectARX mesh/shell proxy primitive.</summary>
+public readonly record struct CadProxyFaceEvidence(
+    int? RawColorIndex = null,
+    CadColor? Color = null,
+    ulong? LayerReference = null,
+    int? MarkerId = null,
+    int? Visibility = null);
+
+/// <summary>One planar filled face emitted by a proxy mesh/shell primitive.</summary>
+public sealed record CadProxyFace(
+    IReadOnlyList<Point2D> Points,
+    CadProxyFaceEvidence Evidence = default);
+
+/// <summary>
+/// Safe planar projection of ObjectARX mesh/shell faces plus their original edge fallback.
+/// This primitive is produced only while the proxy stream's fill trait is explicitly enabled.
+/// </summary>
+public sealed record CadProxySurfaceSet(
+    IReadOnlyList<CadProxyFace> Faces,
+    IReadOnlyList<CadProxyEdgeSegment> Edges,
+    string ProxySurfaceKind)
+    : CadProxyPrimitive(ProxySurfaceKind);
 
 /// <summary>
 /// Scoped 2D proxy-graphics clip. The boundary and children are already expressed in the same
