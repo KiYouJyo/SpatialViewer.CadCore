@@ -87,6 +87,8 @@ P0 的代码侧采集器已经建立：`CadXiangyuanSchemaCorpus` 可从导入�
 
 只有真实 class identity + repeatable raw-field evidence + Reader regression 后，才进入 named semantic。
 
+P1 的实验入口也已经建立：`CadXiangyuanExperimentAnalyzer` 在通用 privacy-safe A/B differ / repeatability consensus 外再增加 Xiangyuan vendor gate。baseline/modified 必须都具有明确湘源 identity，且通用 identity/schema/capture-method 门禁仍继续生效。输出只保留 changed group slot 或 DWG changed byte range，不保留 before/after 原始值。
+
 **P2 — 图则与街区地块**
 
 优先保证图则边框、视口/裁剪、指标表、地块文字不丢失，再研究 native relationship。
