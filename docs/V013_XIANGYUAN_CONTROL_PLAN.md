@@ -64,6 +64,8 @@ P0 的代码侧采集器已经建立：`CadXiangyuanSchemaCorpus` 可从导入�
 
 P0 进一步增加 `--discovery` 模式，用于**来源已知为湘源、但 class identity 尚未被分类器识别**的真实图。该模式匿名列出图中的全部 application-defined CLASSES identity 与 custom-entity structural profile，并保留每项原始 `ClassifiedVendor`。`Unknown` 必须继续保持 `Unknown`；它只进入候选调查台账，绝不能因为样本来源是湘源就自动改写为 Xiangyuan。这样即使真实湘源 class/application 名完全不含 `LzxSoft/Xiangyuan/湘源`，也能先从实图中被发现。
 
+在 discovery 之上再建立受控的 `--conversion-diff`：同一张图先保留原生湘源版本，再通过湘源“对象转块/全部炸开”或“成果出图”得到普通 CAD 版本；CadCore 对两侧 discovery report 做匿名 class/profile 差分。只在原生图中存在、转换后消失的 `Unknown` class/profile 会被列为重点调查候选，但**消失本身仍不是 Xiangyuan class identity 或地块语义证据**。这一实验用于缩小真实 class 搜索范围，而不是绕过 evidence gate。
+
 优先收集不同湘源代际生成的匿名测试 DWG/DXF，并统计：
 
 - CLASSES: DXF name / C++ class / application identity；

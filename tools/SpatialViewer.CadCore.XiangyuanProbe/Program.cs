@@ -5,23 +5,39 @@ using SpatialViewer.Formats.Cad.ACadSharp;
 
 return await XiangyuanCorpusProbe.RunAsync(args);
 
+internal enum XiangyuanProbeMode
+{
+    StrictCorpus,
+    Discovery,
+    ConversionDiff
+}
+
 internal static class XiangyuanCorpusProbe
 {
-    private const string Usage = "Usage: XiangyuanProbe [--discovery] --out <report.json> <drawing1.dwg|dxf> [drawing2.dwg|dxf ...]";
+    private const string Usage = "Usage: XiangyuanProbe [--discovery | --conversion-diff] --out <report.json> <drawing...>; conversion diff requires <native.dwg> <converted.dwg>";
 
     public static async Task<int> RunAsync(string[] args)
     {
         ArgumentNullException.ThrowIfNull(args);
-        if (!TryParseArguments(args, out var outputPath, out var inputs, out var discoveryMode))
+        if (!TryParseArguments(args, out var outputPath, out var inputs, out var mode))
         {
             Console.Error.WriteLine(Usage);
             return 2;
         }
 
-        var prefix = discoveryMode ? "XYDISCOVERY" : "XYCORPUS";
+        var prefix = mode switch
+        {
+            XiangyuanProbeMode.Discovery => "XYDISCOVERY",
+            XiangyuanProbeMode.ConversionDiff => "XYCONVERSION",
+            _ => "XYCORPUS"
+        };
         var importer = new ACadSharpCadImporter();
-        var strictReports = discoveryMode ? null : new List<CadXiangyuanSchemaCorpusReport>(inputs.Count);
-        var discoveryReports = discoveryMode ? new List<CadXiangyuanDiscoveryReport>(inputs.Count) : null;
+        var strictReports = mode == XiangyuanProbeMode.StrictCorpus
+            ? new List<CadXiangyuanSchemaCorpusReport>(inputs.Count)
+            : null;
+        var discoveryReports = mode == XiangyuanProbeMode.StrictCorpus
+            ? null
+            : new List<CadXiangyuanDiscoveryReport>(inputs.Count);
 
         for (var index = 0; index < inputs.Count; index++)
         {
@@ -54,29 +70,37 @@ internal static class XiangyuanCorpusProbe
                 return 3;
             }
 
-            if (discoveryMode)
-            {
-                discoveryReports!.Add(CadXiangyuanDiscoveryCorpus.Build(document));
-            }
-            else
-            {
+            if (mode == XiangyuanProbeMode.StrictCorpus)
                 strictReports!.Add(CadXiangyuanSchemaCorpus.Build(document));
-            }
+            else
+                discoveryReports!.Add(CadXiangyuanDiscoveryCorpus.Build(document));
         }
 
         string json;
         string summary;
-        if (discoveryMode)
+        switch (mode)
         {
-            var merged = CadXiangyuanDiscoveryCorpus.Merge(discoveryReports!);
-            json = CadXiangyuanDiscoveryCorpus.ToJson(merged);
-            summary = $"Samples={merged.SampleCount} Classes={merged.Classes.Count} Profiles={merged.Profiles.Count} CustomEntities={merged.CustomEntityCount} KnownXiangyuanEntities={merged.KnownXiangyuanEntityCount} UnknownVendorEntities={merged.UnknownVendorEntityCount}";
-        }
-        else
-        {
-            var merged = CadXiangyuanSchemaCorpus.Merge(strictReports!);
-            json = CadXiangyuanSchemaCorpus.ToJson(merged);
-            summary = $"Samples={merged.SampleCount} Profiles={merged.Entries.Count} Entities={merged.EntityCount} XiangyuanDetected={(merged.EntityCount > 0)}";
+            case XiangyuanProbeMode.Discovery:
+            {
+                var merged = CadXiangyuanDiscoveryCorpus.Merge(discoveryReports!);
+                json = CadXiangyuanDiscoveryCorpus.ToJson(merged);
+                summary = $"Samples={merged.SampleCount} Classes={merged.Classes.Count} Profiles={merged.Profiles.Count} CustomEntities={merged.CustomEntityCount} KnownXiangyuanEntities={merged.KnownXiangyuanEntityCount} UnknownVendorEntities={merged.UnknownVendorEntityCount}";
+                break;
+            }
+            case XiangyuanProbeMode.ConversionDiff:
+            {
+                var diff = CadXiangyuanConversionDiffer.Compare(discoveryReports![0], discoveryReports[1]);
+                json = CadXiangyuanConversionDiffer.ToJson(diff);
+                summary = $"RemovedClasses={diff.RemovedClassCount} RemovedProfiles={diff.RemovedProfileCount} RetainedClasses={diff.RetainedClassCount} RetainedProfiles={diff.RetainedProfileCount}";
+                break;
+            }
+            default:
+            {
+                var merged = CadXiangyuanSchemaCorpus.Merge(strictReports!);
+                json = CadXiangyuanSchemaCorpus.ToJson(merged);
+                summary = $"Samples={merged.SampleCount} Profiles={merged.Entries.Count} Entities={merged.EntityCount} XiangyuanDetected={(merged.EntityCount > 0)}";
+                break;
+            }
         }
 
         try
@@ -97,27 +121,28 @@ internal static class XiangyuanCorpusProbe
         string[] args,
         out string outputPath,
         out List<string> inputs,
-        out bool discoveryMode)
+        out XiangyuanProbeMode mode)
     {
         outputPath = string.Empty;
         inputs = new List<string>();
-        discoveryMode = false;
-        var discoverySeen = false;
+        mode = XiangyuanProbeMode.StrictCorpus;
+        var modeSeen = false;
 
         for (var index = 0; index < args.Length; index++)
         {
             var argument = args[index];
             if (string.Equals(argument, "--help", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(argument, "-h", StringComparison.OrdinalIgnoreCase))
-            {
                 return false;
-            }
 
-            if (string.Equals(argument, "--discovery", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(argument, "--discovery", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(argument, "--conversion-diff", StringComparison.OrdinalIgnoreCase))
             {
-                if (discoverySeen) return false;
-                discoveryMode = true;
-                discoverySeen = true;
+                if (modeSeen) return false;
+                mode = string.Equals(argument, "--discovery", StringComparison.OrdinalIgnoreCase)
+                    ? XiangyuanProbeMode.Discovery
+                    : XiangyuanProbeMode.ConversionDiff;
+                modeSeen = true;
                 continue;
             }
 
@@ -132,7 +157,8 @@ internal static class XiangyuanCorpusProbe
             inputs.Add(argument);
         }
 
-        return outputPath.Length > 0 && inputs.Count > 0;
+        if (outputPath.Length == 0 || inputs.Count == 0) return false;
+        return mode != XiangyuanProbeMode.ConversionDiff || inputs.Count == 2;
     }
 
     private static void WriteReport(
