@@ -58,12 +58,12 @@ public sealed class XiangyuanCandidateExperimentTests
         var candidate = Candidate();
         var first = CadXiangyuanCandidateExperimentAnalyzer.ObserveDxf(
             candidate,
-            DxfEntity("100", Payload(new(100, "VendorPrivateParcel"), new(40, privateBefore), new(70, "0"))),
-            DxfEntity("101", Payload(new(100, "VendorPrivateParcel"), new(40, privateAfter), new(70, "1"))));
+            DxfEntity("100", Payload(new CadRawDxfGroup(100, "VendorPrivateParcel"), new(40, privateBefore), new(70, "0"))),
+            DxfEntity("101", Payload(new CadRawDxfGroup(100, "VendorPrivateParcel"), new(40, privateAfter), new(70, "1"))));
         var second = CadXiangyuanCandidateExperimentAnalyzer.ObserveDxf(
             candidate,
-            DxfEntity("200", Payload(new(100, "VendorPrivateParcel"), new(40, "PRIVATE_3"), new(70, "0"))),
-            DxfEntity("201", Payload(new(100, "VendorPrivateParcel"), new(40, "PRIVATE_4"), new(70, "0"))));
+            DxfEntity("200", Payload(new CadRawDxfGroup(100, "VendorPrivateParcel"), new(40, "PRIVATE_3"), new(70, "0"))),
+            DxfEntity("201", Payload(new CadRawDxfGroup(100, "VendorPrivateParcel"), new(40, "PRIVATE_4"), new(70, "0"))));
         var observations = new List<CadDxfCustomExperimentObservation> { first, second };
 
         var consensus = CadXiangyuanCandidateExperimentAnalyzer.BuildDxfConsensus(candidate, observations);
@@ -75,7 +75,7 @@ public sealed class XiangyuanCandidateExperimentTests
         Assert.Equal(40, stable.Code);
         Assert.Equal(1, stable.CodeOccurrence);
         Assert.Equal(CadCustomObjectVendor.Unknown, CadCustomObjectClassifier.Classify(DxfName, CppClassName, ApplicationName));
-        Assert.False(DxfEntity("300", Payload(new(100, "VendorPrivateParcel"))).IsXiangyuan);
+        Assert.False(DxfEntity("300", Payload(new CadRawDxfGroup(100, "VendorPrivateParcel"))).IsXiangyuan);
         Assert.DoesNotContain(privateBefore, json, StringComparison.Ordinal);
         Assert.DoesNotContain(privateAfter, json, StringComparison.Ordinal);
     }
@@ -96,8 +96,8 @@ public sealed class XiangyuanCandidateExperimentTests
             ApplicationName = "Tianzheng Architecture",
             ClassifiedVendor = CadCustomObjectVendor.Unknown
         };
-        var before = DxfEntity("400", Payload(new(100, "VendorPrivateParcel"), new(40, "1")));
-        var after = DxfEntity("401", Payload(new(100, "VendorPrivateParcel"), new(40, "2")));
+        var before = DxfEntity("400", Payload(new CadRawDxfGroup(100, "VendorPrivateParcel"), new(40, "1")));
+        var after = DxfEntity("401", Payload(new CadRawDxfGroup(100, "VendorPrivateParcel"), new(40, "2")));
 
         Assert.Throws<ArgumentException>(() => CadXiangyuanCandidateExperimentAnalyzer.ObserveDxf(retained, before, after));
         Assert.Throws<ArgumentException>(() => CadXiangyuanCandidateExperimentAnalyzer.ObserveDxf(spoofedKnown, before, after));
@@ -107,7 +107,7 @@ public sealed class XiangyuanCandidateExperimentTests
     public void CandidateGateRejectsEntityIdentityMismatch()
     {
         var candidate = Candidate();
-        var before = DxfEntity("500", Payload(new(100, "VendorPrivateParcel"), new(40, "1")));
+        var before = DxfEntity("500", Payload(new CadRawDxfGroup(100, "VendorPrivateParcel"), new(40, "1")));
         var otherClass = new CadCustomClassDefinition(
             "OTHER_PRIVATE_CLASS",
             "OtherPrivateClass",
@@ -117,7 +117,7 @@ public sealed class XiangyuanCandidateExperimentTests
             true,
             "None",
             true);
-        var after = DxfEntity("501", Payload(new(100, "OtherPrivateClass"), new(40, "2")), otherClass);
+        var after = DxfEntity("501", Payload(new CadRawDxfGroup(100, "OtherPrivateClass"), new(40, "2")), otherClass);
 
         var exception = Assert.Throws<ArgumentException>(() => CadXiangyuanCandidateExperimentAnalyzer.ObserveDxf(candidate, before, after));
 
