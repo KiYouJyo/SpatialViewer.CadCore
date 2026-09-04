@@ -239,10 +239,12 @@ public sealed class XiangyuanDocumentPairEvidenceTests
         Assert.Equal(report.SchemaVersion, roundTrip.SchemaVersion);
         Assert.Equal(report.Provenance, roundTrip.Provenance);
         Assert.Equal(report.MatchedEntityCount, roundTrip.MatchedEntityCount);
-        Assert.Equal(report.DxfChanges.ToArray(), roundTrip.DxfChanges.ToArray());
-        Assert.Equal(report.DwgChanges.ToArray(), roundTrip.DwgChanges.ToArray());
-        Assert.Equal(report.GeometryChanges.ToArray(), roundTrip.GeometryChanges.ToArray());
-        Assert.Equal(report.ReferenceChanges.ToArray(), roundTrip.ReferenceChanges.ToArray());
+        Assert.Equal(json, CadXiangyuanDocumentPairEvidenceAnalyzer.ToJson(roundTrip));
+        Assert.IsType<System.Collections.ObjectModel.ReadOnlyCollection<CadDxfCustomExperimentObservation>>(roundTrip.DxfChanges);
+        Assert.IsType<System.Collections.ObjectModel.ReadOnlyCollection<CadDxfCustomPayloadValueChange>>(roundTrip.DxfChanges[0].ValueChanges);
+        Assert.IsType<System.Collections.ObjectModel.ReadOnlyCollection<CadDwgCustomObjectChangedByteRange>>(roundTrip.DwgChanges[0].ChangedRanges);
+        Assert.IsType<System.Collections.ObjectModel.ReadOnlyCollection<CadProxyGeometryValueChange>>(roundTrip.GeometryChanges[0].ValueChanges);
+        Assert.IsType<System.Collections.ObjectModel.ReadOnlyCollection<CadCustomHandleReferenceValueChange>>(roundTrip.ReferenceChanges[0].ValueChanges);
         Assert.DoesNotContain("PRIVATE_A", json, StringComparison.Ordinal);
         Assert.DoesNotContain("PRIVATE_B", json, StringComparison.Ordinal);
     }
