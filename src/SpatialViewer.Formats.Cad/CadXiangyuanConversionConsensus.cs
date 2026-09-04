@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Text;
+using System.Text.Json;
 
 namespace SpatialViewer.Formats.Cad;
 
@@ -74,6 +76,13 @@ public static class CadXiangyuanConversionConsensus
 {
     public const int CurrentSchemaVersion = 1;
     private const int MaxPairs = 10_000;
+    private const int MaxEntries = 100_000;
+    private const int MaxIdentityLength = 4096;
+    private const int MaxJsonBytes = 16 * 1024 * 1024;
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = true
+    };
 
     public static CadXiangyuanConversionConsensusReport Build(
         IEnumerable<CadXiangyuanConversionDiffReport> reports)
@@ -109,11 +118,42 @@ public static class CadXiangyuanConversionConsensus
             .ThenBy(item => item.ProxyGraphicKindSignature, StringComparer.Ordinal)
             .ToArray();
 
-        return new CadXiangyuanConversionConsensusReport(
+        var report = new CadXiangyuanConversionConsensusReport(
             CurrentSchemaVersion,
             materialized.Length,
             new ReadOnlyCollection<CadXiangyuanConversionClassConsensus>(classObservations),
             new ReadOnlyCollection<CadXiangyuanConversionProfileConsensus>(profileObservations));
+        ValidateConsensusReport(report, nameof(reports));
+        return report;
+    }
+
+    public static string ToJson(CadXiangyuanConversionConsensusReport report)
+    {
+        ArgumentNullException.ThrowIfNull(report);
+        ValidateConsensusReport(report, nameof(report));
+        return JsonSerializer.Serialize(report, JsonOptions);
+    }
+
+    public static CadXiangyuanConversionConsensusReport FromJson(string json)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(json);
+        if (Encoding.UTF8.GetByteCount(json) > MaxJsonBytes)
+            throw new FormatException($"Xiangyuan conversion-consensus JSON exceeds the {MaxJsonBytes} byte safety limit.");
+        try
+        {
+            var report = JsonSerializer.Deserialize<CadXiangyuanConversionConsensusReport>(json, JsonOptions)
+                ?? throw new FormatException("Xiangyuan conversion-consensus JSON did not contain a report.");
+            ValidateConsensusReport(report, nameof(json));
+            return new CadXiangyuanConversionConsensusReport(
+                report.SchemaVersion,
+                report.PairCount,
+                new ReadOnlyCollection<CadXiangyuanConversionClassConsensus>(report.Classes.ToArray()),
+                new ReadOnlyCollection<CadXiangyuanConversionProfileConsensus>(report.Profiles.ToArray()));
+        }
+        catch (JsonException exception)
+        {
+            throw new FormatException("Invalid Xiangyuan conversion-consensus JSON.", exception);
+        }
     }
 
     public static IReadOnlyList<CadXiangyuanConversionClassConsensus> GetRepeatedRemovedUnknownEntityCandidates(
@@ -140,10 +180,30 @@ public static class CadXiangyuanConversionConsensus
             throw new ArgumentException($"Xiangyuan conversion consensus must represent 2..{MaxPairs} pairs.", parameterName);
         if (report.Classes is null || report.Profiles is null)
             throw new ArgumentException("Xiangyuan conversion consensus classes/profiles cannot be null.", parameterName);
+        if (report.Classes.Count > MaxEntries || report.Profiles.Count > MaxEntries)
+            throw new ArgumentException($"Xiangyuan conversion consensus contains more than {MaxEntries} entries.", parameterName);
         foreach (var item in report.Classes)
+        {
+            ValidateIdentity(item.DxfName, nameof(item.DxfName), parameterName, required: true);
+            ValidateIdentity(item.CppClassName, nameof(item.CppClassName), parameterName, required: false);
+            ValidateIdentity(item.ApplicationName, nameof(item.ApplicationName), parameterName, required: false);
+            ValidateIdentity(item.ProxyFlags, nameof(item.ProxyFlags), parameterName, required: false);
+            ValidateVendorIdentity(item.ClassifiedVendor, item.DxfName, item.CppClassName, item.ApplicationName, parameterName);
             ValidateCounts(item.ObservedPairCount, item.RemovedPairCount, item.RetainedPairCount, item.AddedPairCount, report.PairCount, parameterName);
+        }
         foreach (var item in report.Profiles)
+        {
+            ValidateIdentity(item.DxfName, nameof(item.DxfName), parameterName, required: true);
+            ValidateIdentity(item.CppClassName, nameof(item.CppClassName), parameterName, required: false);
+            ValidateIdentity(item.ApplicationName, nameof(item.ApplicationName), parameterName, required: false);
+            ValidateIdentity(item.SchemaFingerprint, nameof(item.SchemaFingerprint), parameterName, required: true);
+            ValidateIdentity(item.GroupCodeSignature, nameof(item.GroupCodeSignature), parameterName, required: true);
+            ValidateIdentity(item.SubclassMarkerSignature, nameof(item.SubclassMarkerSignature), parameterName, required: true);
+            ValidateIdentity(item.ReferenceCodeSignature, nameof(item.ReferenceCodeSignature), parameterName, required: false);
+            ValidateIdentity(item.ProxyGraphicKindSignature, nameof(item.ProxyGraphicKindSignature), parameterName, required: true);
+            ValidateVendorIdentity(item.ClassifiedVendor, item.DxfName, item.CppClassName, item.ApplicationName, parameterName);
             ValidateCounts(item.ObservedPairCount, item.RemovedPairCount, item.RetainedPairCount, item.AddedPairCount, report.PairCount, parameterName);
+        }
     }
 
     private static CadXiangyuanConversionClassConsensus BuildClassConsensus(
@@ -193,6 +253,28 @@ public static class CadXiangyuanConversionConsensus
         var indices = pairIndices.ToArray();
         if (indices.Distinct().Count() != indices.Length)
             throw new ArgumentException($"A Xiangyuan conversion pair contains duplicate {kind} structural keys.");
+    }
+
+    private static void ValidateIdentity(string? value, string fieldName, string parameterName, bool required)
+    {
+        if (required && string.IsNullOrWhiteSpace(value))
+            throw new ArgumentException($"Xiangyuan conversion-consensus field {fieldName} cannot be empty.", parameterName);
+        if (value?.Length > MaxIdentityLength)
+            throw new ArgumentException($"Xiangyuan conversion-consensus field {fieldName} exceeds {MaxIdentityLength} characters.", parameterName);
+    }
+
+    private static void ValidateVendorIdentity(
+        CadCustomObjectVendor vendor,
+        string dxfName,
+        string cppClassName,
+        string applicationName,
+        string parameterName)
+    {
+        if (!Enum.IsDefined(vendor))
+            throw new ArgumentException($"Unsupported custom-object vendor value: {(int)vendor}.", parameterName);
+        var classified = CadCustomObjectClassifier.Classify(dxfName, cppClassName, applicationName);
+        if (vendor != classified)
+            throw new ArgumentException("Conversion-consensus vendor metadata does not match the current global classifier.", parameterName);
     }
 
     private static void ValidateCounts(
