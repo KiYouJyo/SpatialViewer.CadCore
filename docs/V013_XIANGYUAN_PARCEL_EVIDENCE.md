@@ -91,3 +91,14 @@ The matcher is intentionally strict:
 For each exact same-handle/same-identity pair, the analyzer can collect privacy-safe changed observations from all evidence already implemented: raw DXF slots, bounded DWG byte ranges, proxy-geometry positions and object-reference slots. Only changed comparable observations are serialized. Source drawing names/paths, entity handles, raw values, coordinates, target handles and raw DWG bytes are absent from the report.
 
 Two provenance modes remain separate: explicit Xiangyuan identity, or one exact repeated-removal Unknown conversion candidate. Serialized reports re-check these identity rules so hand-edited JSON cannot promote an Unknown class into explicit Xiangyuan evidence.
+
+### Local CLI entry points for complete drawing pairs
+
+The local Xiangyuan probe exposes whole-document evidence without weakening provenance:
+
+- `--document-pair` accepts exactly two drawings and analyzes only entities already classified explicitly as Xiangyuan;
+- `--candidate-document-pair` accepts exactly two drawings plus a validated multi-pair conversion-consensus JSON and a 1-based candidate index;
+- candidate indices are taken from the deterministic filtered list of repeated removed Unknown entity candidates, so the operator does not type or guess a proprietary class identity;
+- the candidate-consensus file is protected from output overwrite just like the source drawings.
+
+These CLI modes produce the same privacy-safe `CadXiangyuanDocumentPairEvidenceReport`; they do not add any semantic decoding.

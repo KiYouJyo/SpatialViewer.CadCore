@@ -93,7 +93,49 @@ jobs:
           $consensusParsed = $consensusJson | ConvertFrom-Json
           if ($consensusParsed.schemaVersion -ne 1 -or $consensusParsed.pairCount -ne 2) { throw 'Unexpected Xiangyuan conversion-consensus smoke-report shape.' }
           if ($consensusParsed.classes.Count -ne 0 -or $consensusParsed.profiles.Count -ne 0) { throw 'Empty conversion diffs must produce an empty conversion consensus.' }
-          Remove-Item -LiteralPath $conversion, $conversion2, $consensus -Force
+
+          $documentPair = Join-Path $env:RUNNER_TEMP 'xiangyuan-document-pair-smoke.json'
+          dotnet run --project tools/SpatialViewer.CadCore.XiangyuanProbe/SpatialViewer.CadCore.XiangyuanProbe.csproj -c Release --no-build -- --document-pair --out $documentPair tests/fixtures/cad/dxf/mixed-basic.dxf tests/fixtures/cad/dxf/mixed-basic.dxf
+          if ($LASTEXITCODE -ne 0) { throw "Xiangyuan document-pair probe failed with exit code $LASTEXITCODE" }
+          $documentPairJson = Get-Content -LiteralPath $documentPair -Raw
+          if ($documentPairJson -match 'mixed-basic\.dxf') { throw 'Xiangyuan document-pair report leaked the source drawing name.' }
+          $documentPairParsed = $documentPairJson | ConvertFrom-Json
+          if ($documentPairParsed.schemaVersion -ne 1 -or $documentPairParsed.provenance -ne 0) { throw 'Unexpected explicit Xiangyuan document-pair smoke-report shape.' }
+          if ($documentPairParsed.beforeEligibleEntityCount -ne 0 -or $documentPairParsed.afterEligibleEntityCount -ne 0 -or $documentPairParsed.matchedEntityCount -ne 0) { throw 'Ordinary CAD smoke fixture must not invent explicit Xiangyuan document-pair entities.' }
+
+          $candidateConsensus = Join-Path $env:RUNNER_TEMP 'xiangyuan-candidate-consensus-smoke.json'
+          $candidateConsensusData = @{
+            schemaVersion = 1
+            pairCount = 2
+            classes = @(
+              @{
+                dxfName = 'PRIVATE_CANDIDATE'
+                cppClassName = 'PrivateCandidate'
+                applicationName = 'PrivatePlanningApp'
+                classifiedVendor = 0
+                isEntity = $true
+                wasProxy = $true
+                proxyFlags = 'None'
+                observedPairCount = 2
+                removedPairCount = 2
+                retainedPairCount = 0
+                addedPairCount = 0
+              }
+            )
+            profiles = @()
+          }
+          $candidateConsensusData | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $candidateConsensus -Encoding utf8 -NoNewline
+
+          $candidatePair = Join-Path $env:RUNNER_TEMP 'xiangyuan-candidate-document-pair-smoke.json'
+          dotnet run --project tools/SpatialViewer.CadCore.XiangyuanProbe/SpatialViewer.CadCore.XiangyuanProbe.csproj -c Release --no-build -- --candidate-document-pair --candidate-consensus $candidateConsensus --candidate-index 1 --out $candidatePair tests/fixtures/cad/dxf/mixed-basic.dxf tests/fixtures/cad/dxf/mixed-basic.dxf
+          if ($LASTEXITCODE -ne 0) { throw "Xiangyuan candidate document-pair probe failed with exit code $LASTEXITCODE" }
+          $candidatePairJson = Get-Content -LiteralPath $candidatePair -Raw
+          if ($candidatePairJson -match 'mixed-basic\.dxf' -or $candidatePairJson -match 'candidate-consensus-smoke') { throw 'Xiangyuan candidate document-pair report leaked an input file name.' }
+          $candidatePairParsed = $candidatePairJson | ConvertFrom-Json
+          if ($candidatePairParsed.schemaVersion -ne 1 -or $candidatePairParsed.provenance -ne 1) { throw 'Unexpected candidate Xiangyuan document-pair smoke-report shape.' }
+          if ($candidatePairParsed.beforeEligibleEntityCount -ne 0 -or $candidatePairParsed.afterEligibleEntityCount -ne 0 -or $candidatePairParsed.matchedEntityCount -ne 0) { throw 'Unrelated ordinary CAD must not match the synthetic repeated candidate.' }
+
+          Remove-Item -LiteralPath $conversion, $conversion2, $consensus, $documentPair, $candidateConsensus, $candidatePair -Force
       - name: Build performance baseline
         run: dotnet build benchmarks/SpatialViewer.Core.Benchmarks/SpatialViewer.Core.Benchmarks.csproj -c Release
       - run: dotnet test SpatialViewer.CadCore.sln -c Release --no-build --verbosity normal

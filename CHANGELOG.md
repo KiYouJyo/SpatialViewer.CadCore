@@ -20,6 +20,7 @@ All notable CadCore changes are recorded here.
 - Added privacy-safe custom-object handle-reference diff/repeatability consensus and case-bound Xiangyuan control-indicator relationship research, exposing only reference group code/occurrence while never exporting source or target handles.
 - Added privacy-safe reference-endpoint structure evidence that resolves stable anonymous reference slots locally and retains only coarse target entity kind or custom CLASSES identity, excluding block names, text, coordinates, layers and handles.
 - Added strict privacy-safe whole-document Xiangyuan A/B matching by unique retained handle and exact class identity, collecting only changed DXF/DWG/proxy-geometry/reference structural evidence with no geometric/content pairing fallback.
+- Added local whole-document A/B CLI modes for explicit Xiangyuan objects and deterministic repeated-Unknown conversion candidates, with candidate provenance loaded from validated conversion-consensus JSON rather than user-supplied class names.
 
 ## 0.7.0 - 2026-09-01
 
