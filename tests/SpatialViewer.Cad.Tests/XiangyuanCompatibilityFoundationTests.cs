@@ -10,8 +10,7 @@ namespace SpatialViewer.Cad.Tests;
 public sealed class XiangyuanCompatibilityFoundationTests
 {
     [Theory]
-    [InlineData("CUSTOM", "LzxParcelObject", "OtherVendor")]
-    [InlineData("CUSTOM", "SomeClass", "LzxSoft Control Planning CAD")]
+        [InlineData("CUSTOM", "SomeClass", "LzxSoft Control Planning CAD")]
     [InlineData("CUSTOM", "SomeClass", "Xiangyuan Control Planning")]
     [InlineData("CUSTOM", "SomeClass", "湘源控规")]
     public void ClassifierRecognizesExplicitXiangyuanApplicationIdentities(string dxfName, string cppClass, string application)
@@ -23,6 +22,7 @@ public sealed class XiangyuanCompatibilityFoundationTests
 
     [Theory]
     [InlineData("LZX_PARCEL", "SomeClass", "OtherVendor")]
+    [InlineData("CUSTOM", "LzxParcelObject", "OtherVendor")]
     [InlineData("CUSTOM", "LandscapeObject", "OtherVendor")]
     [InlineData("TCH_WALL", "TDbWall", "Tianzheng Architecture")]
     public void ClassifierDoesNotGuessXiangyuanFromUnprovenDxfNameOrOtherVendors(string dxfName, string cppClass, string application)
