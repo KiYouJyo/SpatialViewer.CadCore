@@ -14,6 +14,7 @@ All notable CadCore changes are recorded here.
 - Added known-Xiangyuan discovery mode that inventories every application-defined CLASSES identity and custom-object structural profile while preserving `Unknown` vendor status instead of guessing proprietary class names.
 - Added a privacy-safe native-vs-converted Xiangyuan diff that highlights custom classes/profiles removed by controlled all-explode/result-output conversion without promoting those candidates to vendor or parcel semantics.
 - Added conversion-candidate-scoped A/B experiments for removed unknown entity classes, with exact CLASSES identity matching and a fresh global-classifier check so candidate research cannot silently promote unknown objects to Xiangyuan.
+- Added multi-pair Xiangyuan conversion consensus with validated privacy-safe JSON and CLI support; repeated unknown candidates require at least two independent removals and no retained/added contradiction before stronger A/B research.
 
 ## 0.7.0 - 2026-09-01
 

@@ -125,6 +125,60 @@ public sealed class XiangyuanCandidateExperimentTests
     }
 
     [Fact]
+    public void RepeatedConversionCandidateCanDriveSamePrivacySafeDxfExperiment()
+    {
+        var repeated = new CadXiangyuanConversionClassConsensus(
+            DxfName,
+            CppClassName,
+            ApplicationName,
+            CadCustomObjectVendor.Unknown,
+            true,
+            true,
+            "EraseAllowed",
+            2,
+            2,
+            0,
+            0);
+        var first = CadXiangyuanCandidateExperimentAnalyzer.ObserveDxf(
+            repeated,
+            DxfEntity("550", Payload(new CadRawDxfGroup(100, "VendorPrivateParcel"), new CadRawDxfGroup(40, "1"))),
+            DxfEntity("551", Payload(new CadRawDxfGroup(100, "VendorPrivateParcel"), new CadRawDxfGroup(40, "2"))));
+        var second = CadXiangyuanCandidateExperimentAnalyzer.ObserveDxf(
+            repeated,
+            DxfEntity("552", Payload(new CadRawDxfGroup(100, "VendorPrivateParcel"), new CadRawDxfGroup(40, "3"))),
+            DxfEntity("553", Payload(new CadRawDxfGroup(100, "VendorPrivateParcel"), new CadRawDxfGroup(40, "4"))));
+        var observations = new List<CadDxfCustomExperimentObservation> { first, second };
+
+        var consensus = CadXiangyuanCandidateExperimentAnalyzer.BuildDxfConsensus(repeated, observations);
+
+        Assert.True(consensus.HasStableCandidate);
+        var stable = Assert.Single(consensus.StableValueChanges);
+        Assert.Equal(40, stable.Code);
+        Assert.Equal(CadCustomObjectVendor.Unknown, CadCustomObjectClassifier.Classify(DxfName, CppClassName, ApplicationName));
+    }
+
+    [Fact]
+    public void RepeatedCandidateGateRejectsContradictoryConversionEvidence()
+    {
+        var contradictory = new CadXiangyuanConversionClassConsensus(
+            DxfName,
+            CppClassName,
+            ApplicationName,
+            CadCustomObjectVendor.Unknown,
+            true,
+            true,
+            "EraseAllowed",
+            2,
+            1,
+            1,
+            0);
+        var before = DxfEntity("560", Payload(new CadRawDxfGroup(100, "VendorPrivateParcel"), new CadRawDxfGroup(40, "1")));
+        var after = DxfEntity("561", Payload(new CadRawDxfGroup(100, "VendorPrivateParcel"), new CadRawDxfGroup(40, "2")));
+
+        Assert.Throws<ArgumentException>(() => CadXiangyuanCandidateExperimentAnalyzer.ObserveDxf(contradictory, before, after));
+    }
+
+    [Fact]
     public void DwgConsensusUsesSameCandidateProvenanceGate()
     {
         var candidate = Candidate();

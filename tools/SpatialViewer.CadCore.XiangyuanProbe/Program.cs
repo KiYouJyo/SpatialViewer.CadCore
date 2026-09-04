@@ -9,12 +9,13 @@ internal enum XiangyuanProbeMode
 {
     StrictCorpus,
     Discovery,
-    ConversionDiff
+    ConversionDiff,
+    ConversionConsensus
 }
 
 internal static class XiangyuanCorpusProbe
 {
-    private const string Usage = "Usage: XiangyuanProbe [--discovery | --conversion-diff] --out <report.json> <drawing...>; conversion diff requires <native.dwg> <converted.dwg>";
+    private const string Usage = "Usage: XiangyuanProbe [--discovery | --conversion-diff | --conversion-consensus] --out <report.json> <inputs...>; conversion diff requires <native.dwg> <converted.dwg>, conversion consensus requires 2+ conversion-diff JSON reports";
 
     public static async Task<int> RunAsync(string[] args)
     {
@@ -29,77 +30,112 @@ internal static class XiangyuanCorpusProbe
         {
             XiangyuanProbeMode.Discovery => "XYDISCOVERY",
             XiangyuanProbeMode.ConversionDiff => "XYCONVERSION",
+            XiangyuanProbeMode.ConversionConsensus => "XYCONSENSUS",
             _ => "XYCORPUS"
         };
-        var importer = new ACadSharpCadImporter();
-        var strictReports = mode == XiangyuanProbeMode.StrictCorpus
-            ? new List<CadXiangyuanSchemaCorpusReport>(inputs.Count)
-            : null;
-        var discoveryReports = mode == XiangyuanProbeMode.StrictCorpus
-            ? null
-            : new List<CadXiangyuanDiscoveryReport>(inputs.Count);
-
-        for (var index = 0; index < inputs.Count; index++)
-        {
-            var input = inputs[index];
-            if (!importer.CanImport(input))
-            {
-                Console.Error.WriteLine($"[{prefix}] Input={index + 1} Status=UnsupportedExtension");
-                return 2;
-            }
-
-            ImportResult result;
-            try
-            {
-                result = await importer.ImportAsync(new ImportRequest(input));
-            }
-            catch (Exception exception) when (exception is not OutOfMemoryException)
-            {
-                Console.Error.WriteLine($"[{prefix}] Input={index + 1} Status=ImportException Type={exception.GetType().Name}");
-                return 3;
-            }
-
-            if (result.Document is not CadDocument document)
-            {
-                var codes = string.Join(',', result.Diagnostics
-                    .Select(diagnostic => diagnostic.Code)
-                    .Where(code => !string.IsNullOrWhiteSpace(code))
-                    .Distinct(StringComparer.Ordinal)
-                    .OrderBy(code => code, StringComparer.Ordinal));
-                Console.Error.WriteLine($"[{prefix}] Input={index + 1} Status=ImportFailed DiagnosticCodes={codes}");
-                return 3;
-            }
-
-            if (mode == XiangyuanProbeMode.StrictCorpus)
-                strictReports!.Add(CadXiangyuanSchemaCorpus.Build(document));
-            else
-                discoveryReports!.Add(CadXiangyuanDiscoveryCorpus.Build(document));
-        }
 
         string json;
         string summary;
-        switch (mode)
+        if (mode == XiangyuanProbeMode.ConversionConsensus)
         {
-            case XiangyuanProbeMode.Discovery:
+            var reports = new List<CadXiangyuanConversionDiffReport>(inputs.Count);
+            for (var index = 0; index < inputs.Count; index++)
             {
-                var merged = CadXiangyuanDiscoveryCorpus.Merge(discoveryReports!);
-                json = CadXiangyuanDiscoveryCorpus.ToJson(merged);
-                summary = $"Samples={merged.SampleCount} Classes={merged.Classes.Count} Profiles={merged.Profiles.Count} CustomEntities={merged.CustomEntityCount} KnownXiangyuanEntities={merged.KnownXiangyuanEntityCount} UnknownVendorEntities={merged.UnknownVendorEntityCount}";
-                break;
+                try
+                {
+                    var reportJson = await File.ReadAllTextAsync(inputs[index]);
+                    reports.Add(CadXiangyuanConversionDiffer.FromJson(reportJson));
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or FormatException or NotSupportedException)
+                {
+                    Console.Error.WriteLine($"[{prefix}] Input={index + 1} Status=ReadFailed Type={exception.GetType().Name}");
+                    return 3;
+                }
             }
-            case XiangyuanProbeMode.ConversionDiff:
+
+            CadXiangyuanConversionConsensusReport consensus;
+            try
             {
-                var diff = CadXiangyuanConversionDiffer.Compare(discoveryReports![0], discoveryReports[1]);
-                json = CadXiangyuanConversionDiffer.ToJson(diff);
-                summary = $"RemovedClasses={diff.RemovedClassCount} RemovedProfiles={diff.RemovedProfileCount} RetainedClasses={diff.RetainedClassCount} RetainedProfiles={diff.RetainedProfileCount}";
-                break;
+                consensus = CadXiangyuanConversionConsensus.Build(reports);
+                json = CadXiangyuanConversionConsensus.ToJson(consensus);
             }
-            default:
+            catch (Exception exception) when (exception is ArgumentException or FormatException)
             {
-                var merged = CadXiangyuanSchemaCorpus.Merge(strictReports!);
-                json = CadXiangyuanSchemaCorpus.ToJson(merged);
-                summary = $"Samples={merged.SampleCount} Profiles={merged.Entries.Count} Entities={merged.EntityCount} XiangyuanDetected={(merged.EntityCount > 0)}";
-                break;
+                Console.Error.WriteLine($"[{prefix}] Status=ConsensusFailed Type={exception.GetType().Name}");
+                return 3;
+            }
+            summary = $"Pairs={consensus.PairCount} Classes={consensus.Classes.Count} Profiles={consensus.Profiles.Count} RepeatedUnknownEntityCandidates={consensus.RepeatedRemovedUnknownEntityCandidateCount} RepeatedUnknownProfileCandidates={consensus.RepeatedRemovedUnknownProfileCandidateCount}";
+        }
+        else
+        {
+            var importer = new ACadSharpCadImporter();
+            var strictReports = mode == XiangyuanProbeMode.StrictCorpus
+                ? new List<CadXiangyuanSchemaCorpusReport>(inputs.Count)
+                : null;
+            var discoveryReports = mode == XiangyuanProbeMode.StrictCorpus
+                ? null
+                : new List<CadXiangyuanDiscoveryReport>(inputs.Count);
+
+            for (var index = 0; index < inputs.Count; index++)
+            {
+                var input = inputs[index];
+                if (!importer.CanImport(input))
+                {
+                    Console.Error.WriteLine($"[{prefix}] Input={index + 1} Status=UnsupportedExtension");
+                    return 2;
+                }
+
+                ImportResult result;
+                try
+                {
+                    result = await importer.ImportAsync(new ImportRequest(input));
+                }
+                catch (Exception exception) when (exception is not OutOfMemoryException)
+                {
+                    Console.Error.WriteLine($"[{prefix}] Input={index + 1} Status=ImportException Type={exception.GetType().Name}");
+                    return 3;
+                }
+
+                if (result.Document is not CadDocument document)
+                {
+                    var codes = string.Join(',', result.Diagnostics
+                        .Select(diagnostic => diagnostic.Code)
+                        .Where(code => !string.IsNullOrWhiteSpace(code))
+                        .Distinct(StringComparer.Ordinal)
+                        .OrderBy(code => code, StringComparer.Ordinal));
+                    Console.Error.WriteLine($"[{prefix}] Input={index + 1} Status=ImportFailed DiagnosticCodes={codes}");
+                    return 3;
+                }
+
+                if (mode == XiangyuanProbeMode.StrictCorpus)
+                    strictReports!.Add(CadXiangyuanSchemaCorpus.Build(document));
+                else
+                    discoveryReports!.Add(CadXiangyuanDiscoveryCorpus.Build(document));
+            }
+
+            switch (mode)
+            {
+                case XiangyuanProbeMode.Discovery:
+                {
+                    var merged = CadXiangyuanDiscoveryCorpus.Merge(discoveryReports!);
+                    json = CadXiangyuanDiscoveryCorpus.ToJson(merged);
+                    summary = $"Samples={merged.SampleCount} Classes={merged.Classes.Count} Profiles={merged.Profiles.Count} CustomEntities={merged.CustomEntityCount} KnownXiangyuanEntities={merged.KnownXiangyuanEntityCount} UnknownVendorEntities={merged.UnknownVendorEntityCount}";
+                    break;
+                }
+                case XiangyuanProbeMode.ConversionDiff:
+                {
+                    var diff = CadXiangyuanConversionDiffer.Compare(discoveryReports![0], discoveryReports[1]);
+                    json = CadXiangyuanConversionDiffer.ToJson(diff);
+                    summary = $"RemovedClasses={diff.RemovedClassCount} RemovedProfiles={diff.RemovedProfileCount} RetainedClasses={diff.RetainedClassCount} RetainedProfiles={diff.RetainedProfileCount}";
+                    break;
+                }
+                default:
+                {
+                    var merged = CadXiangyuanSchemaCorpus.Merge(strictReports!);
+                    json = CadXiangyuanSchemaCorpus.ToJson(merged);
+                    summary = $"Samples={merged.SampleCount} Profiles={merged.Entries.Count} Entities={merged.EntityCount} XiangyuanDetected={(merged.EntityCount > 0)}";
+                    break;
+                }
             }
         }
 
@@ -136,12 +172,16 @@ internal static class XiangyuanCorpusProbe
                 return false;
 
             if (string.Equals(argument, "--discovery", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(argument, "--conversion-diff", StringComparison.OrdinalIgnoreCase))
+                || string.Equals(argument, "--conversion-diff", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(argument, "--conversion-consensus", StringComparison.OrdinalIgnoreCase))
             {
                 if (modeSeen) return false;
-                mode = string.Equals(argument, "--discovery", StringComparison.OrdinalIgnoreCase)
-                    ? XiangyuanProbeMode.Discovery
-                    : XiangyuanProbeMode.ConversionDiff;
+                mode = argument.ToLowerInvariant() switch
+                {
+                    "--discovery" => XiangyuanProbeMode.Discovery,
+                    "--conversion-diff" => XiangyuanProbeMode.ConversionDiff,
+                    _ => XiangyuanProbeMode.ConversionConsensus
+                };
                 modeSeen = true;
                 continue;
             }
@@ -158,7 +198,9 @@ internal static class XiangyuanCorpusProbe
         }
 
         if (outputPath.Length == 0 || inputs.Count == 0) return false;
-        return mode != XiangyuanProbeMode.ConversionDiff || inputs.Count == 2;
+        if (mode == XiangyuanProbeMode.ConversionDiff) return inputs.Count == 2;
+        if (mode == XiangyuanProbeMode.ConversionConsensus) return inputs.Count >= 2;
+        return true;
     }
 
     private static void WriteReport(
@@ -170,7 +212,7 @@ internal static class XiangyuanCorpusProbe
         foreach (var input in inputs)
         {
             if (string.Equals(Path.GetFullPath(input), fullOutputPath, StringComparison.OrdinalIgnoreCase))
-                throw new ArgumentException("Output path cannot overwrite an input drawing.", nameof(outputPath));
+                throw new ArgumentException("Output path cannot overwrite an input file.", nameof(outputPath));
         }
 
         var directory = Path.GetDirectoryName(fullOutputPath);

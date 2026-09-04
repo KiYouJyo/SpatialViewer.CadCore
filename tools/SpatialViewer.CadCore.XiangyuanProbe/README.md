@@ -49,3 +49,16 @@ dotnet run --project tools/SpatialViewer.CadCore.XiangyuanProbe -c Release -- `
 ```
 
 The diff reports custom CLASSES identities and structural profiles that were removed, retained, or added by the conversion. A removed unknown class is a high-value research candidate, but disappearance alone is **not** enough to classify it as Xiangyuan or assign parcel semantics.
+
+## Repeatability consensus across conversion pairs
+
+After generating two or more independent `--conversion-diff` reports, merge them locally:
+
+```powershell
+dotnet run --project tools/SpatialViewer.CadCore.XiangyuanProbe -c Release -- `
+  --conversion-consensus `
+  --out .\xiangyuan-conversion-consensus.json `
+  .\pair-01-diff.json .\pair-02-diff.json
+```
+
+The consensus counts removed/retained/added observations for each exact class/profile structural identity. An unknown entity becomes a repeated-removal research candidate only after it disappears in at least two independent conversion pairs and has no contradictory retained/added observation. The current global vendor classifier is rechecked; the candidate remains `Unknown`.
