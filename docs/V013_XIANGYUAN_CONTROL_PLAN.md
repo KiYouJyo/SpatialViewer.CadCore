@@ -99,6 +99,8 @@ P0 进一步增加 `--discovery` 模式，用于**来源已知为湘源、但 cl
 
 P1 现已建立固定的 case-bound experiment catalog，详见 `docs/V013_XIANGYUAN_PARCEL_EVIDENCE.md`。容积率、建筑密度、绿地率、建筑高度分别拆成 `MIN/MAX` 实验，避免范围值被错误压成单一字段；`AREA`、`BOUNDARY` 与 `CONTROL_INDICATOR_RELATIONSHIP` 明确走 geometry/derived/reference 证据，不允许通过 raw-value consensus 强行命名。Case-bound consensus 同时支持“明确 Xiangyuan identity”和“至少两组 conversion pair 都稳定消失的 Unknown candidate”两条 provenance，但两种 provenance 不得混在同一 consensus。
 
+其中 `AREA` / `BOUNDARY` 的 geometry evidence 已实现：通用 `CadProxyGeometryDiffer` / `CadProxyGeometryExperimentAnalyzer` 对 Proxy Graphics 的 polyline/lwpolyline/polygon/circle/arc/mesh-shell edge/clip/text placement 做匿名位置差分，并由 `CadXiangyuanParcelExperimentAnalyzer` 再施加 explicit-Xiangyuan 或 repeated-candidate provenance gate。该层仍不声明哪一个 proxy primitive 就是 native parcel boundary；它只把可重复的几何变化位置变成后续实样本验证证据。
+
 P1 的实验入口也已经建立：`CadXiangyuanExperimentAnalyzer` 在通用 privacy-safe A/B differ / repeatability consensus 外再增加 Xiangyuan vendor gate。baseline/modified 必须都具有明确湘源 identity，且通用 identity/schema/capture-method 门禁仍继续生效。输出只保留 changed group slot 或 DWG changed byte range，不保留 before/after 原始值。
 
 **P2 — 图则与街区地块**
