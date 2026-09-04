@@ -8,6 +8,7 @@ All notable CadCore changes are recorded here.
 - Added conservative Xiangyuan Control Planning custom-object vendor classification from explicit application/C++ identities, without guessing DXF class names from public command prefixes.
 - Added Xiangyuan class/entity detection metadata while reusing the existing reader-independent custom-object, raw DXF/DWG evidence and ObjectARX Proxy Graphics fallback pipeline.
 - Added reader-level regression coverage and a Xiangyuan compatibility roadmap for parcel, atlas/street-block and utility-object follow-up work.
+- Added a privacy-safe Xiangyuan schema corpus with deterministic structural clustering, proxy/opaque coverage, raw-evidence coverage, generic relationship coverage, JSON validation and multi-sample merge support.
 
 ## 0.7.0 - 2026-09-01
 
