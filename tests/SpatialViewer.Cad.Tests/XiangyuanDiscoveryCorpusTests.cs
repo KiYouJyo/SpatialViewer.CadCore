@@ -59,10 +59,12 @@ public sealed class XiangyuanDiscoveryCorpusTests
         };
         var confirmed = Entity("200", XiangyuanClass, Payload("PRIVATE_XY_VALUE"));
         var tianzheng = Entity("300", TianzhengClass, Payload("PRIVATE_TCH_VALUE"));
-        var document = Document("known-xiangyuan-private.dxf", unknown, confirmed, tianzheng) with
-        {
-            CustomClasses = new[] { UnknownClass, XiangyuanClass, TianzhengClass, UninstantiatedClass }
-        };
+        var document = Document(
+            "known-xiangyuan-private.dxf",
+            new[] { UnknownClass, XiangyuanClass, TianzhengClass, UninstantiatedClass },
+            unknown,
+            confirmed,
+            tianzheng);
 
         var report = CadXiangyuanDiscoveryCorpus.Build(document);
 
@@ -103,10 +105,7 @@ public sealed class XiangyuanDiscoveryCorpusTests
                 "test"),
             HandleReferences = new[] { new CadCustomHandleReference(330, "SECRET_TARGET_HANDLE") }
         };
-        var document = Document(privateDrawing, entity) with
-        {
-            CustomClasses = new[] { UnknownClass }
-        };
+        var document = Document(privateDrawing, new[] { UnknownClass }, entity);
 
         var json = CadXiangyuanDiscoveryCorpus.ToJson(CadXiangyuanDiscoveryCorpus.Build(document));
 
@@ -126,16 +125,12 @@ public sealed class XiangyuanDiscoveryCorpusTests
     {
         var firstDocument = Document(
             "one.dxf",
-            Entity("401", UnknownClass, Payload("one"))) with
-        {
-            CustomClasses = new[] { UnknownClass }
-        };
+            new[] { UnknownClass },
+            Entity("401", UnknownClass, Payload("one")));
         var secondDocument = Document(
             "two.dxf",
-            Entity("501", UnknownClass, Payload("two"))) with
-        {
-            CustomClasses = new[] { UnknownClass }
-        };
+            new[] { UnknownClass },
+            Entity("501", UnknownClass, Payload("two")));
 
         var merged = CadXiangyuanDiscoveryCorpus.Build(new[] { firstDocument, secondDocument });
         var classEntry = Assert.Single(merged.Classes);
@@ -203,13 +198,19 @@ public sealed class XiangyuanDiscoveryCorpusTests
                 new(40, "2.5")
             });
 
-    private static CadDocument Document(string displayName, params CadEntity[] entities)
-        => new(
+    private static CadDocument Document(
+        string displayName,
+        IReadOnlyList<CadCustomClassDefinition> customClasses,
+        params CadEntity[] entities)
+        => new CadDocument(
             displayName,
             "DXF",
             "AC1032",
             CadUnits.Millimetres,
             new[] { new CadLayer("0", CadColor.FromAci(7)) },
             Array.Empty<CadBlockDefinition>(),
-            entities);
+            entities)
+        {
+            CustomClasses = customClasses
+        };
 }
