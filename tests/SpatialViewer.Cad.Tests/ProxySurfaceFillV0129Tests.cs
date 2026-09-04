@@ -8,6 +8,7 @@ namespace SpatialViewer.Cad.Tests;
 public sealed class ProxySurfaceFillV0129Tests
 {
     private static readonly int[] QuadFace = [0, 1, 2, 3];
+    private static readonly int[] TwoAciColors = [1, 2];
 
     [Fact]
     public void ExplicitFillOnMapsPlanarShellFacesAndPreservesFaceColor()
@@ -40,7 +41,7 @@ public sealed class ProxySurfaceFillV0129Tests
         Assert.Equal(0, unsupported);
         var surface = Assert.IsType<CadProxySurfaceSet>(Assert.Single(mapped));
         Assert.Equal("ShellSurface", surface.ProxySurfaceKind);
-        Assert.True(surface.Traits.FillOn);
+        Assert.True(surface.Traits.FillOn is true);
         var face = Assert.Single(surface.Faces);
         Assert.Equal(CadColor.FromAci(1), face.Evidence.Color);
         Assert.Equal(4, face.Points.Count);
@@ -77,7 +78,7 @@ public sealed class ProxySurfaceFillV0129Tests
 
         Assert.Equal(0, unsupported);
         var edges = Assert.IsType<CadProxyEdgeSet>(Assert.Single(mapped));
-        Assert.False(edges.Traits.FillOn);
+        Assert.True(edges.Traits.FillOn is false);
         Assert.Equal("ShellEdges", edges.ProxyEdgeKind);
     }
 
@@ -128,7 +129,7 @@ public sealed class ProxySurfaceFillV0129Tests
     public void MalformedFaceTraitsFallBackToEdgesWithoutInventingFill()
     {
         var faceTraits = new FaceTraits();
-        faceTraits.Colors.AddRange([1, 2]);
+        faceTraits.Colors.AddRange(TwoAciColors);
         var shell = Shell(faceTraits);
 
         IProxyGeometry[] source =
@@ -141,7 +142,7 @@ public sealed class ProxySurfaceFillV0129Tests
 
         Assert.Equal(0, unsupported);
         var edges = Assert.IsType<CadProxyEdgeSet>(Assert.Single(mapped));
-        Assert.True(edges.Traits.FillOn);
+        Assert.True(edges.Traits.FillOn is true);
         Assert.Equal("ShellEdges", edges.ProxyEdgeKind);
     }
 
