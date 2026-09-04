@@ -36,3 +36,16 @@ dotnet run --project tools/SpatialViewer.CadCore.XiangyuanProbe -c Release -- `
 Discovery mode inventories **all** application-defined CLASSES identities and custom-entity structural profiles in the supplied sample. Each entry keeps the normal `ClassifiedVendor` result; an unrecognized class remains `Unknown`. Inclusion in a known-Xiangyuan discovery report is a research lead only and never promotes that class to Xiangyuan support.
 
 This mode is intentionally broader than the default strict corpus so it can reveal real class/application identities that do not contain `LzxSoft`, `Xiangyuan`, or `湘源`.
+
+## Controlled native-vs-converted diff
+
+For a stronger class-discovery experiment, save a native Xiangyuan drawing and then create a second copy through Xiangyuan's ordinary-CAD output path (for example object-to-block / all-explode or result output). Pass the **native file first** and the converted file second:
+
+```powershell
+dotnet run --project tools/SpatialViewer.CadCore.XiangyuanProbe -c Release -- `
+  --conversion-diff `
+  --out .\xiangyuan-conversion-diff.json `
+  .\native-xiangyuan.dwg .\converted-ordinary.dwg
+```
+
+The diff reports custom CLASSES identities and structural profiles that were removed, retained, or added by the conversion. A removed unknown class is a high-value research candidate, but disappearance alone is **not** enough to classify it as Xiangyuan or assign parcel semantics.
