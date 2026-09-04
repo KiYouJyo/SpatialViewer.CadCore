@@ -97,7 +97,7 @@ public sealed class CadCustomHandleReferenceDiffTests
     [Fact]
     public void DifferentCustomObjectIdentityIsRejectedBeforeHandleComparison()
     {
-        var before = Entity("600", new(330, "A"));
+        var before = Entity("600", new CadCustomHandleReference(330, "A"));
         var other = CustomClass with { DxfName = "OTHER_REFERENCE_OBJECT" };
         var after = new CadCustomEntity("601", other.DxfName)
         {
