@@ -100,7 +100,7 @@ internal static class XiangyuanCorpusProbe
                 continue;
             }
 
-            if (argument.StartsWith('-', StringComparison.Ordinal))
+            if (argument.StartsWith("-", StringComparison.Ordinal))
             {
                 inputs = Array.Empty<string>();
                 return false;
