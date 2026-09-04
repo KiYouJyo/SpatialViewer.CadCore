@@ -97,6 +97,8 @@ P0 进一步增加 `--discovery` 模式，用于**来源已知为湘源、但 cl
 
 只有真实 class identity + repeatable raw-field evidence + Reader regression 后，才进入 named semantic。
 
+P1 现已建立固定的 case-bound experiment catalog，详见 `docs/V013_XIANGYUAN_PARCEL_EVIDENCE.md`。容积率、建筑密度、绿地率、建筑高度分别拆成 `MIN/MAX` 实验，避免范围值被错误压成单一字段；`BOUNDARY` 与 `CONTROL_INDICATOR_RELATIONSHIP` 明确走 geometry/reference 证据，不允许通过 raw-value consensus 强行命名。Case-bound consensus 同时支持“明确 Xiangyuan identity”和“至少两组 conversion pair 都稳定消失的 Unknown candidate”两条 provenance，但两种 provenance 不得混在同一 consensus。
+
 P1 的实验入口也已经建立：`CadXiangyuanExperimentAnalyzer` 在通用 privacy-safe A/B differ / repeatability consensus 外再增加 Xiangyuan vendor gate。baseline/modified 必须都具有明确湘源 identity，且通用 identity/schema/capture-method 门禁仍继续生效。输出只保留 changed group slot 或 DWG changed byte range，不保留 before/after 原始值。
 
 **P2 — 图则与街区地块**
