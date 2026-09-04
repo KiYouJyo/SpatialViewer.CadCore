@@ -126,9 +126,9 @@ The privacy-safe Tianzheng schema corpus aggregates structural signatures and co
 
 ### Current release conclusion
 
-- Product version remains `0.11.0`.
+- Current released product version is `0.12.6`; this matrix does not control shipping.
 - v0.12.x product releases are no longer gated by this matrix.
-- Current blockers: evidence-backed semantics for **columns, grids, stairs, index/drawing-title objects, and Tianzheng dimensions**.
+- Remaining semantic-completeness gaps include evidence-backed semantics for **columns, grids, stairs, index/drawing-title objects, and Tianzheng dimensions**.
 - When evidence is insufficient, collect anonymous schema/real entget evidence instead of implementing speculative decoders.
 
 ---
@@ -187,7 +187,7 @@ privacy-safe Tianzheng schema corpus は図面内容を外部化せず structura
 
 ### 現在のリリース判断
 
-- Product version は `0.11.0` のままです。
+- 現在の正式 release は `0.12.6` で、この matrix は shipping を制御しません。
 - この matrix は 0.12.x product release を阻害しません。
-- 主な blocker は **柱、軸網、階段、索引/図名、天正寸法**の evidence-backed semantic profile です。
+- 主な semantic-completeness gap は **柱、軸網、階段、索引/図名、天正寸法**の evidence-backed semantic profile です。
 - 証拠が不足する場合は speculative decoder を作らず、匿名 schema / 実 entget の収集を優先します。
