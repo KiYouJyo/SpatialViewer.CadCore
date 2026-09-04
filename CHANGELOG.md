@@ -11,6 +11,7 @@ All notable CadCore changes are recorded here.
 - Added a privacy-safe Xiangyuan schema corpus with deterministic structural clustering, proxy/opaque coverage, raw-evidence coverage, generic relationship coverage, JSON validation and multi-sample merge support.
 - Added a Xiangyuan-only privacy-safe A/B experiment gate over the generic DXF/DWG differ and repeatability-consensus pipeline, rejecting non-Xiangyuan observations before proprietary-field candidates can be produced.
 - Added a local Xiangyuan corpus CLI that imports one or more DWG/DXF samples and emits only mergeable privacy-safe JSON, plus CI smoke coverage for source-name redaction and false-positive rejection.
+- Added known-Xiangyuan discovery mode that inventories every application-defined CLASSES identity and custom-object structural profile while preserving `Unknown` vendor status instead of guessing proprietary class names.
 
 ## 0.7.0 - 2026-09-01
 
