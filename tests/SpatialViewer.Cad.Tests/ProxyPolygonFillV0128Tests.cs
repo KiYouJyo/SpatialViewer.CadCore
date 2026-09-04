@@ -5,6 +5,7 @@ namespace SpatialViewer.Cad.Tests;
 
 public sealed class ProxyPolygonFillV0128Tests
 {
+    private static readonly double[] ZeroBulges = { 0d, 0d, 0d, 0d };
     [Fact]
     public void ProxyPolygonUsesInheritedEntityColorAsFill()
     {
@@ -17,7 +18,7 @@ public sealed class ProxyPolygonFillV0128Tests
             }
         };
 
-        var item = Assert.Single(Document(custom).Scene.GetItems().Where(item => item.Id == custom.ObjectId));
+        var item = Assert.Single(Document(custom).Scene.GetItems(), item => item.Id == custom.ObjectId);
 
         Assert.IsType<PolygonGeometry>(item.Geometry);
         Assert.Equal("#00FF00", item.Style.Stroke);
@@ -39,7 +40,7 @@ public sealed class ProxyPolygonFillV0128Tests
             ProxyPrimitives = new CadProxyPrimitive[] { polygon }
         };
 
-        var item = Assert.Single(Document(custom).Scene.GetItems().Where(item => item.Id == custom.ObjectId));
+        var item = Assert.Single(Document(custom).Scene.GetItems(), item => item.Id == custom.ObjectId);
 
         Assert.Equal("#0C2238", item.Style.Stroke);
         Assert.Equal("#0C2238", item.Style.Fill);
@@ -70,7 +71,7 @@ public sealed class ProxyPolygonFillV0128Tests
                         new Point2D(30, 10),
                         new Point2D(20, 10)
                     },
-                    new[] { 0d, 0d, 0d, 0d },
+                    ZeroBulges,
                     true)
             }
         };
