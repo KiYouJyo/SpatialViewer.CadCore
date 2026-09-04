@@ -34,7 +34,7 @@
 - document metadata：`XiangyuanDetected` / `XiangyuanClassCount` / `XiangyuanEntityCount`；
 - entity metadata：`CustomVendor=Xiangyuan` / `XiangyuanObject=True`。
 
-识别只接受明确的 application/C++ identity，例如 `LzxSoft`、`Xiangyuan`、`湘源` 或以 `Lzx...` 开头的 C++ identity。**不会因为公开命令存在 `LZX...` 前缀就猜测真实 DXF class 一定以 `LZX_` 开头。**
+识别只接受明确的 application/C++ identity：application 可识别 `LzxSoft` / `Xiangyuan` / `湘源`，C++ identity 暂只识别明确的 `Xiangyuan` / `湘源`。**不会因为公开命令存在 `LZX...` 前缀就猜测真实 DXF class 或 C++ class 一定使用 `LZX/Lzx` 前缀。**
 
 ### 当前支持声明
 
