@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using SpatialViewer.Core;
 using SpatialViewer.Formats.Cad;
@@ -10,17 +11,25 @@ internal enum XiangyuanProbeMode
     StrictCorpus,
     Discovery,
     ConversionDiff,
-    ConversionConsensus
+    ConversionConsensus,
+    DocumentPair,
+    CandidateDocumentPair
 }
 
 internal static class XiangyuanCorpusProbe
 {
-    private const string Usage = "Usage: XiangyuanProbe [--discovery | --conversion-diff | --conversion-consensus] --out <report.json> <inputs...>; conversion diff requires <native.dwg> <converted.dwg>, conversion consensus requires 2+ conversion-diff JSON reports";
+    private const string Usage = "Usage: XiangyuanProbe [--discovery | --conversion-diff | --conversion-consensus | --document-pair | --candidate-document-pair --candidate-consensus <consensus.json> --candidate-index <1-based>] --out <report.json> <inputs...>";
 
     public static async Task<int> RunAsync(string[] args)
     {
         ArgumentNullException.ThrowIfNull(args);
-        if (!TryParseArguments(args, out var outputPath, out var inputs, out var mode))
+        if (!TryParseArguments(
+                args,
+                out var outputPath,
+                out var inputs,
+                out var mode,
+                out var candidateConsensusPath,
+                out var candidateIndex))
         {
             Console.Error.WriteLine(Usage);
             return 2;
@@ -31,8 +40,32 @@ internal static class XiangyuanCorpusProbe
             XiangyuanProbeMode.Discovery => "XYDISCOVERY",
             XiangyuanProbeMode.ConversionDiff => "XYCONVERSION",
             XiangyuanProbeMode.ConversionConsensus => "XYCONSENSUS",
+            XiangyuanProbeMode.DocumentPair => "XYDOCPAIR",
+            XiangyuanProbeMode.CandidateDocumentPair => "XYCANDPAIR",
             _ => "XYCORPUS"
         };
+
+        CadXiangyuanConversionClassConsensus? selectedCandidate = null;
+        if (mode == XiangyuanProbeMode.CandidateDocumentPair)
+        {
+            try
+            {
+                var consensusJson = await File.ReadAllTextAsync(candidateConsensusPath);
+                var consensus = CadXiangyuanConversionConsensus.FromJson(consensusJson);
+                var candidates = CadXiangyuanConversionConsensus.GetRepeatedRemovedUnknownEntityCandidates(consensus);
+                if (candidateIndex > candidates.Count)
+                {
+                    Console.Error.WriteLine($"[{prefix}] Status=CandidateIndexOutOfRange Candidates={candidates.Count}");
+                    return 3;
+                }
+                selectedCandidate = candidates[candidateIndex - 1];
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or FormatException or NotSupportedException)
+            {
+                Console.Error.WriteLine($"[{prefix}] Status=CandidateReadFailed Type={exception.GetType().Name}");
+                return 3;
+            }
+        }
 
         string json;
         string summary;
@@ -72,9 +105,12 @@ internal static class XiangyuanCorpusProbe
             var strictReports = mode == XiangyuanProbeMode.StrictCorpus
                 ? new List<CadXiangyuanSchemaCorpusReport>(inputs.Count)
                 : null;
-            var discoveryReports = mode == XiangyuanProbeMode.StrictCorpus
-                ? null
-                : new List<CadXiangyuanDiscoveryReport>(inputs.Count);
+            var discoveryReports = mode is XiangyuanProbeMode.Discovery or XiangyuanProbeMode.ConversionDiff
+                ? new List<CadXiangyuanDiscoveryReport>(inputs.Count)
+                : null;
+            var documents = mode is XiangyuanProbeMode.DocumentPair or XiangyuanProbeMode.CandidateDocumentPair
+                ? new List<CadDocument>(inputs.Count)
+                : null;
 
             for (var index = 0; index < inputs.Count; index++)
             {
@@ -107,10 +143,11 @@ internal static class XiangyuanCorpusProbe
                     return 3;
                 }
 
-                if (mode == XiangyuanProbeMode.StrictCorpus)
-                    strictReports!.Add(CadXiangyuanSchemaCorpus.Build(document));
-                else
-                    discoveryReports!.Add(CadXiangyuanDiscoveryCorpus.Build(document));
+                if (strictReports is not null)
+                    strictReports.Add(CadXiangyuanSchemaCorpus.Build(document));
+                if (discoveryReports is not null)
+                    discoveryReports.Add(CadXiangyuanDiscoveryCorpus.Build(document));
+                documents?.Add(document);
             }
 
             switch (mode)
@@ -129,6 +166,23 @@ internal static class XiangyuanCorpusProbe
                     summary = $"RemovedClasses={diff.RemovedClassCount} RemovedProfiles={diff.RemovedProfileCount} RetainedClasses={diff.RetainedClassCount} RetainedProfiles={diff.RetainedProfileCount}";
                     break;
                 }
+                case XiangyuanProbeMode.DocumentPair:
+                {
+                    var report = CadXiangyuanDocumentPairEvidenceAnalyzer.AnalyzeExplicit(documents![0], documents[1]);
+                    json = CadXiangyuanDocumentPairEvidenceAnalyzer.ToJson(report);
+                    summary = PairSummary(report);
+                    break;
+                }
+                case XiangyuanProbeMode.CandidateDocumentPair:
+                {
+                    var report = CadXiangyuanDocumentPairEvidenceAnalyzer.AnalyzeCandidate(
+                        selectedCandidate!,
+                        documents![0],
+                        documents[1]);
+                    json = CadXiangyuanDocumentPairEvidenceAnalyzer.ToJson(report);
+                    summary = $"CandidateIndex={candidateIndex} {PairSummary(report)}";
+                    break;
+                }
                 default:
                 {
                     var merged = CadXiangyuanSchemaCorpus.Merge(strictReports!);
@@ -139,9 +193,11 @@ internal static class XiangyuanCorpusProbe
             }
         }
 
+        var protectedInputs = new List<string>(inputs);
+        if (candidateConsensusPath.Length > 0) protectedInputs.Add(candidateConsensusPath);
         try
         {
-            WriteReport(outputPath, json, inputs);
+            WriteReport(outputPath, json, protectedInputs);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
@@ -153,15 +209,22 @@ internal static class XiangyuanCorpusProbe
         return 0;
     }
 
+    private static string PairSummary(CadXiangyuanDocumentPairEvidenceReport report)
+        => $"BeforeEligible={report.BeforeEligibleEntityCount} AfterEligible={report.AfterEligibleEntityCount} Matched={report.MatchedEntityCount} BeforeOnly={report.BeforeOnlyEntityCount} AfterOnly={report.AfterOnlyEntityCount} IdentityMismatch={report.IdentityMismatchCount} DxfChanged={report.DxfChangedPairCount} DwgChanged={report.DwgChangedPairCount} GeometryChanged={report.GeometryChangedPairCount} ReferenceChanged={report.ReferenceChangedPairCount}";
+
     private static bool TryParseArguments(
         string[] args,
         out string outputPath,
         out List<string> inputs,
-        out XiangyuanProbeMode mode)
+        out XiangyuanProbeMode mode,
+        out string candidateConsensusPath,
+        out int candidateIndex)
     {
         outputPath = string.Empty;
         inputs = new List<string>();
         mode = XiangyuanProbeMode.StrictCorpus;
+        candidateConsensusPath = string.Empty;
+        candidateIndex = 0;
         var modeSeen = false;
 
         for (var index = 0; index < args.Length; index++)
@@ -173,14 +236,18 @@ internal static class XiangyuanCorpusProbe
 
             if (string.Equals(argument, "--discovery", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(argument, "--conversion-diff", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(argument, "--conversion-consensus", StringComparison.OrdinalIgnoreCase))
+                || string.Equals(argument, "--conversion-consensus", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(argument, "--document-pair", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(argument, "--candidate-document-pair", StringComparison.OrdinalIgnoreCase))
             {
                 if (modeSeen) return false;
                 mode = argument.ToLowerInvariant() switch
                 {
                     "--discovery" => XiangyuanProbeMode.Discovery,
                     "--conversion-diff" => XiangyuanProbeMode.ConversionDiff,
-                    _ => XiangyuanProbeMode.ConversionConsensus
+                    "--conversion-consensus" => XiangyuanProbeMode.ConversionConsensus,
+                    "--document-pair" => XiangyuanProbeMode.DocumentPair,
+                    _ => XiangyuanProbeMode.CandidateDocumentPair
                 };
                 modeSeen = true;
                 continue;
@@ -193,12 +260,31 @@ internal static class XiangyuanCorpusProbe
                 continue;
             }
 
+            if (string.Equals(argument, "--candidate-consensus", StringComparison.OrdinalIgnoreCase))
+            {
+                if (candidateConsensusPath.Length > 0 || index + 1 >= args.Length) return false;
+                candidateConsensusPath = args[++index];
+                continue;
+            }
+
+            if (string.Equals(argument, "--candidate-index", StringComparison.OrdinalIgnoreCase))
+            {
+                if (candidateIndex > 0 || index + 1 >= args.Length) return false;
+                if (!int.TryParse(args[++index], NumberStyles.None, CultureInfo.InvariantCulture, out candidateIndex)
+                    || candidateIndex <= 0)
+                    return false;
+                continue;
+            }
+
             if (argument.StartsWith('-')) return false;
             inputs.Add(argument);
         }
 
         if (outputPath.Length == 0 || inputs.Count == 0) return false;
-        if (mode == XiangyuanProbeMode.ConversionDiff) return inputs.Count == 2;
+        if (mode == XiangyuanProbeMode.CandidateDocumentPair)
+            return inputs.Count == 2 && candidateConsensusPath.Length > 0 && candidateIndex > 0;
+        if (candidateConsensusPath.Length > 0 || candidateIndex > 0) return false;
+        if (mode is XiangyuanProbeMode.ConversionDiff or XiangyuanProbeMode.DocumentPair) return inputs.Count == 2;
         if (mode == XiangyuanProbeMode.ConversionConsensus) return inputs.Count >= 2;
         return true;
     }
