@@ -62,6 +62,8 @@ P0 的代码侧采集器已经建立：`CadXiangyuanSchemaCorpus` 可从导入�
 
 同时新增本地 CLI `tools/SpatialViewer.CadCore.XiangyuanProbe`：可直接读取一张或多张 DWG/DXF 并输出可共享的匿名 corpus JSON。CLI 控制台只报告输入序号、状态和 diagnostic code，不输出源图路径；CI 对普通 CAD fixture 执行 smoke test，验证不会误判湘源或把文件名写入报告。
 
+P0 进一步增加 `--discovery` 模式，用于**来源已知为湘源、但 class identity 尚未被分类器识别**的真实图。该模式匿名列出图中的全部 application-defined CLASSES identity 与 custom-entity structural profile，并保留每项原始 `ClassifiedVendor`。`Unknown` 必须继续保持 `Unknown`；它只进入候选调查台账，绝不能因为样本来源是湘源就自动改写为 Xiangyuan。这样即使真实湘源 class/application 名完全不含 `LzxSoft/Xiangyuan/湘源`，也能先从实图中被发现。
+
 优先收集不同湘源代际生成的匿名测试 DWG/DXF，并统计：
 
 - CLASSES: DXF name / C++ class / application identity；
