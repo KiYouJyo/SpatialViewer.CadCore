@@ -35,6 +35,16 @@ public sealed class XiangyuanConversionDiffTests
         "None",
         false);
 
+    private static readonly CadCustomClassDefinition UninstantiatedClass = new(
+        "UNINSTANTIATED_NATIVE_CLASS",
+        "UninstantiatedNativeClass",
+        "VendorPrivateApp",
+        1004,
+        0,
+        true,
+        "None",
+        false);
+
     [Fact]
     public void CompareMarksDisappearedUnknownProfileAsCandidateWithoutChangingVendor()
     {
@@ -71,6 +81,27 @@ public sealed class XiangyuanConversionDiffTests
         var addedClass = Assert.Single(report.Classes, item => item.Status == CadXiangyuanConversionDiffStatus.AddedAfterConversion);
         Assert.Equal(AddedClass.DxfName, addedClass.DxfName);
         Assert.Equal(CadCustomObjectVendor.Unknown, addedClass.ClassifiedVendor);
+    }
+
+    [Fact]
+    public void RemovedClassCanHaveZeroDeclaredInstances()
+    {
+        var native = Discovery(Document(
+            "native.dxf",
+            new[] { UninstantiatedClass }));
+        var converted = Discovery(Document(
+            "converted.dxf",
+            Array.Empty<CadCustomClassDefinition>()));
+
+        var report = CadXiangyuanConversionDiffer.Compare(native, converted);
+        var removed = Assert.Single(report.Classes);
+
+        Assert.Equal(CadXiangyuanConversionDiffStatus.RemovedAfterConversion, removed.Status);
+        Assert.True(removed.PresentInNative);
+        Assert.False(removed.PresentInConverted);
+        Assert.Equal(0, removed.NativeDeclaredInstanceCount);
+        Assert.Equal(0, removed.ConvertedDeclaredInstanceCount);
+        Assert.Empty(report.Profiles);
     }
 
     [Fact]
