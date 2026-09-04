@@ -60,7 +60,7 @@ public static class ACadSharpProxyGraphicsMapping
                 continue;
             }
 
-            var mapped = MapOne(graphic);
+            var mapped = MapOne(graphic, traits);
             if (mapped is null)
             {
                 unsupportedCount++;
@@ -78,7 +78,7 @@ public static class ACadSharpProxyGraphicsMapping
     }
 
     internal static bool IsHandledTraitCommand(IProxyGeometry graphic)
-        => graphic is ProxySubentColor or ProxySubentTrueColor or ProxySubentLineWeight;
+        => graphic is ProxySubentColor or ProxySubentTrueColor or ProxySubentLineWeight or ProxySubentFillon;
 
     internal static bool TryApplyTraitCommand(IProxyGeometry graphic, ref CadProxyTraits traits)
     {
@@ -117,6 +117,10 @@ public static class ACadSharpProxyGraphicsMapping
                         traits = traits with { Color = null };
                         return false;
                 }
+
+            case ProxySubentFillon fill:
+                traits = traits with { FillOn = fill.IsOn };
+                return true;
 
             case ProxySubentLineWeight lineWeight:
                 switch (lineWeight.LineWeight)
@@ -237,6 +241,17 @@ public static class ACadSharpProxyGraphicsMapping
                     End = state.Transform.Apply(edge.End)
                 }).ToArray(),
                 edgeSet.ProxyEdgeKind),
+            CadProxySurfaceSet surface => new CadProxySurfaceSet(
+                surface.Faces.Select(face => face with
+                {
+                    Points = face.Points.Select(state.Transform.Apply).ToArray()
+                }).ToArray(),
+                surface.Edges.Select(edge => edge with
+                {
+                    Start = state.Transform.Apply(edge.Start),
+                    End = state.Transform.Apply(edge.End)
+                }).ToArray(),
+                surface.ProxySurfaceKind),
             CadProxyText text => new CadProxyText(
                 state.Transform.Apply(text.Origin),
                 text.Text,
@@ -260,7 +275,7 @@ public static class ACadSharpProxyGraphicsMapping
         return transformed with { Traits = primitive.Traits };
     }
 
-    private static CadProxyPrimitive? MapOne(IProxyGeometry graphic)
+    internal static CadProxyPrimitive? MapOne(IProxyGeometry graphic, CadProxyTraits traits)
         => graphic switch
         {
             // ProxyPolylineWithNormal derives from ProxyPolyline. Handle it first and do not let a
@@ -289,7 +304,9 @@ public static class ACadSharpProxyGraphicsMapping
                 out var startRadians,
                 out var sweepRadians)
                 => new CadProxyArc(center, radius, startRadians, sweepRadians),
+            ProxyMesh mesh when traits.FillOn == true && TryMeshSurface(mesh, out var meshSurface) => meshSurface,
             ProxyMesh mesh when TryMeshEdges(mesh, out var meshEdges) => meshEdges,
+            ProxyShell shell when traits.FillOn == true && TryShellSurface(shell, out var shellSurface) => shellSurface,
             ProxyShell shell when TryShellEdges(shell, out var shellEdges) => shellEdges,
             ProxyText text when TryProxyText(
                 text.Normal,
@@ -376,6 +393,143 @@ public static class ACadSharpProxyGraphicsMapping
         => IsPlanar(normal) && normal.Z > 0;
 
     private static bool IsPositiveFinite(double value) => double.IsFinite(value) && value > Epsilon;
+
+    private static bool TryMeshSurface(ProxyMesh mesh, out CadProxySurfaceSet mapped)
+    {
+        mapped = null!;
+        if (!TryMeshEdges(mesh, out var edgeSet)) return false;
+        if (mesh.RowCount < 2 || mesh.ColumnCount < 2) return false;
+        if (!TryCoplanarVertices(mesh.Vertices, out var vertices)) return false;
+
+        var faceCountLong = (long)(mesh.RowCount - 1) * (mesh.ColumnCount - 1);
+        if (faceCountLong <= 0 || faceCountLong > int.MaxValue) return false;
+        var faceCount = (int)faceCountLong;
+        if (!TryFaceEvidence(mesh.FaceTraits, faceCount, out var evidence)) return false;
+
+        var faces = new List<CadProxyFace>(faceCount);
+        var faceIndex = 0;
+        for (var row = 0; row < mesh.RowCount - 1; row++)
+        {
+            var rowStart = row * mesh.ColumnCount;
+            for (var column = 0; column < mesh.ColumnCount - 1; column++)
+            {
+                var lowerLeft = rowStart + column;
+                var lowerRight = lowerLeft + 1;
+                var upperLeft = lowerLeft + mesh.ColumnCount;
+                var upperRight = upperLeft + 1;
+                var points = new[]
+                {
+                    vertices[lowerLeft],
+                    vertices[lowerRight],
+                    vertices[upperRight],
+                    vertices[upperLeft]
+                };
+                if (!TryAddFace(points, evidence[faceIndex++], faces)) return false;
+            }
+        }
+
+        if (faceIndex != faceCount || faces.Count == 0) return false;
+        mapped = new CadProxySurfaceSet(faces, edgeSet.Edges, "MeshSurface");
+        return true;
+    }
+
+    private static bool TryShellSurface(ProxyShell shell, out CadProxySurfaceSet mapped)
+    {
+        mapped = null!;
+        if (!TryShellEdges(shell, out var edgeSet)) return false;
+        if (!TryCoplanarVertices(shell.Vertices, out var vertices)) return false;
+        if (shell.Faces.Count == 0) return false;
+        if (!TryFaceEvidence(shell.FaceTraits, shell.Faces.Count, out var evidence)) return false;
+
+        var faces = new List<CadProxyFace>(shell.Faces.Count);
+        for (var faceIndex = 0; faceIndex < shell.Faces.Count; faceIndex++)
+        {
+            var sourceFace = shell.Faces[faceIndex];
+            if (sourceFace is null || sourceFace.Length < 3) return false;
+            var points = new Point2D[sourceFace.Length];
+            for (var index = 0; index < sourceFace.Length; index++)
+            {
+                var vertexIndex = sourceFace[index];
+                if (vertexIndex < 0 || vertexIndex >= vertices.Count) return false;
+                points[index] = vertices[vertexIndex];
+            }
+            if (!TryAddFace(points, evidence[faceIndex], faces)) return false;
+        }
+
+        if (faces.Count == 0) return false;
+        mapped = new CadProxySurfaceSet(faces, edgeSet.Edges, "ShellSurface");
+        return true;
+    }
+
+    private static bool TryFaceEvidence(
+        FaceTraits? traits,
+        int faceCount,
+        out IReadOnlyList<CadProxyFaceEvidence> evidence)
+    {
+        var result = new CadProxyFaceEvidence[faceCount];
+        evidence = result;
+        if (traits is null) return true;
+
+        if (!TraitCountMatches(traits.Colors.Count, faceCount)
+            || !TraitCountMatches(traits.LayerHandles.Count, faceCount)
+            || !TraitCountMatches(traits.MakerIds.Count, faceCount)
+            || !TraitCountMatches(traits.VisibilityIndicators.Count, faceCount)
+            || !TraitCountMatches(traits.Normals.Count, faceCount))
+            return false;
+
+        for (var index = 0; index < faceCount; index++)
+        {
+            var rawColor = traits.Colors.Count == 0 ? (int?)null : traits.Colors[index];
+            CadColor? color = rawColor is >= 1 and <= 255 ? CadColor.FromAci(rawColor.Value) : null;
+            ulong? layerReference = traits.LayerHandles.Count == 0 ? null : traits.LayerHandles[index];
+            if (layerReference > uint.MaxValue) return false;
+
+            var visibility = traits.VisibilityIndicators.Count == 0 ? (int?)null : traits.VisibilityIndicators[index];
+            if (visibility is not null && visibility is not (0 or 1 or 2)) return false;
+
+            if (traits.Normals.Count > 0)
+            {
+                var normal = traits.Normals[index];
+                if (!double.IsFinite(normal.X)
+                    || !double.IsFinite(normal.Y)
+                    || !double.IsFinite(normal.Z)
+                    || Math.Abs(normal.X) > Epsilon
+                    || Math.Abs(normal.Y) > Epsilon
+                    || Math.Abs(Math.Abs(normal.Z) - 1d) > Epsilon)
+                    return false;
+            }
+
+            result[index] = new CadProxyFaceEvidence(
+                rawColor,
+                color,
+                layerReference,
+                traits.MakerIds.Count == 0 ? null : traits.MakerIds[index],
+                visibility);
+        }
+
+        return true;
+    }
+
+    private static bool TryAddFace(
+        Point2D[] points,
+        CadProxyFaceEvidence evidence,
+        List<CadProxyFace> faces)
+    {
+        if (points.Length < 3
+            || points.Any(point => !double.IsFinite(point.X) || !double.IsFinite(point.Y)))
+            return false;
+
+        var twiceArea = 0d;
+        for (var index = 0; index < points.Length; index++)
+        {
+            var next = (index + 1) % points.Length;
+            twiceArea += (points[index].X * points[next].Y) - (points[next].X * points[index].Y);
+        }
+        if (!double.IsFinite(twiceArea) || Math.Abs(twiceArea) <= Epsilon) return false;
+
+        faces.Add(new CadProxyFace(points.ToArray(), evidence));
+        return true;
+    }
 
     private static bool TryMeshEdges(ProxyMesh mesh, out CadProxyEdgeSet mapped)
     {
