@@ -43,9 +43,18 @@ public sealed class XiangyuanParcelGeometryExperimentTests
         Assert.Equal(CadXiangyuanParcelExperimentCases.Boundary, consensus.ExperimentCase.Id);
         Assert.Equal(CadXiangyuanParcelExperimentProvenance.ExplicitXiangyuanIdentity, consensus.Provenance);
         Assert.True(consensus.HasStableCandidate);
-        var stable = Assert.Single(consensus.StructuralConsensus.StableValueChanges);
-        Assert.Equal(CadProxyGeometryField.PointX, stable.Field);
-        Assert.Equal(0, stable.ElementIndex);
+        Assert.Collection(
+            consensus.StructuralConsensus.StableValueChanges,
+            stable =>
+            {
+                Assert.Equal(CadProxyGeometryField.PointX, stable.Field);
+                Assert.Equal(0, stable.ElementIndex);
+            },
+            stable =>
+            {
+                Assert.Equal(CadProxyGeometryField.PointX, stable.Field);
+                Assert.Equal(4, stable.ElementIndex);
+            });
     }
 
     [Fact]
