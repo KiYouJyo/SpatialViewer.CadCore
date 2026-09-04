@@ -17,6 +17,7 @@ All notable CadCore changes are recorded here.
 - Added multi-pair Xiangyuan conversion consensus with validated privacy-safe JSON and CLI support; repeated unknown candidates require at least two independent removals and no retained/added contradiction before stronger A/B research.
 - Added a canonical P1 Xiangyuan parcel experiment catalog and case-bound DXF/DWG consensus gate for parcel number, land-use identity, area, FAR/density/green-rate/height ranges, while keeping boundary and control-indicator relationships outside raw-value semantic inference.
 - Added privacy-safe proxy-geometry diff/repeatability consensus and case-bound Xiangyuan AREA/BOUNDARY research, reporting only anonymous primitive paths and changed geometry slots while failing closed on proxy-layout changes or missing proxy graphics.
+- Added privacy-safe custom-object handle-reference diff/repeatability consensus and case-bound Xiangyuan control-indicator relationship research, exposing only reference group code/occurrence while never exporting source or target handles.
 
 ## 0.7.0 - 2026-09-01
 
