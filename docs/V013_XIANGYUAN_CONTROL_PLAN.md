@@ -66,6 +66,8 @@ P0 进一步增加 `--discovery` 模式，用于**来源已知为湘源、但 cl
 
 在 discovery 之上再建立受控的 `--conversion-diff`：同一张图先保留原生湘源版本，再通过湘源“对象转块/全部炸开”或“成果出图”得到普通 CAD 版本；CadCore 对两侧 discovery report 做匿名 class/profile 差分。只在原生图中存在、转换后消失的 `Unknown` class/profile 会被列为重点调查候选，但**消失本身仍不是 Xiangyuan class identity 或地块语义证据**。这一实验用于缩小真实 class 搜索范围，而不是绕过 evidence gate。
 
+转换候选现在可以进入 `CadXiangyuanCandidateExperimentAnalyzer`：仅接受 `RemovedAfterConversion + IsEntity + ClassifiedVendor=Unknown`，并重新调用全局 classifier 确认该 identity **此刻仍为 Unknown**。A/B 两侧必须完整匹配候选的 DXF/C++/Application identity，consensus 仍要求通用 schema/repeatability 门禁。这个入口只允许对高价值未知候选做后续单变量实验，不会修改 `CadCustomObjectClassifier`，也不会把候选自动标记成湘源对象。
+
 优先收集不同湘源代际生成的匿名测试 DWG/DXF，并统计：
 
 - CLASSES: DXF name / C++ class / application identity；
