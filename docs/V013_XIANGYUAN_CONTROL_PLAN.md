@@ -68,6 +68,8 @@ P0 进一步增加 `--discovery` 模式，用于**来源已知为湘源、但 cl
 
 转换候选现在可以进入 `CadXiangyuanCandidateExperimentAnalyzer`：仅接受 `RemovedAfterConversion + IsEntity + ClassifiedVendor=Unknown`，并重新调用全局 classifier 确认该 identity **此刻仍为 Unknown**。A/B 两侧必须完整匹配候选的 DXF/C++/Application identity，consensus 仍要求通用 schema/repeatability 门禁。这个入口只允许对高价值未知候选做后续单变量实验，不会修改 `CadCustomObjectClassifier`，也不会把候选自动标记成湘源对象。
 
+为避免单张图中其他第三方 ObjectARX 对象造成假候选，新增 `CadXiangyuanConversionConsensus` 与 CLI `--conversion-consensus`。至少需要 2 组独立 native→converted pair；每个 exact class/profile identity 分别统计 removed / retained / added。只有 `Unknown + entity` 在至少两组独立 pair 中均被移除、且从未出现 retained/added 矛盾证据时，才标记为 **repeated removed research candidate**。它仍保持 `Unknown`，但可以作为比单 pair 更强的候选进入后续 A/B。
+
 优先收集不同湘源代际生成的匿名测试 DWG/DXF，并统计：
 
 - CLASSES: DXF name / C++ class / application identity；
