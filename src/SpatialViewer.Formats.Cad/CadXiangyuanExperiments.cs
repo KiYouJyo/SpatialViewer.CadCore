@@ -7,6 +7,7 @@ namespace SpatialViewer.Formats.Cad;
 /// </summary>
 public static class CadXiangyuanExperimentAnalyzer
 {
+    private const int MaxObservations = 10_000;
     public static CadDxfCustomExperimentObservation ObserveDxf(
         CadCustomEntity before,
         CadCustomEntity after)
@@ -68,6 +69,9 @@ public static class CadXiangyuanExperimentAnalyzer
     private static List<T> Materialize<T>(IEnumerable<T> observations)
     {
         ArgumentNullException.ThrowIfNull(observations);
-        return observations.ToList();
+        var materialized = observations.Take(MaxObservations + 1).ToList();
+        if (materialized.Count > MaxObservations)
+            throw new ArgumentException($"Xiangyuan experiment consensus supports at most {MaxObservations} observations.", nameof(observations));
+        return materialized;
     }
 }
