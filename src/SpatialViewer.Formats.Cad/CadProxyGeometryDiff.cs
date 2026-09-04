@@ -27,6 +27,8 @@ public enum CadProxyGeometryField
     EdgeStartY,
     EdgeEndX,
     EdgeEndY,
+    FacePointX,
+    FacePointY,
     ClipPointX,
     ClipPointY,
     DrawBoundary,
@@ -151,6 +153,24 @@ public static class CadProxyGeometryDiffer
                     ComparePoint(a.Edges[i].End, b.Edges[i].End, path, CadProxyGeometryField.EdgeEndX, CadProxyGeometryField.EdgeEndY, i, changes);
                 }
                 break;
+            case (CadProxySurfaceSet a, CadProxySurfaceSet b):
+                for (var faceIndex = 0; faceIndex < a.Faces.Count; faceIndex++)
+                {
+                    var facePath = $"{path}/F{faceIndex.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+                    ComparePoints(
+                        a.Faces[faceIndex].Points,
+                        b.Faces[faceIndex].Points,
+                        facePath,
+                        CadProxyGeometryField.FacePointX,
+                        CadProxyGeometryField.FacePointY,
+                        changes);
+                }
+                for (var edgeIndex = 0; edgeIndex < a.Edges.Count; edgeIndex++)
+                {
+                    ComparePoint(a.Edges[edgeIndex].Start, b.Edges[edgeIndex].Start, path, CadProxyGeometryField.EdgeStartX, CadProxyGeometryField.EdgeStartY, edgeIndex, changes);
+                    ComparePoint(a.Edges[edgeIndex].End, b.Edges[edgeIndex].End, path, CadProxyGeometryField.EdgeEndX, CadProxyGeometryField.EdgeEndY, edgeIndex, changes);
+                }
+                break;
             case (CadProxyClipGroup a, CadProxyClipGroup b):
                 ComparePoints(a.ClipPolygon, b.ClipPolygon, path, CadProxyGeometryField.ClipPointX, CadProxyGeometryField.ClipPointY, changes);
                 if (a.DrawBoundary != b.DrawBoundary) changes.Add(new(path, CadProxyGeometryField.DrawBoundary));
@@ -245,6 +265,13 @@ public static class CadProxyGeometryDiffer
                     break;
                 case CadProxyEdgeSet item:
                     builder.Append("E=").Append(item.Edges.Count).Append(",K=").Append(item.ProxyEdgeKind);
+                    break;
+                case CadProxySurfaceSet item:
+                    builder.Append("F=").Append(item.Faces.Count)
+                        .Append(",E=").Append(item.Edges.Count)
+                        .Append(",K=").Append(item.ProxySurfaceKind);
+                    for (var faceIndex = 0; faceIndex < item.Faces.Count; faceIndex++)
+                        builder.Append(",P").Append(faceIndex).Append('=').Append(item.Faces[faceIndex].Points.Count);
                     break;
                 case CadProxyClipGroup item:
                     builder.Append("CP=").Append(item.ClipPolygon.Count).Append(",CH=").Append(item.Children.Count).Append(';');
