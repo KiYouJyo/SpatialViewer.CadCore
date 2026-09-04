@@ -64,8 +64,8 @@ public sealed record CadProxyEdgeSegment(
     CadProxyEdgeEvidence Evidence = default);
 
 /// <summary>
-/// Safe planar projection of ObjectARX mesh/shell edges. Faces are intentionally not filled: CadCore
-/// uses this representation only for display fallback linework such as custom dimension ticks.
+/// Safe planar projection of ObjectARX mesh/shell edges used when fill is disabled or face evidence
+/// cannot be validated. Filled planar surfaces use <see cref="CadProxySurfaceSet"/> instead.
 /// </summary>
 public sealed record CadProxyEdgeSet(
     IReadOnlyList<CadProxyEdgeSegment> Edges,
