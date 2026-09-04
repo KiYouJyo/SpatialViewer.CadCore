@@ -417,9 +417,37 @@ public static class CadXiangyuanDocumentPairEvidenceAnalyzer
     private static CadXiangyuanDocumentPairEvidenceReport Freeze(CadXiangyuanDocumentPairEvidenceReport report)
         => report with
         {
-            DxfChanges = new ReadOnlyCollection<CadDxfCustomExperimentObservation>(report.DxfChanges.ToArray()),
-            DwgChanges = new ReadOnlyCollection<CadDwgCustomExperimentObservation>(report.DwgChanges.ToArray()),
-            GeometryChanges = new ReadOnlyCollection<CadProxyGeometryExperimentObservation>(report.GeometryChanges.ToArray()),
-            ReferenceChanges = new ReadOnlyCollection<CadCustomHandleReferenceExperimentObservation>(report.ReferenceChanges.ToArray())
+            DxfChanges = new ReadOnlyCollection<CadDxfCustomExperimentObservation>(
+                report.DxfChanges
+                    .Select(observation => observation with
+                    {
+                        ValueChanges = new ReadOnlyCollection<CadDxfCustomPayloadValueChange>(
+                            observation.ValueChanges.ToArray())
+                    })
+                    .ToArray()),
+            DwgChanges = new ReadOnlyCollection<CadDwgCustomExperimentObservation>(
+                report.DwgChanges
+                    .Select(observation => observation with
+                    {
+                        ChangedRanges = new ReadOnlyCollection<CadDwgCustomObjectChangedByteRange>(
+                            observation.ChangedRanges.ToArray())
+                    })
+                    .ToArray()),
+            GeometryChanges = new ReadOnlyCollection<CadProxyGeometryExperimentObservation>(
+                report.GeometryChanges
+                    .Select(observation => observation with
+                    {
+                        ValueChanges = new ReadOnlyCollection<CadProxyGeometryValueChange>(
+                            observation.ValueChanges.ToArray())
+                    })
+                    .ToArray()),
+            ReferenceChanges = new ReadOnlyCollection<CadCustomHandleReferenceExperimentObservation>(
+                report.ReferenceChanges
+                    .Select(observation => observation with
+                    {
+                        ValueChanges = new ReadOnlyCollection<CadCustomHandleReferenceValueChange>(
+                            observation.ValueChanges.ToArray())
+                    })
+                    .ToArray())
         };
 }
