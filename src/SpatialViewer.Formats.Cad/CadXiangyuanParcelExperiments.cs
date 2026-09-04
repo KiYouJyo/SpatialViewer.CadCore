@@ -48,7 +48,7 @@ public static class CadXiangyuanParcelExperimentCases
                 [ParcelNumber] = new(ParcelNumber, "displayed parcel number / parcel identifier", CadXiangyuanParcelExperimentEvidenceKind.RawPayloadValue),
                 [LandUseCode] = new(LandUseCode, "land-use classification code", CadXiangyuanParcelExperimentEvidenceKind.RawPayloadValue),
                 [LandUseNature] = new(LandUseNature, "land-use nature / displayed land-use designation", CadXiangyuanParcelExperimentEvidenceKind.RawPayloadValue),
-                [Area] = new(Area, "parcel area value while parcel boundary is held constant", CadXiangyuanParcelExperimentEvidenceKind.RawPayloadValue),
+                [Area] = new(Area, "parcel area / derived area output from parcel geometry", CadXiangyuanParcelExperimentEvidenceKind.GeometryOrRelationship),
                 [FarMin] = new(FarMin, "minimum floor-area ratio bound", CadXiangyuanParcelExperimentEvidenceKind.RawPayloadValue),
                 [FarMax] = new(FarMax, "maximum floor-area ratio bound", CadXiangyuanParcelExperimentEvidenceKind.RawPayloadValue),
                 [BuildingDensityMin] = new(BuildingDensityMin, "minimum building-density bound", CadXiangyuanParcelExperimentEvidenceKind.RawPayloadValue),
