@@ -113,14 +113,14 @@ public static class CadXiangyuanConversionDiffer
             converted.SampleCount,
             new ReadOnlyCollection<CadXiangyuanConversionClassDelta>(classes),
             new ReadOnlyCollection<CadXiangyuanConversionProfileDelta>(profiles));
-        Validate(report, nameof(native));
+        ValidateReport(report, nameof(native));
         return report;
     }
 
     public static string ToJson(CadXiangyuanConversionDiffReport report)
     {
         ArgumentNullException.ThrowIfNull(report);
-        Validate(report, nameof(report));
+        ValidateReport(report, nameof(report));
         return JsonSerializer.Serialize(report, JsonOptions);
     }
 
@@ -133,7 +133,7 @@ public static class CadXiangyuanConversionDiffer
         {
             var report = JsonSerializer.Deserialize<CadXiangyuanConversionDiffReport>(json, JsonOptions)
                 ?? throw new FormatException("Xiangyuan conversion-diff JSON did not contain a report.");
-            Validate(report, nameof(json));
+            ValidateReport(report, nameof(json));
             return new CadXiangyuanConversionDiffReport(
                 report.SchemaVersion,
                 report.NativeSampleCount,
@@ -196,7 +196,7 @@ public static class CadXiangyuanConversionDiffer
             _ => throw new InvalidOperationException("A conversion diff entry must exist in at least one side.")
         };
 
-    private static void Validate(CadXiangyuanConversionDiffReport report, string parameterName)
+    internal static void ValidateReport(CadXiangyuanConversionDiffReport report, string parameterName)
     {
         if (report.SchemaVersion != CurrentSchemaVersion)
             throw new ArgumentException($"Unsupported Xiangyuan conversion-diff version: {report.SchemaVersion}.", parameterName);
