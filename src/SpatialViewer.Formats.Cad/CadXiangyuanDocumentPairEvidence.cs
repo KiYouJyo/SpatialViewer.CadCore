@@ -224,9 +224,7 @@ public static class CadXiangyuanDocumentPairEvidenceAnalyzer
         }
 
         var afterOnly = afterEligible.Count(entity =>
-            string.IsNullOrWhiteSpace(entity.Handle)
-            || !consumedAfterHandles.Contains(entity.Handle)
-                && (!beforeIndex.ContainsKey(entity.Handle) || !beforeIndex.TryGetValue(entity.Handle, out var beforeEntity) || !eligible(beforeEntity)));
+            IsAfterOnly(entity, consumedAfterHandles, beforeIndex, eligible));
 
         var report = new CadXiangyuanDocumentPairEvidenceReport(
             CurrentSchemaVersion,
@@ -267,6 +265,17 @@ public static class CadXiangyuanDocumentPairEvidenceAnalyzer
             CadXiangyuanCandidateExperimentAnalyzer.ValidateEntity(candidate!, before, nameof(before));
             CadXiangyuanCandidateExperimentAnalyzer.ValidateEntity(candidate!, after, nameof(after));
         }
+    }
+
+    private static bool IsAfterOnly(
+        CadCustomEntity entity,
+        HashSet<string> consumedAfterHandles,
+        Dictionary<string, CadCustomEntity> beforeIndex,
+        Func<CadCustomEntity, bool> eligible)
+    {
+        if (string.IsNullOrWhiteSpace(entity.Handle)) return true;
+        if (consumedAfterHandles.Contains(entity.Handle)) return false;
+        return !beforeIndex.TryGetValue(entity.Handle, out var beforeEntity) || !eligible(beforeEntity);
     }
 
     private static Dictionary<string, CadCustomEntity> IndexByStableHandle(
