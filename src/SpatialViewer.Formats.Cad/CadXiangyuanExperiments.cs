@@ -40,7 +40,7 @@ public static class CadXiangyuanExperimentAnalyzer
         return CadCustomExperimentAnalyzer.BuildDwgConsensus(materialized);
     }
 
-    private static void ValidateXiangyuanPair(CadCustomEntity before, CadCustomEntity after)
+    internal static void ValidateXiangyuanPair(CadCustomEntity before, CadCustomEntity after)
     {
         ArgumentNullException.ThrowIfNull(before);
         ArgumentNullException.ThrowIfNull(after);
@@ -50,7 +50,7 @@ public static class CadXiangyuanExperimentAnalyzer
                 nameof(after));
     }
 
-    private static void ValidateXiangyuanIdentities(IEnumerable<CadCustomExperimentIdentity> identities)
+    internal static void ValidateXiangyuanIdentities(IEnumerable<CadCustomExperimentIdentity> identities)
     {
         foreach (var identity in identities)
         {
