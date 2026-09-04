@@ -122,8 +122,7 @@ public static class CadCustomObjectClassifier
     {
         if (string.IsNullOrWhiteSpace(value)) return false;
         return value.Contains("Xiangyuan", StringComparison.OrdinalIgnoreCase)
-            || value.Contains("湘源", StringComparison.Ordinal)
-            || (value.Length > 3 && value.StartsWith("Lzx", StringComparison.OrdinalIgnoreCase));
+            || value.Contains("湘源", StringComparison.Ordinal);
     }
 
     private static bool ContainsXiangyuanApplicationIdentity(string? value)
