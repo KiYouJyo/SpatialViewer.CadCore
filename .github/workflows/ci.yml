@@ -104,28 +104,27 @@ jobs:
           if ($documentPairParsed.beforeEligibleEntityCount -ne 0 -or $documentPairParsed.afterEligibleEntityCount -ne 0 -or $documentPairParsed.matchedEntityCount -ne 0) { throw 'Ordinary CAD smoke fixture must not invent explicit Xiangyuan document-pair entities.' }
 
           $candidateConsensus = Join-Path $env:RUNNER_TEMP 'xiangyuan-candidate-consensus-smoke.json'
-          @'
-{
-  "schemaVersion": 1,
-  "pairCount": 2,
-  "classes": [
-    {
-      "dxfName": "PRIVATE_CANDIDATE",
-      "cppClassName": "PrivateCandidate",
-      "applicationName": "PrivatePlanningApp",
-      "classifiedVendor": 0,
-      "isEntity": true,
-      "wasProxy": true,
-      "proxyFlags": "None",
-      "observedPairCount": 2,
-      "removedPairCount": 2,
-      "retainedPairCount": 0,
-      "addedPairCount": 0
-    }
-  ],
-  "profiles": []
-}
-'@ | Set-Content -LiteralPath $candidateConsensus -Encoding utf8 -NoNewline
+          $candidateConsensusData = @{
+            schemaVersion = 1
+            pairCount = 2
+            classes = @(
+              @{
+                dxfName = 'PRIVATE_CANDIDATE'
+                cppClassName = 'PrivateCandidate'
+                applicationName = 'PrivatePlanningApp'
+                classifiedVendor = 0
+                isEntity = $true
+                wasProxy = $true
+                proxyFlags = 'None'
+                observedPairCount = 2
+                removedPairCount = 2
+                retainedPairCount = 0
+                addedPairCount = 0
+              }
+            )
+            profiles = @()
+          }
+          $candidateConsensusData | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $candidateConsensus -Encoding utf8 -NoNewline
 
           $candidatePair = Join-Path $env:RUNNER_TEMP 'xiangyuan-candidate-document-pair-smoke.json'
           dotnet run --project tools/SpatialViewer.CadCore.XiangyuanProbe/SpatialViewer.CadCore.XiangyuanProbe.csproj -c Release --no-build -- --candidate-document-pair --candidate-consensus $candidateConsensus --candidate-index 1 --out $candidatePair tests/fixtures/cad/dxf/mixed-basic.dxf tests/fixtures/cad/dxf/mixed-basic.dxf
