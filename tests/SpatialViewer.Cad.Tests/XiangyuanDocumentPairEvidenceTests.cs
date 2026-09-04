@@ -200,6 +200,29 @@ public sealed class XiangyuanDocumentPairEvidenceTests
     }
 
     [Fact]
+    public void SerializedEvidenceRejectsSpoofedExplicitXiangyuanProvenance()
+    {
+        var candidate = RepeatedCandidate();
+        var before = EvidenceEntity(
+            "750", CandidateClass, "1", "75", 0, new byte[] { 1, 2 });
+        var after = EvidenceEntity(
+            "750", CandidateClass, "2", "76", 1, new byte[] { 1, 3 });
+        var report = CadXiangyuanDocumentPairEvidenceAnalyzer.AnalyzeCandidate(
+            candidate,
+            Document("before.dwg", before),
+            Document("after.dwg", after));
+        var spoofed = report with
+        {
+            Provenance = CadXiangyuanDocumentPairProvenance.ExplicitXiangyuanIdentity
+        };
+
+        var exception = Assert.Throws<ArgumentException>(() =>
+            CadXiangyuanDocumentPairEvidenceAnalyzer.ToJson(spoofed));
+
+        Assert.Contains("non-Xiangyuan", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void JsonRoundTripPreservesOnlyFrozenPrivacySafeEvidence()
     {
         var before = EvidenceEntity(
