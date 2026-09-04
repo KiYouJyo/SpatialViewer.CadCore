@@ -19,14 +19,14 @@ Raw-payload value experiments:
 - `PARCEL_NUMBER` — displayed parcel number / parcel identifier;
 - `LAND_USE_CODE` — land-use classification code;
 - `LAND_USE_NATURE` — displayed land-use nature/designation;
-- `AREA` — parcel area value while boundary geometry is held constant;
 - `FAR_MIN` / `FAR_MAX` — floor-area-ratio bounds;
 - `BUILDING_DENSITY_MIN` / `BUILDING_DENSITY_MAX` — building-density bounds;
 - `GREEN_RATE_MIN` / `GREEN_RATE_MAX` — green-rate bounds;
 - `HEIGHT_MIN` / `HEIGHT_MAX` — building-height bounds.
 
-Geometry/relationship experiments:
+Geometry/derived/relationship experiments:
 
+- `AREA` — parcel area / derived area output; do not assume it can be independently edited while boundary geometry is unchanged;
 - `BOUNDARY` — parcel boundary geometry while non-geometric attributes are held constant;
 - `CONTROL_INDICATOR_RELATIONSHIP` — parcel-to-control-indicator object relationship.
 
