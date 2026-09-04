@@ -101,6 +101,8 @@ P1 现已建立固定的 case-bound experiment catalog，详见 `docs/V013_XIANG
 
 其中 `AREA` / `BOUNDARY` 的 geometry evidence 已实现：通用 `CadProxyGeometryDiffer` / `CadProxyGeometryExperimentAnalyzer` 对 Proxy Graphics 的 polyline/lwpolyline/polygon/circle/arc/mesh-shell edge/clip/text placement 做匿名位置差分，并由 `CadXiangyuanParcelExperimentAnalyzer` 再施加 explicit-Xiangyuan 或 repeated-candidate provenance gate。该层仍不声明哪一个 proxy primitive 就是 native parcel boundary；它只把可重复的几何变化位置变成后续实样本验证证据。
 
+`CONTROL_INDICATOR_RELATIONSHIP` 也建立独立的 object-reference evidence：只比较 retained `330/340/350/360` reference slot 的结构和“目标是否改变”，匿名输出 group code + occurrence，不输出任何 target handle。至少两组独立实验的稳定 reference slot 才进入候选；真实目标对象类型、方向以及“指标块”角色仍需实样本 endpoint 证据后才能命名。
+
 P1 的实验入口也已经建立：`CadXiangyuanExperimentAnalyzer` 在通用 privacy-safe A/B differ / repeatability consensus 外再增加 Xiangyuan vendor gate。baseline/modified 必须都具有明确湘源 identity，且通用 identity/schema/capture-method 门禁仍继续生效。输出只保留 changed group slot 或 DWG changed byte range，不保留 before/after 原始值。
 
 **P2 — 图则与街区地块**
