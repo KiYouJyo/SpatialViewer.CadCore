@@ -49,10 +49,14 @@ public sealed partial class ACadSharpCadImporter
         var rawDwgCapture = ACadSharpCustomPayloadContext.SnapshotDwg();
         var nativeSemantics = CadTianzhengSemanticDecoder.Decode(entity.ObjectName, definition, rawDxfPayload)
             ?? CadTianzhengStairSemanticDecoder.Decode(entity.ObjectName, definition, rawDxfPayload);
+        var customVendor = definition?.Vendor ?? CadCustomObjectClassifier.Classify(entity.ObjectName);
         var metadata = new Dictionary<string, string>(common.Metadata, StringComparer.Ordinal)
         {
             ["CustomEntity"] = bool.TrueString,
             ["CustomEntityType"] = entity.ObjectName,
+            ["CustomVendor"] = customVendor.ToString(),
+            ["TianzhengObject"] = (customVendor == CadCustomObjectVendor.Tianzheng).ToString(),
+            ["XiangyuanObject"] = (customVendor == CadCustomObjectVendor.Xiangyuan).ToString(),
             ["CustomRepresentation"] = representation.ToString(),
             ["ProxyGraphicCount"] = entity.ProxyGeometries.Count.ToString(CultureInfo.InvariantCulture),
             ["ProxyGraphicKinds"] = string.Join(';', graphicKinds),
@@ -106,7 +110,6 @@ public sealed partial class ACadSharpCadImporter
             metadata["CustomApplication"] = definition.ApplicationName;
             metadata["CustomClassNumber"] = definition.ClassNumber.ToString(CultureInfo.InvariantCulture);
             metadata["CustomProxyFlags"] = definition.ProxyFlags;
-            metadata["TianzhengObject"] = definition.IsTianzheng.ToString();
         }
         if (nativeSemantics is not null)
         {

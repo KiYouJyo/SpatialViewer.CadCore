@@ -57,6 +57,8 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
             var customEntities = allEntities.OfType<CadCustomEntity>().ToArray();
             var tianzhengClasses = customClasses.Where(definition => definition.IsTianzheng).ToArray();
             var tianzhengEntities = customEntities.Where(entity => entity.IsTianzheng).ToArray();
+            var xiangyuanClasses = customClasses.Where(definition => definition.IsXiangyuan).ToArray();
+            var xiangyuanEntities = customEntities.Where(entity => entity.IsXiangyuan).ToArray();
             var rawScan = ACadSharpCustomPayloadContext.Snapshot() ?? DxfCustomPayloadScanResult.Empty;
             var paperLayouts = layouts.Where(layout => layout.IsPaperSpace).ToArray();
             var metadata = new Dictionary<string, string>
@@ -80,6 +82,9 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
                 ["TianzhengDetected"] = (tianzhengClasses.Length > 0 || tianzhengEntities.Length > 0).ToString(),
                 ["TianzhengClassCount"] = tianzhengClasses.Length.ToString(CultureInfo.InvariantCulture),
                 ["TianzhengEntityCount"] = tianzhengEntities.Length.ToString(CultureInfo.InvariantCulture),
+                ["XiangyuanDetected"] = (xiangyuanClasses.Length > 0 || xiangyuanEntities.Length > 0).ToString(),
+                ["XiangyuanClassCount"] = xiangyuanClasses.Length.ToString(CultureInfo.InvariantCulture),
+                ["XiangyuanEntityCount"] = xiangyuanEntities.Length.ToString(CultureInfo.InvariantCulture),
                 ["RawDxfCapturedCustomRecordCount"] = rawScan.CapturedRecordCount.ToString(CultureInfo.InvariantCulture),
                 ["RawDxfTruncatedCustomRecordCount"] = rawScan.TruncatedRecordCount.ToString(CultureInfo.InvariantCulture),
                 ["RawDxfScanBinary"] = rawScan.IsBinaryDxf.ToString(),
@@ -95,7 +100,8 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
                     {
                         ["CustomEntityCount"] = customEntities.Length.ToString(CultureInfo.InvariantCulture),
                         ["ProxyGraphicEntityCount"] = customEntities.Count(entity => entity.Representation == CadCustomEntityRepresentation.ProxyGraphics).ToString(CultureInfo.InvariantCulture),
-                        ["TianzhengEntityCount"] = tianzhengEntities.Length.ToString(CultureInfo.InvariantCulture)
+                        ["TianzhengEntityCount"] = tianzhengEntities.Length.ToString(CultureInfo.InvariantCulture),
+                        ["XiangyuanEntityCount"] = xiangyuanEntities.Length.ToString(CultureInfo.InvariantCulture)
                     }));
 
                 if (extension == ".dxf" && rawScan.IsBinaryDxf)
