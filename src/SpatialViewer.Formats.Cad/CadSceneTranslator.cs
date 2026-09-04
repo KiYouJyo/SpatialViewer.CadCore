@@ -174,7 +174,7 @@ public sealed partial class CadSceneTranslator
         ObjectId id,
         CadProxyPolygon polygon,
         SceneStyle style,
-        IReadOnlyDictionary<string, string> metadata)
+        Dictionary<string, string> metadata)
     {
         var fillEnabled = !metadata.TryGetValue("ProxyFillOn", out var fillValue)
             || !bool.TryParse(fillValue, out var fillOn)
