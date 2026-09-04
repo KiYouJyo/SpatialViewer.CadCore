@@ -4,6 +4,23 @@ All notable CadCore changes are recorded here.
 
 ## Unreleased
 
+## 0.12.9 - 2026-09-04
+
+### Fixed
+- Restored explicit ObjectARX fill-state handling from `ProxySubentFillon`.
+- Added strict planar `ProxyMesh` / `ProxyShell` face preservation using face color, layer, marker and visibility evidence while retaining the original edge fallback.
+- Filled proxy surfaces now render face polygons first and their original edge evidence on top; malformed/non-planar face data falls back to edge-only rather than inventing fill geometry.
+- Explicit fill-off now suppresses `ProxyPolygon` fill while polyline primitives remain non-fillable.
+- Proxy surface faces participate in privacy-safe geometry layout/diff evidence and remain transform/clip aware.
+
+### Real-device regression
+- Addresses the v0.3.9 Xiangyuan acceptance result where land-use blocks remained outline-only after generic `ProxyPolygon` fill was restored. Investigation showed that ACadSharp already parses proxy fill state and mesh/shell face traits, while CadCore was discarding the entire face layer and preserving edges only.
+
+### Compatibility
+- CLR ABI remains `1.0.0.0`.
+- Host Contract remains `SpatialViewer.CadHost >=1.0.0,<2.0.0`.
+- Release manifest schema remains `2`.
+
 ## 0.12.8 - 2026-09-04
 
 ### Fixed
