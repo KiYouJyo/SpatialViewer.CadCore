@@ -68,7 +68,7 @@ public sealed class CadCustomHandleReferenceDiffTests
     public void MissingReferencesCannotProduceReferenceEvidence()
     {
         var before = Entity("300");
-        var after = Entity("301", new(330, "A"));
+        var after = Entity("301", new CadCustomHandleReference(330, "A"));
 
         var report = CadCustomHandleReferenceDiffer.Compare(before, after);
 
