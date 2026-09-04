@@ -116,7 +116,7 @@ public static class CadXiangyuanCandidateExperimentAnalyzer
                 candidate.CppClassName,
                 candidate.ApplicationName) == CadCustomObjectVendor.Unknown;
 
-    private static void ValidateRepeatedCandidate(CadXiangyuanConversionClassConsensus? candidate)
+    internal static void ValidateRepeatedCandidate(CadXiangyuanConversionClassConsensus? candidate)
     {
         ArgumentNullException.ThrowIfNull(candidate);
         if (!candidate.IsRepeatedRemovedUnknownEntityCandidate)
@@ -154,7 +154,7 @@ public static class CadXiangyuanCandidateExperimentAnalyzer
         }
     }
 
-    private static void ValidateEntity(
+    internal static void ValidateEntity(
         CadXiangyuanConversionClassConsensus candidate,
         CadCustomEntity entity,
         string parameterName)
@@ -173,7 +173,7 @@ public static class CadXiangyuanCandidateExperimentAnalyzer
         }
     }
 
-    private static void ValidateIdentity(
+    internal static void ValidateIdentity(
         CadXiangyuanConversionClassConsensus candidate,
         CadCustomExperimentIdentity identity,
         string parameterName)
