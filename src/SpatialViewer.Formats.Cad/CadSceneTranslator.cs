@@ -150,6 +150,7 @@ public sealed partial class CadSceneTranslator
         return primitive switch
         {
             CadProxyClipGroup clip when clip.ClipPolygon.Count >= 3 => ProxyClipGroupNode(id, clip, effectiveStyle, enriched),
+            CadProxySurfaceSet surface when surface.Faces.Count > 0 => ProxySurfaceSetNode(id, surface, effectiveStyle, enriched),
             CadProxyEdgeSet edgeSet when edgeSet.Edges.Count > 0 => ProxyEdgeSetNode(id, edgeSet, effectiveStyle, enriched),
             CadProxyPolyline polyline when polyline.Points.Count >= 2 => new SceneNode(id, new PolylineGeometry(polyline.Points), style: effectiveStyle, metadata: enriched),
             CadProxyLwPolyline polyline when polyline.Points.Count >= 2 => ProxyLwPolylineNode(id, polyline, effectiveStyle, enriched),
@@ -175,15 +176,18 @@ public sealed partial class CadSceneTranslator
         SceneStyle style,
         IReadOnlyDictionary<string, string> metadata)
     {
+        var fillEnabled = !metadata.TryGetValue("ProxyFillOn", out var fillValue)
+            || !bool.TryParse(fillValue, out var fillOn)
+            || fillOn;
         var enriched = new Dictionary<string, string>(metadata, StringComparer.Ordinal)
         {
-            ["ProxyPolygonFilled"] = bool.TrueString,
-            ["ProxyPolygonFillSource"] = "EffectiveProxyColor"
+            ["ProxyPolygonFilled"] = fillEnabled.ToString(),
+            ["ProxyPolygonFillSource"] = fillEnabled ? "EffectiveProxyColor" : "FillDisabled"
         };
         return new SceneNode(
             id,
             new PolygonGeometry(polygon.Points),
-            style: style with { Fill = style.Stroke },
+            style: fillEnabled ? style with { Fill = style.Stroke } : style with { Fill = null },
             metadata: enriched);
     }
 
@@ -191,6 +195,11 @@ public sealed partial class CadSceneTranslator
     {
         var style = inherited;
         metadata["ProxyPrimitiveTraitsApplied"] = primitive.Traits.HasOverrides.ToString();
+        if (primitive.Traits.FillOn is { } fillOn)
+        {
+            metadata["ProxyFillOn"] = fillOn.ToString();
+            metadata["ProxyFillStateExplicit"] = bool.TrueString;
+        }
 
         if (primitive.Traits.Color is { } color)
         {
@@ -242,6 +251,82 @@ public sealed partial class CadSceneTranslator
         {
             LocalClipPolygon = clip.ClipPolygon
         };
+    }
+
+    private static SceneNode? ProxySurfaceSetNode(
+        ObjectId id,
+        CadProxySurfaceSet surface,
+        SceneStyle style,
+        IReadOnlyDictionary<string, string> metadata)
+    {
+        var enriched = new Dictionary<string, string>(metadata, StringComparer.Ordinal)
+        {
+            ["ProxySurfaceKind"] = surface.ProxySurfaceKind,
+            ["ProxyFaceCount"] = surface.Faces.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["ProxySurfaceFilled"] = bool.TrueString,
+            ["ProxySurfaceFillSource"] = "ExplicitProxyFillState"
+        };
+
+        var children = new List<SceneNode>();
+        var invisibleCount = 0;
+        var silhouetteCount = 0;
+        for (var index = 0; index < surface.Faces.Count; index++)
+        {
+            var face = surface.Faces[index];
+            if (face.Points.Count < 3
+                || face.Points.Any(point => !double.IsFinite(point.X) || !double.IsFinite(point.Y)))
+                return null;
+
+            if (face.Evidence.Visibility == 0)
+            {
+                invisibleCount++;
+                continue;
+            }
+            if (face.Evidence.Visibility == 2) silhouetteCount++;
+
+            var faceMetadata = new Dictionary<string, string>(enriched, StringComparer.Ordinal)
+            {
+                ["ProxyFaceIndex"] = index.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            };
+            var faceStyle = style with { Fill = style.Stroke };
+
+            if (face.Evidence.RawColorIndex is { } rawColor)
+                faceMetadata["ProxyFaceRawColorIndex"] = rawColor.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (face.Evidence.Color is { } color)
+            {
+                faceMetadata.Remove(BackgroundAdaptiveStrokeKey);
+                faceMetadata.Remove("CadColorIndex");
+                faceMetadata.Remove("CadTrueColor");
+                AddColorMetadata(faceMetadata, color);
+                faceMetadata["ProxyFaceColorOverride"] = bool.TrueString;
+                var faceColor = ToHex(color);
+                faceStyle = faceStyle with { Stroke = faceColor, Fill = faceColor };
+            }
+            if (face.Evidence.LayerReference is { } layerReference)
+            {
+                faceMetadata["ProxyFaceLayerReference"] = layerReference.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                faceMetadata["ProxyFaceLayerReferenceUnresolved"] = bool.TrueString;
+            }
+            if (face.Evidence.MarkerId is { } markerId)
+                faceMetadata["ProxyFaceMarkerId"] = markerId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (face.Evidence.Visibility is { } visibility)
+                faceMetadata["ProxyFaceVisibility"] = visibility.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+            children.Add(new SceneNode(id, new PolygonGeometry(face.Points), style: faceStyle, metadata: faceMetadata));
+        }
+
+        enriched["ProxyFaceVisibleCount"] = children.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        enriched["ProxyFaceInvisibleCount"] = invisibleCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        enriched["ProxyFaceSilhouetteCount"] = silhouetteCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        var edgeNode = ProxyEdgeSetNode(
+            id,
+            new CadProxyEdgeSet(surface.Edges, surface.ProxySurfaceKind + "Edges"),
+            style with { Fill = null },
+            enriched);
+        if (edgeNode is not null) children.Add(edgeNode);
+
+        return children.Count == 0 ? null : new SceneNode(id, style: style, children: children, metadata: enriched);
     }
 
     private static SceneNode? ProxyEdgeSetNode(ObjectId id, CadProxyEdgeSet edgeSet, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
