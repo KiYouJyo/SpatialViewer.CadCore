@@ -257,7 +257,7 @@ public sealed partial class CadSceneTranslator
         ObjectId id,
         CadProxySurfaceSet surface,
         SceneStyle style,
-        IReadOnlyDictionary<string, string> metadata)
+        Dictionary<string, string> metadata)
     {
         var enriched = new Dictionary<string, string>(metadata, StringComparer.Ordinal)
         {
