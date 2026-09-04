@@ -343,11 +343,66 @@ public static class CadXiangyuanDocumentPairEvidenceAnalyzer
             throw new ArgumentException("Changed evidence counts cannot exceed comparable evidence counts.", parameterName);
         if (report.DxfChanges is null || report.DwgChanges is null || report.GeometryChanges is null || report.ReferenceChanges is null)
             throw new ArgumentException("Document-pair evidence change collections cannot be null.", parameterName);
+        if (report.DxfComparablePairCount > report.MatchedEntityCount
+            || report.DwgComparablePairCount > report.MatchedEntityCount
+            || report.GeometryComparablePairCount > report.MatchedEntityCount
+            || report.ReferenceComparablePairCount > report.MatchedEntityCount)
+            throw new ArgumentException("Comparable evidence counts cannot exceed matched entity count.", parameterName);
         if (report.DxfChanges.Count != report.DxfChangedPairCount
             || report.DwgChanges.Count != report.DwgChangedPairCount
             || report.GeometryChanges.Count != report.GeometryChangedPairCount
             || report.ReferenceChanges.Count != report.ReferenceChangedPairCount)
             throw new ArgumentException("Document-pair changed evidence counts do not match their collections.", parameterName);
+
+        foreach (var observation in report.DxfChanges)
+        {
+            ValidateObservationIdentity(report.Provenance, observation.Identity, parameterName);
+            if (observation.Status != CadDxfCustomPayloadDiffStatus.Comparable
+                || observation.ValueChanges.Count == 0
+                || !string.Equals(observation.BeforeFingerprint, observation.AfterFingerprint, StringComparison.Ordinal))
+                throw new ArgumentException("DXF document-pair evidence must contain only changed comparable same-schema observations.", parameterName);
+        }
+        foreach (var observation in report.DwgChanges)
+        {
+            ValidateObservationIdentity(report.Provenance, observation.Identity, parameterName);
+            if (observation.Status != CadDwgCustomObjectRecordDiffStatus.Comparable
+                || observation.ChangedRanges.Count == 0)
+                throw new ArgumentException("DWG document-pair evidence must contain only changed comparable observations.", parameterName);
+        }
+        foreach (var observation in report.GeometryChanges)
+        {
+            ValidateObservationIdentity(report.Provenance, observation.Identity, parameterName);
+            if (observation.Status != CadProxyGeometryDiffStatus.Comparable
+                || observation.ValueChanges.Count == 0
+                || !string.Equals(observation.BeforeLayoutFingerprint, observation.AfterLayoutFingerprint, StringComparison.Ordinal))
+                throw new ArgumentException("Geometry document-pair evidence must contain only changed comparable same-layout observations.", parameterName);
+        }
+        foreach (var observation in report.ReferenceChanges)
+        {
+            ValidateObservationIdentity(report.Provenance, observation.Identity, parameterName);
+            if (observation.Status != CadCustomHandleReferenceDiffStatus.Comparable
+                || observation.ValueChanges.Count == 0
+                || !string.Equals(observation.BeforeLayoutSignature, observation.AfterLayoutSignature, StringComparison.Ordinal))
+                throw new ArgumentException("Reference document-pair evidence must contain only changed comparable same-layout observations.", parameterName);
+        }
+    }
+
+    private static void ValidateObservationIdentity(
+        CadXiangyuanDocumentPairProvenance provenance,
+        CadCustomExperimentIdentity identity,
+        string parameterName)
+    {
+        ArgumentNullException.ThrowIfNull(identity, parameterName);
+        var vendor = CadCustomObjectClassifier.Classify(
+            identity.DxfName,
+            identity.CppClassName,
+            identity.ApplicationName);
+        if (provenance == CadXiangyuanDocumentPairProvenance.ExplicitXiangyuanIdentity
+            && vendor != CadCustomObjectVendor.Xiangyuan)
+            throw new ArgumentException("Explicit Xiangyuan document-pair evidence contains a non-Xiangyuan identity.", parameterName);
+        if (provenance == CadXiangyuanDocumentPairProvenance.RepeatedConversionCandidate
+            && vendor != CadCustomObjectVendor.Unknown)
+            throw new ArgumentException("Repeated-candidate document-pair evidence must retain Unknown vendor identity.", parameterName);
     }
 
     private static CadXiangyuanDocumentPairEvidenceReport Freeze(CadXiangyuanDocumentPairEvidenceReport report)
