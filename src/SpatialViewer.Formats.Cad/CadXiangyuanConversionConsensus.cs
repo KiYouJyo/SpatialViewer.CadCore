@@ -118,13 +118,13 @@ public static class CadXiangyuanConversionConsensus
             .ThenBy(item => item.ProxyGraphicKindSignature, StringComparer.Ordinal)
             .ToArray();
 
-        var report = new CadXiangyuanConversionConsensusReport(
+        var consensusReport = new CadXiangyuanConversionConsensusReport(
             CurrentSchemaVersion,
             materialized.Length,
             new ReadOnlyCollection<CadXiangyuanConversionClassConsensus>(classObservations),
             new ReadOnlyCollection<CadXiangyuanConversionProfileConsensus>(profileObservations));
-        ValidateConsensusReport(report, nameof(reports));
-        return report;
+        ValidateConsensusReport(consensusReport, nameof(reports));
+        return consensusReport;
     }
 
     public static string ToJson(CadXiangyuanConversionConsensusReport report)
