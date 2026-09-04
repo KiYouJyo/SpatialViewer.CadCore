@@ -4,6 +4,22 @@ All notable CadCore changes are recorded here.
 
 ## Unreleased
 
+## 0.12.8 - 2026-09-04
+
+### Fixed
+- Restored ObjectARX `ProxyPolygon` fill semantics in the reader-independent scene path. Proxy polygons now use the effective proxy color as both stroke and fill instead of being rendered as outline-only polygons.
+- Primitive ACI/TrueColor overrides now propagate to the proxy polygon fill as well as its stroke.
+- Kept `ProxyPolyline`, closed `ProxyLwPolyline`, circles/arcs and mesh/shell edge fallback unfilled, avoiding accidental flood-fill of ordinary linework.
+
+### Real-device regression
+- Fixes the SpatialViewer v0.3.8 / CadCore v0.12.7 Xiangyuan acceptance case where land-use parcel boundaries and legend colors were visible but the main land-use color blocks were missing.
+- The fix restores generic ObjectARX polygon display semantics only. It does not infer that every proxy polygon is a Xiangyuan parcel and does not add proprietary parcel semantics.
+
+### Compatibility
+- CLR ABI remains `1.0.0.0`.
+- Host Contract remains `SpatialViewer.CadHost >=1.0.0,<2.0.0`.
+- Release manifest schema remains `2`.
+
 ## 0.12.7 - 2026-09-04
 
 ### Added
