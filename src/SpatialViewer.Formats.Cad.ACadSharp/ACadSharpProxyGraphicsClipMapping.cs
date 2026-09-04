@@ -311,6 +311,13 @@ public static class ACadSharpProxyGraphicsClipMapping
                 arc.Radius * state.Scale,
                 NormalizeAngle(arc.StartRadians + state.RotationRadians),
                 arc.SweepRadians),
+            CadProxyEdgeSet edgeSet => new CadProxyEdgeSet(
+                edgeSet.Edges.Select(edge => edge with
+                {
+                    Start = state.Transform.Apply(edge.Start),
+                    End = state.Transform.Apply(edge.End)
+                }).ToArray(),
+                edgeSet.ProxyEdgeKind),
             CadProxyText text => new CadProxyText(
                 state.Transform.Apply(text.Origin),
                 text.Text,

@@ -150,6 +150,7 @@ public sealed partial class CadSceneTranslator
         return primitive switch
         {
             CadProxyClipGroup clip when clip.ClipPolygon.Count >= 3 => ProxyClipGroupNode(id, clip, effectiveStyle, enriched),
+            CadProxyEdgeSet edgeSet when edgeSet.Edges.Count > 0 => ProxyEdgeSetNode(id, edgeSet, effectiveStyle, enriched),
             CadProxyPolyline polyline when polyline.Points.Count >= 2 => new SceneNode(id, new PolylineGeometry(polyline.Points), style: effectiveStyle, metadata: enriched),
             CadProxyLwPolyline polyline when polyline.Points.Count >= 2 => ProxyLwPolylineNode(id, polyline, effectiveStyle, enriched),
             CadProxyPolygon polygon when polygon.Points.Count >= 3 => new SceneNode(id, new PolygonGeometry(polygon.Points), style: effectiveStyle, metadata: enriched),
@@ -223,6 +224,75 @@ public sealed partial class CadSceneTranslator
         {
             LocalClipPolygon = clip.ClipPolygon
         };
+    }
+
+    private static SceneNode? ProxyEdgeSetNode(ObjectId id, CadProxyEdgeSet edgeSet, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
+    {
+        var enriched = new Dictionary<string, string>(metadata, StringComparer.Ordinal)
+        {
+            ["ProxyEdgeSetKind"] = edgeSet.ProxyEdgeKind,
+            ["ProxyEdgeCount"] = edgeSet.Edges.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        };
+        var children = new List<SceneNode>();
+        var invisibleCount = 0;
+        var silhouetteCount = 0;
+
+        for (var index = 0; index < edgeSet.Edges.Count; index++)
+        {
+            var edge = edgeSet.Edges[index];
+            if (!double.IsFinite(edge.Start.X)
+                || !double.IsFinite(edge.Start.Y)
+                || !double.IsFinite(edge.End.X)
+                || !double.IsFinite(edge.End.Y)
+                || edge.Start.DistanceTo(edge.End) <= double.Epsilon)
+                return null;
+
+            if (edge.Evidence.Visibility == 0)
+            {
+                invisibleCount++;
+                continue;
+            }
+            if (edge.Evidence.Visibility == 2) silhouetteCount++;
+
+            var edgeMetadata = new Dictionary<string, string>(enriched, StringComparer.Ordinal)
+            {
+                ["ProxyEdgeIndex"] = index.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            };
+            var edgeStyle = style;
+
+            if (edge.Evidence.RawColorIndex is { } rawColor)
+                edgeMetadata["ProxyEdgeRawColorIndex"] = rawColor.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (edge.Evidence.Color is { } color)
+            {
+                edgeMetadata.Remove(BackgroundAdaptiveStrokeKey);
+                edgeMetadata.Remove("CadColorIndex");
+                edgeMetadata.Remove("CadTrueColor");
+                AddColorMetadata(edgeMetadata, color);
+                edgeMetadata["ProxyEdgeColorOverride"] = bool.TrueString;
+                edgeStyle = edgeStyle with { Stroke = ToHex(color) };
+            }
+            if (edge.Evidence.LayerReference is { } layerReference)
+            {
+                edgeMetadata["ProxyEdgeLayerReference"] = layerReference.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                edgeMetadata["ProxyEdgeLayerReferenceUnresolved"] = bool.TrueString;
+            }
+            if (edge.Evidence.LineTypeReference is { } lineTypeReference)
+            {
+                edgeMetadata["ProxyEdgeLineTypeReference"] = lineTypeReference.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                edgeMetadata["ProxyEdgeLineTypeReferenceUnresolved"] = bool.TrueString;
+            }
+            if (edge.Evidence.MarkerId is { } markerId)
+                edgeMetadata["ProxyEdgeMarkerId"] = markerId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (edge.Evidence.Visibility is { } visibility)
+                edgeMetadata["ProxyEdgeVisibility"] = visibility.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+            children.Add(new SceneNode(id, new LineGeometry(edge.Start, edge.End), style: edgeStyle, metadata: edgeMetadata));
+        }
+
+        enriched["ProxyEdgeVisibleCount"] = children.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        enriched["ProxyEdgeInvisibleCount"] = invisibleCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        enriched["ProxyEdgeSilhouetteCount"] = silhouetteCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return children.Count == 0 ? null : new SceneNode(id, style: style, children: children, metadata: enriched);
     }
 
     private static SceneNode ProxyLwPolylineNode(ObjectId id, CadProxyLwPolyline polyline, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
