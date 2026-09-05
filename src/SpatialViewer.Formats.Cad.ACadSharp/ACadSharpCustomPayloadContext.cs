@@ -11,12 +11,14 @@ internal static class ACadSharpCustomPayloadContext
 {
     private static readonly AsyncLocal<DxfCustomPayloadScanResult?> CurrentDxfScan = new();
     private static readonly AsyncLocal<DwgRawObjectCaptureState?> CurrentDwgCapture = new();
+    private static readonly AsyncLocal<ProxyGraphicsCommandCaptureState?> CurrentProxyCommandCapture = new();
 
     public static void Initialize(string filePath)
     {
         CurrentDwgCapture.Value?.Dispose();
         CurrentDxfScan.Value = ACadSharpDxfCustomPayloadReader.Scan(filePath);
         CurrentDwgCapture.Value = null;
+        CurrentProxyCommandCapture.Value = null;
     }
 
     public static void InitializeDwg(DwgReader reader, global::ACadSharp.CadDocument document)
@@ -24,6 +26,10 @@ internal static class ACadSharpCustomPayloadContext
         CurrentDwgCapture.Value?.Dispose();
         CurrentDwgCapture.Value = ACadSharpDwgRawObjectReader.Initialize(reader, document);
     }
+
+    public static void InitializeProxyGraphicsCommands(DwgReader reader)
+        => CurrentProxyCommandCapture.Value = ACadSharpProxyGraphicsCommandCapture.Capture(reader);
+
 
     public static CadDxfCustomPayload? FindDxfPayload(string handle)
     {
@@ -34,14 +40,20 @@ internal static class ACadSharpCustomPayloadContext
     public static CadDwgCustomObjectRecord? FindDwgObjectRecord(string handle)
         => CurrentDwgCapture.Value?.Find(handle);
 
+    public static CadProxyGraphicsCommandInventory? FindProxyCommandInventory(string handle)
+        => CurrentProxyCommandCapture.Value?.Find(handle);
+
+
     public static DxfCustomPayloadScanResult? Snapshot() => CurrentDxfScan.Value;
 
     public static DwgRawObjectCaptureSnapshot? SnapshotDwg() => CurrentDwgCapture.Value?.Snapshot();
+    public static ProxyGraphicsCommandCaptureSnapshot? SnapshotProxyCommands() => CurrentProxyCommandCapture.Value?.Snapshot();
 
     public static void Clear()
     {
         CurrentDwgCapture.Value?.Dispose();
         CurrentDxfScan.Value = null;
         CurrentDwgCapture.Value = null;
+        CurrentProxyCommandCapture.Value = null;
     }
 }
