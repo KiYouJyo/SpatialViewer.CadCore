@@ -60,6 +60,7 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
             var xiangyuanClasses = customClasses.Where(definition => definition.IsXiangyuan).ToArray();
             var xiangyuanEntities = customEntities.Where(entity => entity.IsXiangyuan).ToArray();
             var rawScan = ACadSharpCustomPayloadContext.Snapshot() ?? DxfCustomPayloadScanResult.Empty;
+            var proxyCommandCapture = ACadSharpCustomPayloadContext.SnapshotProxyCommands();
             var paperLayouts = layouts.Where(layout => layout.IsPaperSpace).ToArray();
             var metadata = new Dictionary<string, string>
             {
@@ -88,7 +89,16 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
                 ["RawDxfCapturedCustomRecordCount"] = rawScan.CapturedRecordCount.ToString(CultureInfo.InvariantCulture),
                 ["RawDxfTruncatedCustomRecordCount"] = rawScan.TruncatedRecordCount.ToString(CultureInfo.InvariantCulture),
                 ["RawDxfScanBinary"] = rawScan.IsBinaryDxf.ToString(),
-                ["RawDxfScanFailed"] = rawScan.ScanFailed.ToString()
+                ["RawDxfScanFailed"] = rawScan.ScanFailed.ToString(),
+                ["RawProxyCommandCaptureSupported"] = (proxyCommandCapture?.Supported == true).ToString(),
+                ["RawProxyCommandCaptureFailed"] = (proxyCommandCapture?.CaptureFailed == true).ToString(),
+                ["RawProxyCommandCapturedEntityCount"] = (proxyCommandCapture?.CapturedEntityCount ?? 0).ToString(CultureInfo.InvariantCulture),
+                ["RawProxyCommandMalformedEntityCount"] = (proxyCommandCapture?.MalformedEntityCount ?? 0).ToString(CultureInfo.InvariantCulture),
+                ["RawProxyUnknownCommandEntityCount"] = (proxyCommandCapture?.UnknownCommandEntityCount ?? 0).ToString(CultureInfo.InvariantCulture),
+                ["RawProxyUnknownCommandCount"] = (proxyCommandCapture?.UnknownCommandCount ?? 0).ToString(CultureInfo.InvariantCulture),
+                ["RawProxyUnknownTypeIds"] = proxyCommandCapture is null
+                    ? string.Empty
+                    : string.Join(';', proxyCommandCapture.UnknownTypeIds.Select(typeId => typeId.ToString(CultureInfo.InvariantCulture)))
             };
             if (customEntities.Length > 0)
             {
@@ -108,6 +118,21 @@ public sealed partial class ACadSharpCadImporter : IDocumentImporter
                     diagnostics.Add(new Diagnostic(DiagnosticSeverity.Warning, "CAD_CUSTOM_RAW_DXF_BINARY_UNAVAILABLE", "Application-defined entities were preserved, but raw proprietary group capture currently supports text DXF only."));
                 else if (extension == ".dxf" && rawScan.ScanFailed)
                     diagnostics.Add(new Diagnostic(DiagnosticSeverity.Warning, "CAD_CUSTOM_RAW_DXF_SCAN_FAILED", "Application-defined entities were preserved, but the raw proprietary group pre-scan failed. Native decoding must not assume that missing raw fields were absent from the source."));
+
+                if (proxyCommandCapture is { UnknownCommandCount: > 0 })
+                {
+                    diagnostics.Add(new Diagnostic(
+                        DiagnosticSeverity.Warning,
+                        "CAD_PROXY_GRAPHICS_UNKNOWN_COMMANDS",
+                        "Raw ObjectARX proxy graphics contain command types not implemented by the current ACadSharp reader. Visual fallback may therefore be incomplete.",
+                        new Dictionary<string, string>
+                        {
+                            ["UnknownCommandEntityCount"] = proxyCommandCapture.UnknownCommandEntityCount.ToString(CultureInfo.InvariantCulture),
+                            ["UnknownCommandCount"] = proxyCommandCapture.UnknownCommandCount.ToString(CultureInfo.InvariantCulture),
+                            ["UnknownTypeIds"] = string.Join(';', proxyCommandCapture.UnknownTypeIds.Select(typeId => typeId.ToString(CultureInfo.InvariantCulture))),
+                            ["CaptureMethod"] = proxyCommandCapture.CaptureMethod
+                        }));
+                }
             }
             if (entities.OfType<CadUnsupportedEntity>().Any()) diagnostics.Add(new Diagnostic(DiagnosticSeverity.Warning, "CAD_PARTIAL_IMPORT", $"Skipped {entities.OfType<CadUnsupportedEntity>().Count()} unsupported entity or entities."));
             var document = new SpatialViewer.Formats.Cad.CadDocument(Path.GetFileName(request.FilePath), extension.TrimStart('.').ToUpperInvariant(), source.Header.Version.ToString(), MapUnits(source.Header.InsUnits.ToString()), layers, blocks, entities, diagnostics, metadata, layouts)

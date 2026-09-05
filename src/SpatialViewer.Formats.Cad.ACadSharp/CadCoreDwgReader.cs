@@ -15,6 +15,7 @@ internal sealed class CadCoreDwgReader : DwgReader
     public override global::ACadSharp.CadDocument Read()
     {
         var document = base.Read();
+        ACadSharpCustomPayloadContext.InitializeProxyGraphicsCommands(this);
         ACadSharpCustomPayloadContext.InitializeDwg(this, document);
         return document;
     }
