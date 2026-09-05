@@ -47,6 +47,8 @@ public sealed partial class ACadSharpCadImporter
         var rawDwgObjectRecord = ACadSharpCustomPayloadContext.FindDwgObjectRecord(common.Handle);
         var rawScan = ACadSharpCustomPayloadContext.Snapshot();
         var rawDwgCapture = ACadSharpCustomPayloadContext.SnapshotDwg();
+        var proxyCommandInventory = ACadSharpCustomPayloadContext.FindProxyCommandInventory(common.Handle);
+        var proxyCommandCapture = ACadSharpCustomPayloadContext.SnapshotProxyCommands();
         var nativeSemantics = CadTianzhengSemanticDecoder.Decode(entity.ObjectName, definition, rawDxfPayload)
             ?? CadTianzhengStairSemanticDecoder.Decode(entity.ObjectName, definition, rawDxfPayload);
         var customVendor = definition?.Vendor ?? CadCustomObjectClassifier.Classify(entity.ObjectName);
@@ -73,12 +75,30 @@ public sealed partial class ACadSharpCadImporter
             ["RawDwgObjectRecordAvailable"] = (rawDwgObjectRecord is not null).ToString(),
             ["RawDwgCaptureSupported"] = (rawDwgCapture?.Supported == true).ToString(),
             ["RawDwgCaptureFailed"] = (rawDwgCapture?.CaptureFailed == true).ToString(),
+            ["RawProxyCommandInventoryAvailable"] = (proxyCommandInventory is not null).ToString(),
+            ["RawProxyCommandCaptureSupported"] = (proxyCommandCapture?.Supported == true).ToString(),
+            ["RawProxyCommandCaptureFailed"] = (proxyCommandCapture?.CaptureFailed == true).ToString(),
             ["CustomHandleReferenceCount"] = handleReferences.Count.ToString(CultureInfo.InvariantCulture),
             ["NativeSemanticsDecoded"] = (nativeSemantics is not null).ToString(),
             ["NativeSemanticEvidenceDecoded"] = (nativeSemantics is not null).ToString(),
             ["NativeSemanticCoverage"] = nativeSemantics?.Coverage.ToString() ?? "None",
             ["NativeSemanticDrawable2D"] = (nativeSemantics?.IsDrawable2D == true).ToString()
         };
+        if (proxyCommandInventory is not null)
+        {
+            metadata["RawProxyCommandDeclaredByteCount"] = proxyCommandInventory.DeclaredByteSize.ToString(CultureInfo.InvariantCulture);
+            metadata["RawProxyCommandDeclaredCount"] = proxyCommandInventory.DeclaredCommandCount.ToString(CultureInfo.InvariantCulture);
+            metadata["RawProxyCommandScannedCount"] = proxyCommandInventory.ScannedCommandCount.ToString(CultureInfo.InvariantCulture);
+            metadata["RawProxyCommandKnownCount"] = proxyCommandInventory.KnownCommandCount.ToString(CultureInfo.InvariantCulture);
+            metadata["RawProxyCommandUnknownCount"] = proxyCommandInventory.UnknownCommandCount.ToString(CultureInfo.InvariantCulture);
+            metadata["RawProxyCommandMalformed"] = proxyCommandInventory.IsMalformed.ToString();
+            metadata["RawProxyCommandTruncated"] = proxyCommandInventory.IsTruncated.ToString();
+            metadata["RawProxyCommandTypeSignature"] = proxyCommandInventory.TypeSignature;
+            metadata["RawProxyUnknownTypeIds"] = string.Join(
+                ';',
+                proxyCommandInventory.UnknownTypeIds.Select(typeId => typeId.ToString(CultureInfo.InvariantCulture)));
+        }
+
         if (rawDxfPayload is not null)
         {
             metadata["RawDxfGroupCount"] = rawDxfPayload.Groups.Count.ToString(CultureInfo.InvariantCulture);
