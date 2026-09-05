@@ -5,6 +5,8 @@ namespace SpatialViewer.Cad.Tests;
 
 public sealed class ProxyGraphicsCommandInventoryV01210Tests
 {
+    private static readonly int[] UnknownType51 = [51];
+    private static readonly int[] UnknownGapTypes = [15, 17, 21];
     [Fact]
     public void ScannerRetainsOnlyStructuralCommandFraming()
     {
@@ -21,7 +23,7 @@ public sealed class ProxyGraphicsCommandInventoryV01210Tests
         Assert.False(inventory.IsTruncated);
         Assert.Equal(2, inventory.KnownCommandCount);
         Assert.Equal(1, inventory.UnknownCommandCount);
-        Assert.Equal(new[] { 51 }, inventory.UnknownTypeIds);
+        Assert.Equal(UnknownType51, inventory.UnknownTypeIds);
         Assert.Equal("7@12x2;51@16x1", inventory.TypeSignature);
         Assert.Collection(
             inventory.Commands,
@@ -57,7 +59,7 @@ public sealed class ProxyGraphicsCommandInventoryV01210Tests
         var inventory = CadProxyGraphicsCommandScanner.Scan(bytes);
         var json = System.Text.Json.JsonSerializer.Serialize(inventory);
 
-        Assert.DoesNotContain(privateValue.ToString(), json, StringComparison.Ordinal);
+        Assert.DoesNotContain(privateValue.ToString(System.Globalization.CultureInfo.InvariantCulture), json, StringComparison.Ordinal);
         Assert.DoesNotContain(Convert.ToHexString(Enumerable.Repeat(privateValue, 24).ToArray()), json, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("51@32x1", inventory.TypeSignature);
     }
@@ -101,7 +103,7 @@ public sealed class ProxyGraphicsCommandInventoryV01210Tests
 
         var inventory = CadProxyGraphicsCommandScanner.Scan(bytes);
 
-        Assert.Equal(new[] { 15, 17, 21 }, inventory.UnknownTypeIds);
+        Assert.Equal(UnknownGapTypes, inventory.UnknownTypeIds);
         Assert.Equal(3, inventory.UnknownCommandCount);
         Assert.Equal(2, inventory.KnownCommandCount);
     }
