@@ -4,6 +4,27 @@ All notable CadCore changes are recorded here.
 
 ## Unreleased
 
+## 0.12.10 - 2026-09-05
+
+### Added
+- Added a privacy-safe raw ObjectARX Proxy Graphics command inventory that scans each retained DWG proxy stream only for record framing (`type id`, `record size`, sequence/occurrence and whether ACadSharp 3.7.1 knows the command).
+- Added per-custom-entity aggregate metadata for raw proxy command signatures and unknown command IDs/counts.
+- Added a document-level `CAD_PROXY_GRAPHICS_UNKNOWN_COMMANDS` diagnostic when raw proxy streams contain command types the current ACadSharp reader does not implement.
+- Added a reflection bridge over ACadSharp entity templates so command framing can be inspected after the normal reader completes without replacing DWG parsing.
+
+### Privacy and evidence boundary
+- Raw proxy payload bytes are never retained by the command inventory and are not emitted in diagnostics.
+- The inventory does not export drawing paths/names, handles, coordinates, colors, text, property values or proprietary payload contents.
+- Unknown command IDs remain anonymous structural evidence. v0.12.10 does not guess whether type 39+, 51 or any other ID represents polyPolygon, solid fill, gradient fill, hatch grouping or a Xiangyuan-specific command.
+
+### Real-device motivation
+- SpatialViewer v0.3.10 still showed the real Xiangyuan land-use plan as outlines only after standard ProxyPolygon, Mesh/Shell face and FillOn paths were restored. v0.12.10 is therefore a diagnostic release intended to identify commands that may be discarded inside the upstream proxy reader before CadCore sees them.
+
+### Compatibility
+- CLR ABI remains `1.0.0.0`.
+- Host Contract remains `SpatialViewer.CadHost >=1.0.0,<2.0.0`.
+- Release manifest schema remains `2`.
+
 ## 0.12.9 - 2026-09-04
 
 ### Fixed
