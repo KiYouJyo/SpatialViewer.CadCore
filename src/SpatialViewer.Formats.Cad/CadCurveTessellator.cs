@@ -88,17 +88,25 @@ internal static class CadCurveTessellator
     }
 
     private static Point2D[] Polyline(CadHatchPolylineEdge polyline)
+        => Polyline(polyline.Vertices, polyline.Bulges, polyline.IsClosed).ToArray();
+
+    internal static IReadOnlyList<Point2D> Polyline(
+        IReadOnlyList<Point2D> vertices,
+        IReadOnlyList<double> bulges,
+        bool isClosed)
     {
-        if (polyline.Vertices.Count < 2) return polyline.Vertices.ToArray();
+        if (vertices.Count < 2) return vertices.ToArray();
         var points = new List<Point2D>();
-        var segmentCount = polyline.IsClosed ? polyline.Vertices.Count : polyline.Vertices.Count - 1;
+        var segmentCount = isClosed ? vertices.Count : vertices.Count - 1;
         for (var index = 0; index < segmentCount; index++)
         {
-            var start = polyline.Vertices[index];
-            var end = polyline.Vertices[(index + 1) % polyline.Vertices.Count];
-            var bulge = index < polyline.Bulges.Count ? polyline.Bulges[index] : 0;
+            var start = vertices[index];
+            var end = vertices[(index + 1) % vertices.Count];
+            var bulge = index < bulges.Count ? bulges[index] : 0;
             Append(points, Bulge(start, end, bulge));
         }
+        if (isClosed && points.Count > 1 && points[^1].DistanceTo(points[0]) <= 1e-9)
+            points.RemoveAt(points.Count - 1);
         return points.ToArray();
     }
 
