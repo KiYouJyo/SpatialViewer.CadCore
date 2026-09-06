@@ -4,6 +4,28 @@ All notable CadCore changes are recorded here.
 
 ## Unreleased
 
+## 0.12.14 - 2026-09-06
+
+### Fixed
+- Fixed Xiangyuan `YD-CODE` overlay ordering: the real `YD-CODE` scene layer now renders last so opaque parcel fills from later CAD layers cannot cover generated parcel-code labels.
+- Increased the conservative parcel-code display height from 12% / max 4 drawing units to 18% / max 8 drawing units, keeping the label readable at whole-plan zoom while still scaling from parcel bounds.
+- Added explicit `XiangyuanCodeOverlayLayer` and `XiangyuanLandCodeOverlay` metadata for deterministic regression/debugging.
+
+### Evidence
+- The CadCore v0.12.13 compatibility report confirms the field machine is actually running 0.12.13, with all 115 `LZX_LAND` proxy primitives translated and zero unsupported commands.
+- Because v0.12.12 parcel fills are visible but v0.12.13 labels are not, the remaining failure is downstream of the shared LZX_LAND/YD-* gating. Rendering order is the first deterministic downstream difference: parcel fills live on many later scene layers, while synthetic labels were attached to the source `YD-CODE` layer at its original order.
+
+### Safety
+- The UI layer list remains independently alphabetically sorted; only scene draw order changes for `YD-CODE`.
+- `YD-CODE` visibility and CAD color continue to control generated labels.
+- Generic CAD text, block/attribute rendering, ordinary layer order, Xiangyuan parcel fills, Tianzheng and host ABI behavior remain unchanged.
+
+### Compatibility
+- CLR ABI remains `1.0.0.0`.
+- Host Contract remains `SpatialViewer.CadHost >=1.0.0,<2.0.0`.
+- Release manifest schema remains `2`.
+
+
 ## 0.12.13 - 2026-09-06
 
 ### Added

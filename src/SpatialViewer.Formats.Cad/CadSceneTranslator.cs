@@ -25,13 +25,18 @@ public sealed partial class CadSceneTranslator
                 .Cast<SceneNode>()
                 .ToList();
 
-            if (string.Equals(layer.Name, "YD-CODE", StringComparison.OrdinalIgnoreCase))
+            var isXiangyuanCodeLayer = string.Equals(layer.Name, "YD-CODE", StringComparison.OrdinalIgnoreCase);
+            if (isXiangyuanCodeLayer)
             {
                 var codeStyle = new SceneStyle(ToHex(effectiveLayerColor));
                 nodes.AddRange(BuildXiangyuanLandCodeFallbacks(document.ModelSpace, codeStyle));
+                layerMetadata["XiangyuanCodeOverlayLayer"] = bool.TrueString;
             }
 
-            return new SceneLayer(new Layer(layer.Name, layer.Name, index, layer.IsVisible, layer.IsLocked, layerMetadata), nodes);
+            // The UI sorts layer names independently. Keep the real YD-CODE identity/visibility,
+            // but render that annotation layer last so opaque parcel fills cannot cover its labels.
+            var renderOrder = isXiangyuanCodeLayer ? int.MaxValue : index;
+            return new SceneLayer(new Layer(layer.Name, layer.Name, renderOrder, layer.IsVisible, layer.IsLocked, layerMetadata), nodes);
         }).ToArray();
         return new Scene2D(sceneLayers);
     }
@@ -201,7 +206,7 @@ public sealed partial class CadSceneTranslator
             return false;
 
         var origin = InteriorPoint(points, minX, maxX, minY, maxY);
-        var textHeight = Math.Clamp(Math.Min(width, height) * 0.12, 0.8, 4.0);
+        var textHeight = Math.Clamp(Math.Min(width, height) * 0.18, 1.2, 8.0);
         var geometry = new TextGeometry(origin, code, textHeight)
         {
             FontFamily = "Segoe UI",
@@ -217,6 +222,7 @@ public sealed partial class CadSceneTranslator
             ["XiangyuanLandCodeDisplayFallback"] = bool.TrueString,
             ["XiangyuanLandCodeSource"] = "SourceLayerSuffix",
             ["XiangyuanLandCodeSourceLayer"] = custom.LayerName,
+            ["XiangyuanLandCodeOverlay"] = bool.TrueString,
             ["XiangyuanLandSemanticClaim"] = bool.FalseString
         };
         label = new SceneNode(custom.ObjectId, geometry, style: codeStyle, metadata: metadata);
