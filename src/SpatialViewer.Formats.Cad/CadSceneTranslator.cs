@@ -64,7 +64,7 @@ public sealed partial class CadSceneTranslator
             CadTextEntity text => CadTextSceneBuilder.Create(text, style, metadata),
             CadAttributeEntity attribute => AttributeNode(attribute, style, metadata),
             CadBlockReferenceEntity reference => BlockNode(reference, layers, blocks, effectiveColor, layerColor, stack, metadata),
-            CadCustomEntity custom => CustomEntityNode(custom, style, metadata),
+            CadCustomEntity custom => CustomEntityNode(custom, style, layerColor, metadata),
             _ => null
         };
     }
@@ -82,7 +82,11 @@ public sealed partial class CadSceneTranslator
         return new SceneNode(spline.ObjectId, new PathGeometry(points, spline.Spline.IsClosed || spline.Spline.IsPeriodic), style: style, metadata: enriched);
     }
 
-    private static SceneNode? CustomEntityNode(CadCustomEntity custom, SceneStyle style, IReadOnlyDictionary<string, string> metadata)
+    private static SceneNode? CustomEntityNode(
+        CadCustomEntity custom,
+        SceneStyle style,
+        CadColor resolvedLayerColor,
+        IReadOnlyDictionary<string, string> metadata)
     {
         if (custom.NativeSemantics is CadTianzhengWallSemantic wall)
             return TianzhengWallNode(custom, wall, style, metadata);
@@ -100,10 +104,52 @@ public sealed partial class CadSceneTranslator
             .Select(primitive => ProxyNode(custom.ObjectId, primitive, style, enriched))
             .Where(node => node is not null)
             .Cast<SceneNode>()
-            .ToArray();
-        return children.Length == 0
+            .ToList();
+
+        if (TryXiangyuanLandFillFallback(custom, resolvedLayerColor, enriched, out var fill))
+            children.Insert(0, fill);
+
+        return children.Count == 0
             ? null
             : new SceneNode(custom.ObjectId, style: style, children: children, metadata: enriched);
+    }
+
+    private static bool TryXiangyuanLandFillFallback(
+        CadCustomEntity custom,
+        CadColor resolvedLayerColor,
+        IReadOnlyDictionary<string, string> metadata,
+        out SceneNode fill)
+    {
+        fill = null!;
+
+        var definition = custom.ClassDefinition;
+        if (!custom.IsXiangyuan
+            || !string.Equals(definition?.DxfName, "LZX_LAND", StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(definition?.CppClassName, "AcdbLzxLand", StringComparison.OrdinalIgnoreCase)
+            || !custom.LayerName.StartsWith("YD-", StringComparison.OrdinalIgnoreCase)
+            || custom.ProxyPrimitives.Count != 1
+            || custom.ProxyPrimitives[0] is not CadProxyLwPolyline { IsClosed: true } boundary
+            || boundary.Points.Count < 3)
+            return false;
+
+        var points = CadCurveTessellator.Polyline(boundary.Points, boundary.Bulges, true);
+        if (points.Count < 3 || points.Any(point => !double.IsFinite(point.X) || !double.IsFinite(point.Y)))
+            return false;
+
+        var fillColor = ToHex(resolvedLayerColor);
+        var fillMetadata = new Dictionary<string, string>(metadata, StringComparer.Ordinal)
+        {
+            ["XiangyuanLandDisplayFallback"] = bool.TrueString,
+            ["XiangyuanLandFillSource"] = "ResolvedCadLayerColor",
+            ["XiangyuanLandBoundarySource"] = "ClosedProxyLwPolyline",
+            ["XiangyuanLandSemanticClaim"] = bool.FalseString
+        };
+        fill = new SceneNode(
+            custom.ObjectId,
+            new PolygonGeometry(points),
+            style: new SceneStyle(fillColor, 0, fillColor),
+            metadata: fillMetadata);
+        return true;
     }
 
     private static SceneNode? TianzhengWallNode(CadCustomEntity custom, CadTianzhengWallSemantic wall, SceneStyle style, IReadOnlyDictionary<string, string> metadata)

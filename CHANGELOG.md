@@ -4,6 +4,30 @@ All notable CadCore changes are recorded here.
 
 ## Unreleased
 
+## 0.12.12 - 2026-09-06
+
+### Added
+- Added a narrowly-scoped Xiangyuan `LZX_LAND / AcdbLzxLand` display fallback for the real-device case where ObjectARX proxy graphics expose only a closed lightweight-polyline boundary and no fillable primitive.
+- When the object has explicit Xiangyuan identity, lives on a `YD-*` CAD layer, contains exactly one closed `CadProxyLwPolyline`, and has no native semantic decoder, CadCore renders a background polygon using the resolved CAD layer color while keeping the original proxy outline and proxy subentity color on top.
+- Bulged boundaries reuse the existing CAD bulge tessellator for the display-only fill polygon; the proxy outline remains analytic.
+
+### Evidence and scope
+- The SpatialViewer v0.4.2 + CadCore v0.12.11 field report shows 115/115 `LZX_LAND` entities translated successfully, with zero unsupported proxy graphics and only `SubentColor + SubentMarker + SubentFillon + LwPolyine` in the proxy stream.
+- Because the real proxy stream contains no Polygon/Mesh/Shell/Hatch/Text primitive, the color block cannot be recovered from generic proxy fill semantics alone.
+- The fallback uses the drawing's already-resolved layer color; it does not derive or guess a land-use code, parcel number, FAR, density, green-rate, height, label or other proprietary attribute.
+
+### Safety
+- Generic ObjectARX polyline behavior is unchanged: closed `CadProxyLwPolyline` remains non-fillable.
+- The fallback is gated by exact `LZX_LAND / AcdbLzxLand` identity plus explicit Xiangyuan classification and a `YD-*` layer.
+- Scene metadata marks the fill as `XiangyuanLandDisplayFallback=True` and `XiangyuanLandSemanticClaim=False`.
+- Existing ordinary CAD, Tianzheng, Rhino-facing host behavior, polygon/surface fills and proxy outline rendering remain unchanged.
+
+### Compatibility
+- CLR ABI remains `1.0.0.0`.
+- Host Contract remains `SpatialViewer.CadHost >=1.0.0,<2.0.0`.
+- Release manifest schema remains `2`.
+
+
 ## 0.12.11 - 2026-09-06
 
 ### Fixed
