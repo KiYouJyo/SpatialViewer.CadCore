@@ -4,6 +4,26 @@ All notable CadCore changes are recorded here.
 
 ## Unreleased
 
+## 0.12.10 - 2026-09-06
+
+### Added
+- Added a privacy-safe raw ObjectARX Proxy Graphics command scanner that records only structural command framing, command type IDs, record sizes, repeat counts and known/unknown classification.
+- Captures raw proxy-command framing from ACadSharp template data and after DWG read, then carries the resulting inventory through the reader-independent custom-entity metadata.
+- Added document-level aggregate diagnostics for raw proxy-command capture support/failure, malformed or truncated streams, unknown-command entity/count totals and unknown type IDs.
+- Added focused regression coverage for unknown enum gaps, malformed/truncated command records, deterministic signatures and proof that raw payload bytes are not retained.
+
+### Integration
+- Enables SpatialViewer v0.4.2 to export a privacy-safe CAD compatibility report from the loaded document, including aggregate custom-object/proxy evidence needed for real Xiangyuan and other ObjectARX compatibility debugging.
+- The diagnostic inventory is additive: existing proxy rendering, conservative fallback behavior and drawing display semantics are unchanged.
+
+### Privacy and compatibility
+- The scanner does not retain raw proxy payload bytes, drawing paths/names, text, coordinates, handles, layer names or proprietary property values.
+- Unknown commands remain structural evidence only and are not promoted to proprietary semantic fields.
+- CLR ABI remains `1.0.0.0`.
+- Host Contract remains `SpatialViewer.CadHost >=1.0.0,<2.0.0`.
+- Release manifest schema remains `2`.
+
+
 ## 0.12.9 - 2026-09-04
 
 ### Fixed
