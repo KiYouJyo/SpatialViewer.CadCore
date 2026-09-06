@@ -23,7 +23,14 @@ public sealed partial class CadSceneTranslator
                 .Select(entity => ToNode(entity, layers, blocks, null, null, new HashSet<string>(StringComparer.OrdinalIgnoreCase)))
                 .Where(node => node is not null)
                 .Cast<SceneNode>()
-                .ToArray();
+                .ToList();
+
+            if (string.Equals(layer.Name, "YD-CODE", StringComparison.OrdinalIgnoreCase))
+            {
+                var codeStyle = new SceneStyle(ToHex(effectiveLayerColor));
+                nodes.AddRange(BuildXiangyuanLandCodeFallbacks(document.ModelSpace, codeStyle));
+            }
+
             return new SceneLayer(new Layer(layer.Name, layer.Name, index, layer.IsVisible, layer.IsLocked, layerMetadata), nodes);
         }).ToArray();
         return new Scene2D(sceneLayers);
@@ -150,6 +157,120 @@ public sealed partial class CadSceneTranslator
             style: new SceneStyle(fillColor, 0, fillColor),
             metadata: fillMetadata);
         return true;
+    }
+
+    private static IEnumerable<SceneNode> BuildXiangyuanLandCodeFallbacks(
+        IEnumerable<CadEntity> modelSpace,
+        SceneStyle codeStyle)
+    {
+        foreach (var custom in modelSpace.OfType<CadCustomEntity>())
+        {
+            if (!TryXiangyuanLandCodeFallback(custom, codeStyle, out var label)) continue;
+            yield return label;
+        }
+    }
+
+    private static bool TryXiangyuanLandCodeFallback(
+        CadCustomEntity custom,
+        SceneStyle codeStyle,
+        out SceneNode label)
+    {
+        label = null!;
+        var definition = custom.ClassDefinition;
+        if (custom.NativeSemantics is not null
+            || !custom.IsXiangyuan
+            || !string.Equals(definition?.DxfName, "LZX_LAND", StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(definition?.CppClassName, "AcdbLzxLand", StringComparison.OrdinalIgnoreCase)
+            || !TryLandUseCodeFromLayer(custom.LayerName, out var code)
+            || custom.ProxyPrimitives.Count != 1
+            || custom.ProxyPrimitives[0] is not CadProxyLwPolyline { IsClosed: true } boundary
+            || boundary.Points.Count < 3)
+            return false;
+
+        var points = CadCurveTessellator.Polyline(boundary.Points, boundary.Bulges, true);
+        if (points.Count < 3 || points.Any(point => !double.IsFinite(point.X) || !double.IsFinite(point.Y)))
+            return false;
+
+        var minX = points.Min(point => point.X);
+        var maxX = points.Max(point => point.X);
+        var minY = points.Min(point => point.Y);
+        var maxY = points.Max(point => point.Y);
+        var width = maxX - minX;
+        var height = maxY - minY;
+        if (!double.IsFinite(width) || !double.IsFinite(height) || width <= 1e-9 || height <= 1e-9)
+            return false;
+
+        var origin = InteriorPoint(points, minX, maxX, minY, maxY);
+        var textHeight = Math.Clamp(Math.Min(width, height) * 0.12, 0.8, 4.0);
+        var geometry = new TextGeometry(origin, code, textHeight)
+        {
+            FontFamily = "Segoe UI",
+            WidthFactor = 1,
+            HorizontalAlignment = TextHorizontalAlignment2D.Center,
+            VerticalAlignment = TextVerticalAlignment2D.Middle
+        };
+        var metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["SourceFormat"] = "CAD",
+            ["CadType"] = "XiangyuanLandCodeDisplayFallback",
+            ["Layer"] = "YD-CODE",
+            ["XiangyuanLandCodeDisplayFallback"] = bool.TrueString,
+            ["XiangyuanLandCodeSource"] = "SourceLayerSuffix",
+            ["XiangyuanLandCodeSourceLayer"] = custom.LayerName,
+            ["XiangyuanLandSemanticClaim"] = bool.FalseString
+        };
+        label = new SceneNode(custom.ObjectId, geometry, style: codeStyle, metadata: metadata);
+        return true;
+    }
+
+    private static bool TryLandUseCodeFromLayer(string layerName, out string code)
+    {
+        code = string.Empty;
+        if (string.IsNullOrWhiteSpace(layerName)
+            || !layerName.StartsWith("YD-", StringComparison.OrdinalIgnoreCase)
+            || layerName.Length <= 3
+            || string.Equals(layerName, "YD-CODE", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var candidate = layerName[3..].Trim();
+        if (candidate.Length is < 1 or > 16
+            || candidate.Any(character => !(char.IsAsciiLetterOrDigit(character) || character is '-' or '+' or '/')))
+            return false;
+
+        code = candidate.ToUpperInvariant();
+        return true;
+    }
+
+    private static Point2D InteriorPoint(
+        IReadOnlyList<Point2D> polygon,
+        double minX,
+        double maxX,
+        double minY,
+        double maxY)
+    {
+        var scanY = (minY + maxY) / 2;
+        var intersections = new List<double>();
+        for (var index = 0; index < polygon.Count; index++)
+        {
+            var first = polygon[index];
+            var second = polygon[(index + 1) % polygon.Count];
+            if ((first.Y > scanY) == (second.Y > scanY)) continue;
+            var x = first.X + ((scanY - first.Y) * (second.X - first.X) / (second.Y - first.Y));
+            if (double.IsFinite(x)) intersections.Add(x);
+        }
+
+        intersections.Sort();
+        var bestWidth = double.NegativeInfinity;
+        var bestX = (minX + maxX) / 2;
+        for (var index = 0; index + 1 < intersections.Count; index += 2)
+        {
+            var segmentWidth = intersections[index + 1] - intersections[index];
+            if (segmentWidth <= bestWidth) continue;
+            bestWidth = segmentWidth;
+            bestX = (intersections[index] + intersections[index + 1]) / 2;
+        }
+
+        return new Point2D(bestX, scanY);
     }
 
     private static SceneNode? TianzhengWallNode(CadCustomEntity custom, CadTianzhengWallSemantic wall, SceneStyle style, IReadOnlyDictionary<string, string> metadata)

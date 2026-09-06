@@ -4,6 +4,31 @@ All notable CadCore changes are recorded here.
 
 ## Unreleased
 
+## 0.12.13 - 2026-09-06
+
+### Added
+- Added a strictly-gated Xiangyuan land-code display fallback on the dedicated `YD-CODE` scene layer.
+- For explicit `LZX_LAND / AcdbLzxLand` parcels whose source layer is `YD-<code>`, CadCore derives the display label from the layer suffix (for example `YD-A33 -> A33`) and places it inside the already-decoded closed proxy boundary.
+- Generated labels use the resolved CAD color of the real `YD-CODE` layer, so existing layer visibility/color controls continue to work.
+- Label placement uses a polygon-interior horizontal scan over the tessellated parcel boundary; text height scales conservatively with the parcel's local bounds.
+
+### Evidence and scope
+- The v0.12.12 field acceptance confirms parcel color blocks are now correct while parcel codes remain absent.
+- The same drawing exposes dedicated `YD-A33`, `YD-B1`, `YD-G1`, etc. parcel layers plus a separate `YD-CODE` layer, while the `LZX_LAND` Proxy Graphics stream contains no Text primitive.
+- The fallback therefore restores only the code already encoded by the source CAD layer identity; it does not decode or guess private `LZX_LAND` payload fields.
+
+### Safety
+- Generic CAD text, blocks, attributes and ObjectARX proxy text are unchanged.
+- Non-Xiangyuan objects, non-`LZX_LAND` classes, non-`YD-*` layers and `YD-CODE` itself do not produce synthetic labels.
+- Scene metadata marks generated text as `XiangyuanLandCodeDisplayFallback=True` and `XiangyuanLandSemanticClaim=False`.
+- Hiding the real `YD-CODE` layer hides the generated labels.
+
+### Compatibility
+- CLR ABI remains `1.0.0.0`.
+- Host Contract remains `SpatialViewer.CadHost >=1.0.0,<2.0.0`.
+- Release manifest schema remains `2`.
+
+
 ## 0.12.12 - 2026-09-06
 
 ### Added
