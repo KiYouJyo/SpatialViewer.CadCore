@@ -78,7 +78,11 @@ public static class ACadSharpProxyGraphicsMapping
     }
 
     internal static bool IsHandledTraitCommand(IProxyGeometry graphic)
-        => graphic is ProxySubentColor or ProxySubentTrueColor or ProxySubentLineWeight or ProxySubentFillon;
+        => graphic is ProxySubentColor
+            or ProxySubentTrueColor
+            or ProxySubentLineWeight
+            or ProxySubentFillon
+            or ProxySubentMarker;
 
     internal static bool TryApplyTraitCommand(IProxyGeometry graphic, ref CadProxyTraits traits)
     {
@@ -120,6 +124,10 @@ public static class ACadSharpProxyGraphicsMapping
 
             case ProxySubentFillon fill:
                 traits = traits with { FillOn = fill.IsOn };
+                return true;
+
+            case ProxySubentMarker marker:
+                traits = traits with { MarkerId = marker.MarkerIndex };
                 return true;
 
             case ProxySubentLineWeight lineWeight:

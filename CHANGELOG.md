@@ -4,6 +4,27 @@ All notable CadCore changes are recorded here.
 
 ## Unreleased
 
+## 0.12.11 - 2026-09-06
+
+### Fixed
+- Enabled ObjectARX proxy-graphics decoding in the real CadCore DWG reader instead of inheriting ACadSharp 3.7.1's viewer-hostile default `IgnoreProxyGraphics = true`.
+- Preserved `ProxySubentMarker` as display/selection provenance so marker commands no longer inflate unsupported-command counts for otherwise drawable proxy streams.
+
+### Xiangyuan real-device evidence
+- SpatialViewer v0.4.2 compatibility evidence for the failing land-use drawing reports 115 `LZX_LAND / AcdbLzxLand` objects and 460 well-framed raw proxy commands.
+- Every observed object uses the same four-command family: `SubentColor (14)`, `SubentMarker (19)`, `SubentFillon (20)`, and `LwPolyine (33)`.
+- Type 33 is an ACadSharp-known lightweight-polyline proxy command, not an unknown opcode. v0.12.11 therefore fixes the reader gate first so those commands can reach the existing proxy mapper and the next compatibility report can distinguish translated lightweight polylines from width/normal/thickness cases that are still withheld.
+
+### Safety
+- Closed proxy polylines are not force-filled merely because `FillOn` is present. Autodesk ObjectARX defines polyline primitives as non-fillable even when geometrically closed, so v0.12.11 does not invent polygon semantics.
+- Existing polygon, mesh/shell fill, clip, transform, text and ordinary CAD rendering behavior remains unchanged.
+
+### Compatibility
+- CLR ABI remains `1.0.0.0`.
+- Host Contract remains `SpatialViewer.CadHost >=1.0.0,<2.0.0`.
+- Release manifest schema remains `2`.
+
+
 ## 0.12.10 - 2026-09-06
 
 ### Added

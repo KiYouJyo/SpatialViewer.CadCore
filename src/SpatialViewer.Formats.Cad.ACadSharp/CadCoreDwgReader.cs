@@ -10,6 +10,10 @@ internal sealed class CadCoreDwgReader : DwgReader
 {
     public CadCoreDwgReader(string filePath) : base(filePath)
     {
+        // ACadSharp defaults IgnoreProxyGraphics to true. A viewer must retain ObjectARX
+        // display fallbacks for application-defined entities, so enable proxy decoding here.
+        Configuration.IgnoreProxyGraphics = false;
+        Configuration.KeepUnknownEntities = true;
     }
 
     public override global::ACadSharp.CadDocument Read()

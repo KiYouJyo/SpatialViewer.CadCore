@@ -7,9 +7,18 @@ namespace SpatialViewer.Formats.Cad;
 /// Null values inherit the containing CAD custom entity's already-resolved presentation.
 /// LayerIndex is retained as provenance until the source reader can prove an index-to-layer mapping.
 /// </summary>
-public readonly record struct CadProxyTraits(CadColor? Color = null, int? LineWeight = null, int? LayerIndex = null, bool? FillOn = null)
+public readonly record struct CadProxyTraits(
+    CadColor? Color = null,
+    int? LineWeight = null,
+    int? LayerIndex = null,
+    bool? FillOn = null,
+    int? MarkerId = null)
 {
-    public bool HasOverrides => Color is not null || LineWeight is not null || LayerIndex is not null || FillOn is not null;
+    public bool HasOverrides => Color is not null
+        || LineWeight is not null
+        || LayerIndex is not null
+        || FillOn is not null
+        || MarkerId is not null;
 }
 
 /// <summary>

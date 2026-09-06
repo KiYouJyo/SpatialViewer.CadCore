@@ -200,6 +200,10 @@ public sealed partial class CadSceneTranslator
             metadata["ProxyFillOn"] = fillOn.ToString();
             metadata["ProxyFillStateExplicit"] = bool.TrueString;
         }
+        if (primitive.Traits.MarkerId is { } markerId)
+        {
+            metadata["ProxyMarkerId"] = markerId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
 
         if (primitive.Traits.Color is { } color)
         {
