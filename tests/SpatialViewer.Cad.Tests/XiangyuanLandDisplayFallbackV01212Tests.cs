@@ -5,6 +5,7 @@ namespace SpatialViewer.Cad.Tests;
 
 public sealed class XiangyuanLandDisplayFallbackV01212Tests
 {
+    private static readonly double[] ZeroBulges = { 0d, 0d, 0d, 0d };
     [Fact]
     public void LzxLandUsesResolvedYdLayerColorForDisplayFillAndKeepsProxyOutline()
     {
@@ -25,7 +26,7 @@ public sealed class XiangyuanLandDisplayFallbackV01212Tests
                 new Point2D(10, 8),
                 new Point2D(0, 8)
             },
-            new[] { 0d, 0d, 0d, 0d },
+            ZeroBulges,
             true)
         {
             Traits = new CadProxyTraits(Color: CadColor.FromAci(7), FillOn: true, MarkerId: 17)
@@ -73,7 +74,7 @@ public sealed class XiangyuanLandDisplayFallbackV01212Tests
                         new Point2D(10, 8),
                         new Point2D(0, 8)
                     },
-                    new[] { 0d, 0d, 0d, 0d },
+                    ZeroBulges,
                     true)
             }
         };
@@ -112,7 +113,7 @@ public sealed class XiangyuanLandDisplayFallbackV01212Tests
                         new Point2D(10, 8),
                         new Point2D(0, 8)
                     },
-                    new[] { 0d, 0d, 0d, 0d },
+                    ZeroBulges,
                     true)
             }
         };
